@@ -2444,14 +2444,8 @@ class UiTweaksPlugin(BasePlugin):
                     pass
 
     def _check_for_updates_on_load(self):
-        last_check = self.get_setting("last_update_check", 0)
-        current_time = int(time.time())
-        check_interval = 24 * 60 * 60
-        
-        if current_time - last_check >= check_interval:
-            self.log("Auto-checking for UiTweaks updates...")
-            self._check_for_updates(show_on_load=True)
-            self.set_setting("last_update_check", current_time)
+        self.log("Auto-checking for UiTweaks updates...")
+        self._check_for_updates(show_on_load=True)
     
     def _check_for_updates(self, show_on_load=False):
         if self.checking_update:
