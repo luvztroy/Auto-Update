@@ -1539,7 +1539,8 @@ class UiTweaksPlugin(BasePlugin):
                                             bottom_text=get_text("localization_bottom_text", "This process only happens once. After downloading, the files are saved locally to give you seamless access to UiTweaks in your language anytime."),
                                             show_language_selector=False,
                                             available_languages=quantahut.available_languages,
-                                            show_user_avatar=False
+                                            show_user_avatar=False,
+                                            description_centered=True
                                         )
                                     run_on_ui_thread(show_available_sheet)
                                 else:
@@ -1558,7 +1559,8 @@ class UiTweaksPlugin(BasePlugin):
                                     bottom_text=get_text("localization_continue_text", "The plugin will continue to work in English. Check back later for localization updates."),
                                     show_language_selector=False,
                                     available_languages=quantahut.available_languages,
-                                    show_user_avatar=False
+                                    show_user_avatar=False,
+                                    description_centered=True
                                 )
                             run_on_ui_thread(show_unavailable_sheet)
                     except Exception as e:
@@ -2384,7 +2386,8 @@ class UiTweaksPlugin(BasePlugin):
             button_text=get_text("understood", "Understood"),
             bottom_text=get_text("donation_info_footer", "Thank you for considering supporting the development of UiTweaks!"),
             show_language_selector=False,
-            show_user_avatar=False
+            show_user_avatar=False,
+            description_centered=True
         )
     
     def on_app_event(self, event_type: AppEvent):
@@ -4114,7 +4117,8 @@ class UiTweaksPlugin(BasePlugin):
                 bottom_text=get_text("performance_warning_footer", 
                     "For optimal performance, consider reviewing your enabled features regularly and keeping only what you need active."),
                 show_language_selector=False,
-                show_user_avatar=False
+                show_user_avatar=False,
+                description_centered=True
             )
         except Exception as e:
             self.log(f"Error showing performance warning: {e}")
