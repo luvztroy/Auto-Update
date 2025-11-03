@@ -1474,6 +1474,12 @@ class UiTweaksPlugin(BasePlugin):
         global uitweaks_plugin_instance
         uitweaks_plugin_instance = self
         
+        self.update_available = False
+        self.latest_version = None
+        self.changelog = None
+        self.download_url = None
+        self.checking_update = False
+        
         try:
             locale_controller = LocaleController.getInstance()
             current_language = locale_controller.getCurrentLocaleInfo().getLangCode()
@@ -1606,6 +1612,8 @@ class UiTweaksPlugin(BasePlugin):
             run_on_ui_thread(self._perform_heavy_operations, 3000)
         
         self._start_memory_monitoring()
+        
+        self._check_for_updates_on_load()
 
     def _setup_select_all_dialogs(self):
         try:
@@ -2434,6 +2442,179 @@ class UiTweaksPlugin(BasePlugin):
                     Handler(Looper.getMainLooper()).postDelayed(RefreshDrawerRunnable(), 500)
                 except Exception:
                     pass
+
+    def _check_for_updates_on_load(self):
+        last_check = self.get_setting("last_update_check", 0)
+        current_time = int(time.time())
+        check_interval = 24 * 60 * 60
+        
+        if current_time - last_check >= check_interval:
+            self.log("Auto-checking for UiTweaks updates...")
+            self._check_for_updates(show_on_load=True)
+            self.set_setting("last_update_check", current_time)
+    
+    def _check_for_updates(self, show_on_load=False):
+        if self.checking_update:
+            self.log("Already checking for updates...")
+            return
+        
+        required_quantahut_version = "1.4.6"
+        if hasattr(quantahut, '__version__'):
+            current_qh_version = quantahut.__version__
+            if self._compare_versions(current_qh_version, required_quantahut_version) < 0:
+                self.log(f"QuantaHut {current_qh_version} is outdated (need {required_quantahut_version}+), skipping UiTweaks update check")
+                return
+        
+        self.checking_update = True
+        
+        def check_thread():
+            try:
+                self.log("Checking for UiTweaks updates from GitHub...")
+                
+                version_url = "https://raw.githubusercontent.com/luvztroy/Auto-Update/main/changelog.json"
+                self.log(f"Fetching: {version_url}")
+                
+                with urllib.request.urlopen(version_url, timeout=10) as response:
+                    if response.getcode() != 200:
+                        raise Exception(f"HTTP {response.getcode()}")
+                    
+                    version_data = json.loads(response.read().decode('utf-8'))
+                    
+                    self.latest_version = version_data.get("version", "0.0.0")
+                    self.changelog = version_data.get("changelog_text", "No changelog available")
+                    sticker_pack = version_data.get("sticker_pack")
+                    sticker_index = version_data.get("sticker_index")
+                    sticker_circle = version_data.get("sticker_circle", False)
+                    sticker_size = version_data.get("sticker_size", 160)
+                    
+                    self.download_url = "https://raw.githubusercontent.com/luvztroy/Auto-Update/main/UiTweaks.plugin"
+                    
+                    self.log(f"Latest version: {self.latest_version}")
+                    self.log(f"Current version: {__version__}")
+                    
+                    if self._is_newer_version(self.latest_version, __version__):
+                        self.update_available = True
+                        self.log("UiTweaks update available!")
+                        
+                        if show_on_load:
+                            run_on_ui_thread(lambda: self._show_update_bottom_sheet(
+                                sticker_pack, sticker_index, sticker_circle, sticker_size
+                            ))
+                    else:
+                        self.update_available = False
+                        self.log("UiTweaks is up to date")
+                
+            except Exception as e:
+                self.log(f"Error checking UiTweaks updates: {e}")
+            finally:
+                self.checking_update = False
+        
+        thread = threading.Thread(target=check_thread)
+        thread.daemon = True
+        thread.start()
+    
+    def _compare_versions(self, version1: str, version2: str) -> int:
+        try:
+            def clean_version(version):
+                version = version.split('-')[0].split(' ')[0].strip()
+                return version
+            
+            v1_clean = clean_version(version1)
+            v2_clean = clean_version(version2)
+            
+            v1_parts = [int(x) for x in v1_clean.split('.')]
+            v2_parts = [int(x) for x in v2_clean.split('.')]
+            
+            max_len = max(len(v1_parts), len(v2_parts))
+            v1_parts += [0] * (max_len - len(v1_parts))
+            v2_parts += [0] * (max_len - len(v2_parts))
+            
+            if v1_parts > v2_parts:
+                return 1
+            elif v1_parts < v2_parts:
+                return -1
+            else:
+                return 0
+        except Exception as e:
+            self.log(f"Error comparing versions: {e}")
+            return 0
+    
+    def _is_newer_version(self, latest: str, current: str) -> bool:
+        return self._compare_versions(latest, current) > 0
+    
+    def _show_update_bottom_sheet(self, sticker_pack, sticker_index, sticker_circle, sticker_size):
+        if not self.update_available:
+            return
+        
+        self.log("Showing UiTweaks update bottom sheet")
+        
+        try:
+            showupdatebottomsheet(
+                title=f"UiTweaks Update: v{self.latest_version}",
+                subtitle=f"Current version: {__version__}",
+                description=self.changelog,
+                sticker_pack=sticker_pack,
+                sticker_index=sticker_index,
+                sticker_circle=sticker_circle,
+                sticker_size=sticker_size,
+                button_text="Update Now",
+                show_close_button=False,
+                on_button_click=self._download_and_install_update
+            )
+        except Exception as e:
+            self.log(f"Error showing UiTweaks update sheet: {e}")
+    
+    def _download_and_install_update(self):
+        self.log("Starting UiTweaks update download...")
+        BulletinHelper.show_info("Downloading UiTweaks update...")
+        
+        def download_thread():
+            try:
+                self.log(f"Downloading from: {self.download_url}")
+                
+                with urllib.request.urlopen(self.download_url, timeout=30) as response:
+                    if response.getcode() != 200:
+                        raise Exception(f"HTTP {response.getcode()}")
+                    
+                    plugin_content = response.read()
+                    self.log(f"Downloaded {len(plugin_content)} bytes")
+                
+                from com.exteragram.messenger.plugins import PluginsController
+                from org.telegram.messenger import ApplicationLoader
+                
+                app_context = ApplicationLoader.applicationContext
+                files_dir = app_context.getFilesDir()
+                plugins_dir = os.path.join(str(files_dir), "plugins")
+                
+                plugin_file = os.path.join(plugins_dir, "ui_tweaks.py")
+                
+                self.log(f"Installing to: {plugin_file}")
+                
+                with open(plugin_file, 'wb') as f:
+                    f.write(plugin_content)
+                
+                self.log("UiTweaks updated successfully!")
+                
+                success_msg = f"UiTweaks updated to v{self.latest_version}! Restart required."
+                run_on_ui_thread(lambda: BulletinHelper.show_success(success_msg))
+                
+                run_on_ui_thread(self._show_restart_prompt)
+                
+            except Exception as e:
+                error_msg = f"UiTweaks update failed: {str(e)}"
+                self.log(f"Error downloading update: {e}")
+                run_on_ui_thread(lambda msg=error_msg: BulletinHelper.show_error(msg))
+        
+        thread = threading.Thread(target=download_thread)
+        thread.daemon = True
+        thread.start()
+    
+    def _show_restart_prompt(self):
+        try:
+            from quantahut import show_restart_bulletin
+            show_restart_bulletin()
+        except Exception as e:
+            self.log(f"Error showing restart bulletin: {e}")
 
     def on_plugin_unload(self):
         self.memory_check_running = False
