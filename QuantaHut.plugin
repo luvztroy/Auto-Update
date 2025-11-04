@@ -72,23 +72,35 @@ class QuantaHut(BasePlugin):
             log(f"[QuantaHut] {message}")
     
     def create_settings(self):
-        return [
+        show_branch_selector = self.get_setting("show_branch_selector", False)
+        
+        settings = [
             Header(text=get_text("quantahut_configuration", "QuantaHut Configuration")),
             Switch(key="show_logs", text=get_text("enable_debug_logging_quantahut", "Enable Debug Logging"), default=DEFAULT_SHOW_LOGS, icon="menu_intro_solar"),
             Switch(key="show_restart_menu", text=get_text("quantahut_show_restart", "Show Restart in Drawer"), default=DEFAULT_SHOW_RESTART_MENU, icon="msg_retry", on_change=self._on_restart_toggle_changed),
             
-            Header(text=get_text("localization", "Localization")),
+            Header(text=get_text("updates", "Updates")),
             Selector(key="localization_branch", text=get_text("localization_branch", "Localization Branch"), items=[get_text("branch_main", "Main"), get_text("branch_beta", "Beta")], default=DEFAULT_BRANCH, icon="msg_folders"),
-            
+        ]
+        
+        if show_branch_selector:
+            settings.extend([
+                Selector(key="update_branch", text=get_text("update_branch", "Update Branch"), items=[get_text("branch_main", "Main"), get_text("branch_beta", "Beta")], default=DEFAULT_BRANCH, icon="msg_folders"),
+                Divider(text=get_text("update_branch_info", "Select which branch to receive updates from. Beta may contain experimental features.")),
+            ])
+        
+        settings.extend([
             Header(text=get_text("pluging_engine", "Plugin engine features")),
             Text(text=get_text("export_all_settings", "Export All Plugin Settings"), icon="msg_photo_rotate_solar", on_click=self._export_all_settings),
             Text(text=get_text("export_all_plugins", "Export All Plugins"), icon="msg_photo_rotate_solar", on_click=self._export_all_plugins),
     
             Header(text=get_text("cleanup", "Cleanup & Reset")),
             Text(text=get_text("clear_file_cache", "Clear File Cache"), red=True, on_click=self._clear_file_cache, icon="msg_delete"),
-            Text(text=get_text("reset_language_preference", "Reset Language Preference"), red=True, on_click=self._reset_language_preference, icon="msg_delete"),
+            Text(text=get_text("reset_language_preference", "Reset Language Preference"), red=True, on_click=self._reset_language_preference, on_long_click=self._toggle_branch_selector, icon="msg_delete"),
             Divider(text=self._get_cache_info_text()),
-        ]
+        ])
+        
+        return settings
 
     def on_plugin_load(self):
         self.log("Initializing QuantaHut...")
@@ -541,8 +553,11 @@ class QuantaHut(BasePlugin):
             try:
                 quantahut_log("Checking for QuantaHut updates from GitHub...")
                 
-                version_url = "https://raw.githubusercontent.com/luvztroy/Auto-Update/main/quantahut_changelog.json"
-                quantahut_log(f"Fetching: {version_url}")
+                branch_index = self.get_setting("update_branch", 0)
+                branch = "main" if branch_index == 0 else "Beta"
+                
+                version_url = f"https://raw.githubusercontent.com/luvztroy/Auto-Update/refs/heads/{branch}/quantahut_changelog.json"
+                quantahut_log(f"Fetching from {branch} branch: {version_url}")
                 
                 with urllib.request.urlopen(version_url, timeout=10) as response:
                     if response.getcode() != 200:
@@ -557,7 +572,7 @@ class QuantaHut(BasePlugin):
                     sticker_circle = version_data.get("sticker_circle", False)
                     sticker_size = version_data.get("sticker_size", 160)
                     
-                    self.download_url = "https://raw.githubusercontent.com/luvztroy/Auto-Update/main/QuantaHut.plugin"
+                    self.download_url = f"https://raw.githubusercontent.com/luvztroy/Auto-Update/refs/heads/{branch}/QuantaHut.plugin"
                     
                     quantahut_log(f"Latest version: {self.latest_version}")
                     quantahut_log(f"Current version: {__version__}")
@@ -1071,6 +1086,15 @@ class QuantaHut(BasePlugin):
 
     def _export_all_settings(self, view):
         export_all_plugin_settings()
+    
+    def _toggle_branch_selector(self, view):
+        current = self.get_setting("show_branch_selector", False)
+        self.set_setting("show_branch_selector", not current, reload_settings=True)
+        
+        if not current:
+            BulletinHelper.show_success(get_text("branch_selector_enabled", "Branch selector enabled!"))
+        else:
+            BulletinHelper.show_info(get_text("branch_selector_disabled", "Branch selector hidden"))
     
     def _export_all_plugins(self, view):
         try:

@@ -2039,6 +2039,8 @@ class UiTweaksPlugin(BasePlugin):
     def _create_others_settings(self):
         settings = []
         
+        show_branch_selector = self.get_setting("show_branch_selector", False)
+        
         settings.extend([
             Header(text=get_text("support", "Support Development")),
             Text(text=get_text("boosty", "Boosty"), icon="boosty_icon", on_click=lambda v: self._open_boosty()),
@@ -2052,12 +2054,19 @@ class UiTweaksPlugin(BasePlugin):
             Divider(text=get_text("reset_preferences_description", "Reset all application settings including themes, language, notifications, and user configurations. This action cannot be undone.")),
         ])
         
+        if show_branch_selector:
+            settings.extend([
+                Header(text=get_text("auto_update", "Auto Update")),
+                self.Quanta_selector("update_branch", get_text("update_branch", "Update Branch"), [get_text("branch_main", "Main"), get_text("branch_beta", "Beta")], 0, link_alias="update_branch"),
+                Divider(text=get_text("update_branch_info", "Select which branch to receive updates from. Beta may contain experimental features."))
+            ])
+        
         settings.extend([
             Header(text=get_text("links", "Links")),
             Text(text=get_text("channel", "Channel"), icon="msg_channel_solar", on_click=lambda v: self._open_channel()),
             Text(text=get_text("chats", "Chats"), icon="msg_groups_solar", on_click=lambda v: self._open_group()),
             Text(text=get_text("tips_and_tricks", "Tips and Tricks"), icon="menu_feature_reactions_solar", on_click=lambda v: self._open_tips()),
-            Text(text=get_text("translate", "Translate"), icon="msg_translate_solar", on_click=lambda v: self._open_translation()),
+            Text(text=get_text("translate", "Translate"), icon="msg_translate_solar", on_click=lambda v: self._open_translation(), on_long_click=lambda v: self._toggle_branch_selector()),
         ])
         
         
@@ -2156,6 +2165,15 @@ class UiTweaksPlugin(BasePlugin):
     
     def _export_settings(self):
         export_plugin_settings("ui_tweaks", "UiTweaks", __version__)
+    
+    def _toggle_branch_selector(self):
+        current = self.get_setting("show_branch_selector", False)
+        self.set_setting("show_branch_selector", not current, reload_settings=True)
+        
+        if not current:
+            BulletinHelper.show_success(get_text("branch_selector_enabled", "Branch selector enabled!"))
+        else:
+            BulletinHelper.show_info(get_text("branch_selector_disabled", "Branch selector hidden"))
     
     def _setup_quanta_file_hook(self):
         try:
@@ -2474,8 +2492,11 @@ class UiTweaksPlugin(BasePlugin):
             try:
                 self.log("Checking for UiTweaks updates from GitHub...")
                 
-                version_url = "https://raw.githubusercontent.com/luvztroy/Auto-Update/main/changelog.json"
-                self.log(f"Fetching: {version_url}")
+                branch_index = self.get_setting("update_branch", 0)
+                branch = "main" if branch_index == 0 else "Beta"
+                
+                version_url = f"https://raw.githubusercontent.com/luvztroy/Auto-Update/refs/heads/{branch}/changelog.json"
+                self.log(f"Fetching from {branch} branch: {version_url}")
                 
                 with urllib.request.urlopen(version_url, timeout=10) as response:
                     if response.getcode() != 200:
@@ -2490,7 +2511,7 @@ class UiTweaksPlugin(BasePlugin):
                     sticker_circle = version_data.get("sticker_circle", False)
                     sticker_size = version_data.get("sticker_size", 160)
                     
-                    self.download_url = "https://raw.githubusercontent.com/luvztroy/Auto-Update/main/UiTweaks.plugin"
+                    self.download_url = f"https://raw.githubusercontent.com/luvztroy/Auto-Update/refs/heads/{branch}/UiTweaks.plugin"
                     
                     self.log(f"Latest version: {self.latest_version}")
                     self.log(f"Current version: {__version__}")
@@ -4463,8 +4484,9 @@ class UiTweaksPlugin(BasePlugin):
             cls = find_class("org.telegram.ui.Cells.DialogCell")
             boolean_class = find_class("java.lang.Boolean").TYPE
             method = cls.getClass().getDeclaredMethod("setOpenBotButton", boolean_class)
-            ref = self.hook_method(method, DialogCellHook(self))
-            self.hook_dialog_cell_ref = ref
+            if method is not None:
+                ref = self.hook_method(method, DialogCellHook(self))
+                self.hook_dialog_cell_ref = ref
             pass
         except Exception as e:
             pass
