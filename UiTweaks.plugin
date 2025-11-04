@@ -2468,13 +2468,6 @@ class UiTweaksPlugin(BasePlugin):
             self.log("Already checking for updates...")
             return
         
-        required_quantahut_version = "1.4.6"
-        if hasattr(quantahut, '__version__'):
-            current_qh_version = quantahut.__version__
-            if self._compare_versions(current_qh_version, required_quantahut_version) < 0:
-                self.log(f"QuantaHut {current_qh_version} is outdated (need {required_quantahut_version}+), skipping UiTweaks update check")
-                return
-        
         self.checking_update = True
         
         def check_thread():
