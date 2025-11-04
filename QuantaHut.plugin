@@ -40,7 +40,7 @@ __name__ = "QuantaHut"
 __description__ = "Library for Quanta plugins"
 __icon__ = "luvztroyIcons/14"
 __id__ = "quantahut"
-__version__ = "1.4.6"
+__version__ = "1.4.6.1-Beta"
 __author__ = "@luvztroy"
 __min_version__ = "11.12.1"
 __priority__ = 1
@@ -1203,12 +1203,15 @@ class QuantaHut(BasePlugin):
                 (get_text("filter_errors", "Errors"), 5)
             ]
             self.filter_pills = []
+            self.filter_base_texts = {}
             for text, filter_id in filters:
+                self.filter_base_texts[filter_id] = text
                 pill = self._create_pill(text, filter_id, context)
                 pills_layout.addView(pill)
                 self.filter_pills.append((pill, filter_id))
             scroll_view.addView(pills_layout)
             self.pills_container = scroll_view
+            self._update_pill_counts()
             self._update_pill_states()
         except:
             pass
@@ -1244,6 +1247,45 @@ class QuantaHut(BasePlugin):
         from android_utils import OnClickListener
         return OnClickListener(on_click)
     
+    def _get_plugin_counts(self):
+        try:
+            from com.exteragram.messenger.plugins import PluginsController
+            plugins_controller = PluginsController.getInstance()
+            all_plugins = plugins_controller.plugins
+            counts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+            
+            for key in all_plugins.keySet().toArray():
+                plugin = all_plugins.get(key)
+                if plugin:
+                    counts[0] += 1
+                    if plugin.isEnabled():
+                        counts[1] += 1
+                    else:
+                        counts[2] += 1
+                    if self._is_recently_updated(plugin):
+                        counts[3] += 1
+                    if plugins_controller.hasPluginSettings(plugin.getId()):
+                        counts[4] += 1
+                    if plugin.hasError():
+                        counts[5] += 1
+            return counts
+        except:
+            return {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+    
+    def _update_pill_counts(self):
+        try:
+            if not hasattr(self, 'filter_base_texts'):
+                return
+            
+            counts = self._get_plugin_counts()
+            
+            for pill, filter_id in self.filter_pills:
+                base_text = self.filter_base_texts.get(filter_id, "")
+                count = counts.get(filter_id, 0)
+                pill.setText(f"{base_text}-{count}")
+        except:
+            pass
+    
     def _update_pill_states(self):
         try:
             from android.graphics.drawable import GradientDrawable
@@ -1267,6 +1309,7 @@ class QuantaHut(BasePlugin):
     
     def _refresh_plugins_list(self, activity):
         try:
+            self._update_pill_counts()
             list_view = get_private_field(activity, "listView")
             if list_view and list_view.adapter:
                 run_on_ui_thread(lambda: list_view.adapter.update(True))
