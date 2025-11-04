@@ -1,13 +1,17 @@
 {
-  "version": "1.7.7",
-  "release_date": "2025-11-04",
-  "changelog_text": "**What's New in v1.7.7:**\n\n• Moved \"Go to message\" from plugin sub item to Action bar menu item\n• Fixed an issue where channel summaries mistakenly used the user name instead of the channel name\n• Made message count dynamic in AI Summarize: now shows unread message count by default instead of hardcoded 200\n• Removed 500 message limit from AI Summarize feature\n• Added \"Export All Plugins\" feature to backup all installed plugins into a single .plugins file\n• Added duration selection when banning/restricting users after deleting their messages, inspired from OctoGram\n• Added new select all media button in profile ~ General",
+  "quantahut": {
+    "version": "1.4.6",
+    "changelog_text": "**What's New in v1.4.6:**\n\n• Added \"Export All Plugins\" feature to backup all installed plugins into a single .plugins file\n• Added enhanced plugin search functionality to search by name, author, description, ID, or version\n• Added filter pills to plugins page (All, Recently Updated, Enabled, Disabled, Has Settings, Errors) for quick plugin filtering"
+  },
+  "uitweaks": {
+    "version": "1.7.7",
+    "changelog_text": "**What's New in v1.7.7:**\n\n• Moved \"Go to message\" from plugin sub item to Action bar menu item\n• Fixed an issue where channel summaries mistakenly used the user name instead of the channel name\n• Made message count dynamic in AI Summarize: now shows unread message count by default instead of hardcoded 200\n• Removed 500 message limit from AI Summarize feature\n• Added \"Export All Plugins\" feature to backup all installed plugins into a single .plugins file\n• Added duration selection when banning/restricting users after deleting their messages, inspired from OctoGram\n• Added new select all media button in profile ~ General"
+  },
   "sticker_pack": "lidreron",
   "sticker_index": 57,
   "sticker_circle": false,
   "sticker_size": 160,
   "min_app_version": "11.12.1",
-  "download_url": "https://raw.githubusercontent.com/luvztroy/Auto-Update/refs/heads/main/UiTweaks.plugin",
   "requires_restart": true,
   "breaking_changes": false
 }
