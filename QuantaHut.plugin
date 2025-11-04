@@ -45,7 +45,7 @@ __author__ = "@luvztroy"
 __min_version__ = "11.12.1"
 __priority__ = 1
 
-DEFAULT_SHOW_LOGS = False
+DEFAULT_SHOW_LOGS = True
 DEFAULT_SHOW_RESTART_MENU = False
 DEFAULT_BRANCH = 0  
 setting_getter = None
@@ -94,6 +94,7 @@ class QuantaHut(BasePlugin):
         self.log("Initializing QuantaHut...")
         global setting_getter
         setting_getter = self.get_setting
+        QuantaHut.instance = self
 
         self.custom_badges = {}
         self.badge_hook_ref = None
@@ -526,28 +527,22 @@ class QuantaHut(BasePlugin):
         return utilities.unregister_message_menu_item(handle)
 
     def _check_for_updates_on_load(self):
-        last_check = self.get_setting("last_update_check", 0)
-        current_time = int(time.time())
-        check_interval = 24 * 60 * 60
-        
-        if current_time - last_check >= check_interval:
-            self.log("Auto-checking for QuantaHut updates...")
-            self._check_for_updates(show_on_load=True)
-            self.set_setting("last_update_check", current_time)
+        quantahut_log("Auto-checking for QuantaHut updates...")
+        self._check_for_updates(show_on_load=True)
     
     def _check_for_updates(self, show_on_load=False):
         if self.checking_update:
-            self.log("Already checking for updates...")
+            quantahut_log("Already checking for updates...")
             return
         
         self.checking_update = True
         
         def check_thread():
             try:
-                self.log("Checking for QuantaHut updates from GitHub...")
+                quantahut_log("Checking for QuantaHut updates from GitHub...")
                 
                 version_url = "https://raw.githubusercontent.com/luvztroy/Auto-Update/main/quantahut_changelog.json"
-                self.log(f"Fetching: {version_url}")
+                quantahut_log(f"Fetching: {version_url}")
                 
                 with urllib.request.urlopen(version_url, timeout=10) as response:
                     if response.getcode() != 200:
@@ -559,17 +554,17 @@ class QuantaHut(BasePlugin):
                     self.changelog = version_data.get("changelog_text", "No changelog available")
                     sticker_pack = version_data.get("sticker_pack")
                     sticker_index = version_data.get("sticker_index")
-                    sticker_circle = version_data.get("sticker_circle", True)
-                    sticker_size = version_data.get("sticker_size", 90)
+                    sticker_circle = version_data.get("sticker_circle", False)
+                    sticker_size = version_data.get("sticker_size", 160)
                     
                     self.download_url = "https://raw.githubusercontent.com/luvztroy/Auto-Update/main/QuantaHut.plugin"
                     
-                    self.log(f"Latest version: {self.latest_version}")
-                    self.log(f"Current version: {__version__}")
+                    quantahut_log(f"Latest version: {self.latest_version}")
+                    quantahut_log(f"Current version: {__version__}")
                     
                     if self._is_newer_version(self.latest_version, __version__):
                         self.update_available = True
-                        self.log("QuantaHut update available!")
+                        quantahut_log("QuantaHut update available!")
                         
                         if show_on_load:
                             run_on_ui_thread(lambda: self._show_update_bottom_sheet(
@@ -577,10 +572,10 @@ class QuantaHut(BasePlugin):
                             ))
                     else:
                         self.update_available = False
-                        self.log("QuantaHut is up to date")
+                        quantahut_log("QuantaHut is up to date")
                 
             except Exception as e:
-                self.log(f"Error checking QuantaHut updates: {e}")
+                quantahut_log(f"Error checking QuantaHut updates: {e}")
             finally:
                 self.checking_update = False
         
@@ -606,14 +601,14 @@ class QuantaHut(BasePlugin):
             
             return latest_parts > current_parts
         except Exception as e:
-            self.log(f"Error comparing versions: {e}")
+            quantahut_log(f"Error comparing versions: {e}")
             return False
     
     def _show_update_bottom_sheet(self, sticker_pack, sticker_index, sticker_circle, sticker_size):
         if not self.update_available:
             return
         
-        self.log("Showing QuantaHut update bottom sheet")
+        quantahut_log("Showing QuantaHut update bottom sheet")
         
         try:
             showupdatebottomsheet(
@@ -626,26 +621,26 @@ class QuantaHut(BasePlugin):
                 sticker_size=sticker_size,
                 button_text="Update Now",
                 show_close_button=False,
-                description_centered=True,
+                description_centered=False,
                 on_button_click=self._download_and_install_update
             )
         except Exception as e:
-            self.log(f"Error showing QuantaHut update sheet: {e}")
+            quantahut_log(f"Error showing QuantaHut update sheet: {e}")
     
     def _download_and_install_update(self):
-        self.log("Starting QuantaHut update download...")
+        quantahut_log("Starting QuantaHut update download...")
         BulletinHelper.show_info("Downloading QuantaHut update...")
         
         def download_thread():
             try:
-                self.log(f"Downloading from: {self.download_url}")
+                quantahut_log(f"Downloading from: {self.download_url}")
                 
                 with urllib.request.urlopen(self.download_url, timeout=30) as response:
                     if response.getcode() != 200:
                         raise Exception(f"HTTP {response.getcode()}")
                     
                     plugin_content = response.read()
-                    self.log(f"Downloaded {len(plugin_content)} bytes")
+                    quantahut_log(f"Downloaded {len(plugin_content)} bytes")
                 
                 from com.exteragram.messenger.plugins import PluginsController
                 from org.telegram.messenger import ApplicationLoader
@@ -656,12 +651,12 @@ class QuantaHut(BasePlugin):
                 
                 plugin_file = os.path.join(plugins_dir, "quantahut.py")
                 
-                self.log(f"Installing to: {plugin_file}")
+                quantahut_log(f"Installing to: {plugin_file}")
                 
                 with open(plugin_file, 'wb') as f:
                     f.write(plugin_content)
                 
-                self.log("QuantaHut updated successfully!")
+                quantahut_log("QuantaHut updated successfully!")
                 
                 success_msg = f"QuantaHut updated to v{self.latest_version}! Restart required."
                 run_on_ui_thread(lambda: BulletinHelper.show_success(success_msg))
@@ -670,7 +665,7 @@ class QuantaHut(BasePlugin):
                 
             except Exception as e:
                 error_msg = f"QuantaHut update failed: {str(e)}"
-                self.log(f"Error downloading update: {e}")
+                quantahut_log(f"Error downloading update: {e}")
                 run_on_ui_thread(lambda msg=error_msg: BulletinHelper.show_error(msg))
         
         thread = threading.Thread(target=download_thread)
@@ -679,9 +674,12 @@ class QuantaHut(BasePlugin):
     
     def _show_restart_prompt(self):
         try:
-            show_restart_bulletin()
+            show_restart_bulletin(
+                message=get_text("restart_to_apply_quantahut_update", "Restart app to apply QuantaHut update"),
+                button_text=get_text("restart", "Restart")
+            )
         except Exception as e:
-            self.log(f"Error showing restart bulletin: {e}")
+            quantahut_log(f"Error showing restart bulletin: {e}")
 
     def on_plugin_unload(self):
         for ref in self.hook_refs:
@@ -1732,7 +1730,7 @@ def restart_app(fragment=None):
     except Exception as e:
         quantahut_log(f"Error restarting app: {e}")
 
-def show_restart_bulletin():
+def show_restart_bulletin(message=None, button_text=None):
     try:
         from org.telegram.messenger import R as R_tg
         from ui.bulletin import BulletinHelper
@@ -1744,10 +1742,13 @@ def show_restart_bulletin():
         def _on_restart():
             restart_app(fragment)
         
+        default_message = get_text("restart_to_apply_changes", "Restart app to apply changes")
+        default_button = get_text("restart", "Restart")
+        
         BulletinHelper.show_with_button(
-            "Restart app to apply localization changes",
+            message or default_message,
             R_tg.raw.chats_infotip,
-            "Restart",
+            button_text or default_button,
             _on_restart,
             fragment,
             10000
@@ -2540,7 +2541,10 @@ class UpdateBottomSheet:
         
         def dismiss_delayed():
             run_on_ui_thread(lambda: self.bottom_sheet.dismiss())
-            run_on_ui_thread(lambda: show_restart_bulletin())
+            run_on_ui_thread(lambda: show_restart_bulletin(
+                message=get_text("restart_to_apply_localization", "Restart app to apply localization changes"),
+                button_text=get_text("restart", "Restart")
+            ))
         import threading
         timer = threading.Timer(2.0, dismiss_delayed)
         timer.start()

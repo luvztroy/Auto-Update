@@ -2605,9 +2605,6 @@ class UiTweaksPlugin(BasePlugin):
                 
                 self.log("UiTweaks updated successfully!")
                 
-                success_msg = f"UiTweaks updated to v{self.latest_version}! Restart required."
-                run_on_ui_thread(lambda: BulletinHelper.show_success(success_msg))
-                
                 run_on_ui_thread(self._show_restart_prompt)
                 
             except Exception as e:
@@ -2622,7 +2619,10 @@ class UiTweaksPlugin(BasePlugin):
     def _show_restart_prompt(self):
         try:
             from quantahut import show_restart_bulletin
-            show_restart_bulletin()
+            show_restart_bulletin(
+                message=get_text("restart_to_apply_uitweaks_update", "Restart app to apply UiTweaks update"),
+                button_text=get_text("restart", "Restart")
+            )
         except Exception as e:
             self.log(f"Error showing restart bulletin: {e}")
 
