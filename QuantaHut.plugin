@@ -40,7 +40,7 @@ __name__ = "QuantaHut"
 __description__ = "Library for Quanta plugins"
 __icon__ = "luvztroyIcons/14"
 __id__ = "quantahut"
-__version__ = "1.4.6"
+__version__ = "1.4.7.1-Beta"
 __author__ = "@luvztroy"
 __min_version__ = "12.1.1"
 __priority__ = 1
@@ -81,6 +81,7 @@ class QuantaHut(BasePlugin):
             
             Header(text=get_text("updates", "Updates")),
             Selector(key="localization_branch", text=get_text("localization_branch", "Localization Branch"), items=[get_text("branch_main", "Main"), get_text("branch_beta", "Beta")], default=DEFAULT_BRANCH, icon="msg_folders"),
+            Text(text=get_text("localization_update", "Update Localization"), accent=True, icon="msg_download_solar", on_click=lambda v: self._show_quanta_bottom_sheet()),
         ]
         
         if show_branch_selector:
