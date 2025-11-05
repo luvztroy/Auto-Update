@@ -64,7 +64,7 @@ __name__ = "UiTweaks"
 __description__ = "Well sometimes you just need to tweak things... (requires QuantaHut)"
 __version__ = "1.7.6"
 __author__ = "@luvztroy"
-__min_version__ = "11.12.1"
+__min_version__ = "12.1.1"
 __icon__ = "luvztroyIcons/13"
 __dependencies__ = ["quantahut"]
 
@@ -9000,7 +9000,9 @@ class ChatActionBarMenuItemClickHook:
             while not result_container['done'] and (time.time() - start_time) < timeout:
                 time.sleep(0.1)
             
-            return result_container['messages'][:count]
+            messages = result_container['messages'][:count]
+            messages.reverse()
+            return messages
             
         except Exception as e:
             plugin.log(f"Error getting messages for summarization: {e}")

@@ -1,7 +1,7 @@
 {
   "version": "1.4.6",
-  "release_date": "2025-11-04",
-  "changelog_text": "**What's New in v1.4.7:**\n\n• Added \"Export All Plugins\" feature to backup all installed plugins into a single .plugins file\n• Added enhanced plugin search functionality to search by name, author, description, ID, or version\n• Added filter pills to plugins page (All, Recently Updated, Enabled, Disabled, Has Settings, Errors) for quick plugin filtering",
+  "release_date": "2025-11-05",
+  "changelog_text": "**What's New in v1.4.6:**\n\n• Fixed force update check is not showing update sheet when update is available",
   "sticker_pack": "lidreron",
   "sticker_index": 57,
   "sticker_circle": false,
