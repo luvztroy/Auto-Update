@@ -1,7 +1,7 @@
 {
-  "version": "1.4.6.1-Beta",
+  "version": "1.4.6.2-Beta",
   "release_date": "2025-11-05",
-  "changelog_text": "**What's New in v1.4.6.1-Beta:**\n\n• Added show plugins count in pills",
+  "changelog_text": "**What's New in v1.4.6.2-Beta:**\n\n• Added force update check using tg://quanta_update",
   "sticker_pack": "lidreron",
   "sticker_index": 57,
   "sticker_circle": false,

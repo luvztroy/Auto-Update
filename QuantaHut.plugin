@@ -40,7 +40,7 @@ __name__ = "QuantaHut"
 __description__ = "Library for Quanta plugins"
 __icon__ = "luvztroyIcons/14"
 __id__ = "quantahut"
-__version__ = "1.4.6.1-Beta"
+__version__ = "1.4.6.2-Beta"
 __author__ = "@luvztroy"
 __min_version__ = "11.12.1"
 __priority__ = 1
@@ -1560,7 +1560,10 @@ class QuantaDeeplinkHook:
             if not data:
                 return
             url = str(data)
-            if url.startswith("tg:Quanta") or url.startswith("tg://Quanta") or url.startswith("tg:quanta") or url.startswith("tg://quanta"):
+            if url == "tg://quanta_update" or url == "tg:quanta_update":
+                run_on_ui_thread(self._check_quanta_updates)
+                param.setResult(None)
+            elif url.startswith("tg:Quanta") or url.startswith("tg://Quanta") or url.startswith("tg:quanta") or url.startswith("tg://quanta"):
                 run_on_ui_thread(self.plugin._show_quanta_bottom_sheet)
                 param.setResult(None)
             elif url == "tg://restart":
@@ -1595,6 +1598,46 @@ class QuantaDeeplinkHook:
         thread = threading.Thread(target=refresh_callback)
         thread.daemon = True
         thread.start()
+    
+    def _check_quanta_updates(self):
+        def check_callback():
+            try:
+                import time
+                self.plugin._check_for_updates(show_on_load=False)
+                
+                timeout = 10
+                start_time = time.time()
+                while self.plugin.checking_update and (time.time() - start_time) < timeout:
+                    time.sleep(0.1)
+                
+                if self.plugin.update_available:
+                    return
+                
+                self._check_uitweaks_update()
+            except Exception as e:
+                self.plugin.log(f"Error in quanta_update: {e}")
+        
+        import threading
+        thread = threading.Thread(target=check_callback)
+        thread.daemon = True
+        thread.start()
+    
+    def _check_uitweaks_update(self):
+        try:
+            from base_plugin import PluginsController
+            controller = PluginsController.getInstance()
+            engine = controller.getPluginEngine("ui_tweaks")
+            
+            if engine and hasattr(engine, 'pluginInstances'):
+                py_instance = engine.pluginInstances.get("ui_tweaks")
+                if py_instance:
+                    py_instance._check_for_updates(show_on_load=True)
+                else:
+                    run_on_ui_thread(lambda: BulletinHelper.show_error("UiTweaks not loaded"))
+            else:
+                run_on_ui_thread(lambda: BulletinHelper.show_error("UiTweaks not found"))
+        except Exception as e:
+            self.plugin.log(f"Error checking UiTweaks: {e}")
 
 
 
