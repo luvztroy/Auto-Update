@@ -1,7 +1,7 @@
 {
-  "version": "1.4.6.3-Beta",
+  "version": "1.4.6",
   "release_date": "2025-11-05",
-  "changelog_text": "**What's New in v1.4.6.3-Beta:**\n\n• Fixed force update check is not showing update sheet when update is available",
+  "changelog_text": "**What's New in v1.4.6:**\n\n• Fixed force update check is not showing update sheet when update is available",
   "sticker_pack": "lidreron",
   "sticker_index": 57,
   "sticker_circle": false,

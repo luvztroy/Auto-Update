@@ -1,7 +1,7 @@
 {
-  "version": "1.7.6.1-Beta",
+  "version": "1.7.6",
   "release_date": "2025-11-04",
-  "changelog_text": "**What's New in v1.7.6.1-Beta:**\n\n• Fixed messages for summaries were returned as-is from the API (newest → oldest)",
+  "changelog_text": "**What's New in v1.7.6:**\n\n• Fixed messages for summaries were returned as-is from the API (newest → oldest)",
   "sticker_pack": "lidreron",
   "sticker_index": 57,
   "sticker_circle": false,

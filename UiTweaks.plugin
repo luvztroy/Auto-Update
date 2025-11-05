@@ -62,9 +62,9 @@ QuantaHut = quantahut
 __id__ = "ui_tweaks"
 __name__ = "UiTweaks"
 __description__ = "Well sometimes you just need to tweak things... (requires QuantaHut)"
-__version__ = "1.7.6.1-Beta"
+__version__ = "1.7.6"
 __author__ = "@luvztroy"
-__min_version__ = "11.12.1"
+__min_version__ = "12.1.1"
 __icon__ = "luvztroyIcons/13"
 __dependencies__ = ["quantahut"]
 
