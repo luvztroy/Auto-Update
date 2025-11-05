@@ -45,7 +45,7 @@ __author__ = "@luvztroy"
 __min_version__ = "12.1.1"
 __priority__ = 1
 
-DEFAULT_SHOW_LOGS = False
+DEFAULT_SHOW_LOGS = True
 DEFAULT_SHOW_RESTART_MENU = False
 DEFAULT_BRANCH = 0  
 setting_getter = None
