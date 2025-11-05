@@ -1,7 +1,7 @@
 {
-  "version": "1.7.6",
+  "version": "1.7.6.1-Beta",
   "release_date": "2025-11-04",
-  "changelog_text": "**What's New in v1.7.6:**\n\n• Moved \"Go to message\" from plugin sub item to Action bar menu item\n• Fixed an issue where channel summaries mistakenly used the user name instead of the channel name\n• Made message count dynamic in AI Summarize: now shows unread message count by default instead of hardcoded 200\n• Removed 500 message limit from AI Summarize feature\n• Added \"Export All Plugins\" feature to backup all installed plugins into a single .plugins file\n• Added duration selection when banning/restricting users after deleting their messages, inspired from OctoGram\n• Added new select all media button in profile ~ General",
+  "changelog_text": "**What's New in v1.7.6.1-Beta:**\n\n• Fixed messages for summaries were returned as-is from the API (newest → oldest)",
   "sticker_pack": "lidreron",
   "sticker_index": 57,
   "sticker_circle": false,
