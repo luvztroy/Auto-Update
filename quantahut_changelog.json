@@ -1,7 +1,7 @@
 {
-  "version": "1.4.7.1-Beta",
+  "version": "1.4.7.2-Beta",
   "release_date": "2025-11-06",
-  "changelog_text": "**What's New in v1.4.7.1-Beta:**\n\n• Added a new \"Update Localization\" button in settings",
+  "changelog_text": "**What's New in v1.4.7.2-Beta:**\n\n• Added a dialogue when plugins are importing\n• Added a new long click menu for filter pills with 2 new items \"Delete plugins, Export plugins\"",
   "sticker_pack": "sdishes_by_fStikBot",
   "sticker_index": 8,
   "sticker_circle": false,
