@@ -62,7 +62,7 @@ QuantaHut = quantahut
 __id__ = "ui_tweaks"
 __name__ = "UiTweaks"
 __description__ = "Well sometimes you just need to tweak things... (requires QuantaHut)"
-__version__ = "1.7.6"
+__version__ = "1.7.7.1-Beta"
 __author__ = "@luvztroy"
 __min_version__ = "12.1.1"
 __icon__ = "luvztroyIcons/13"
@@ -1317,6 +1317,11 @@ class UiTweaksPlugin(BasePlugin):
         
         self.hook_ai_role_limit_constructor_ref = None
         self.hook_ai_role_limit_settext_ref = None
+        
+        self.hook_sleep_timer_ref = None
+        self.sleep_timer_active = False
+        self._sleep_handler = None
+        self._sleep_runnable = None
 
     def log(self, message: str):
         if self.get_setting("show_logs", False):
@@ -1921,6 +1926,7 @@ class UiTweaksPlugin(BasePlugin):
             Divider(text=get_text("safe_mode_subtext", "Press volume down 5 times quickly to enable plugin safe mode ~ In Safe Mode, all plugins are inactive. This allows you to safely find and disable a problematic plugin.")),
             self.Quanta_switch("enable_search_by_user_id", get_text("search_by_user_id", "Search by User ID"), False, lambda v: self._apply_hooks(), link_alias="enable_search_by_user_id"),
             self.Quanta_switch("enable_ai_role_limit", get_text("ai_role_limit", "AI Role Limit Increaser"), False, lambda v: self._apply_hooks(), link_alias="enable_ai_role_limit"),
+            self.Quanta_switch("enable_sleep_timer", get_text("sleep_timer", "Music Sleep Timer"), False, lambda v: self._apply_hooks(), link_alias="enable_sleep_timer"),
         ]
 
     def _create_appearance_settings(self):
@@ -2423,19 +2429,17 @@ class UiTweaksPlugin(BasePlugin):
                     self._hook_folder_visibility()
                     
                     from android.os import Handler, Looper
-                    RunnableClass = find_class("java.lang.Runnable")
-                    RunnableProxy = dynamic_proxy(RunnableClass)
+                    from android_utils import R
                     
-                    class PostNotificationRunnable(RunnableProxy):
-                        def run(self):
-                            try:
-                                NotificationCenter.getInstance(UserConfig.selectedAccount).postNotificationName(
-                                    NotificationCenter.dialogFiltersUpdated
-                                )
-                            except Exception:
-                                pass
-                
-                    Handler(Looper.getMainLooper()).postDelayed(PostNotificationRunnable(), 100)
+                    def post_notification():
+                        try:
+                            NotificationCenter.getInstance(UserConfig.selectedAccount).postNotificationName(
+                                NotificationCenter.dialogFiltersUpdated
+                            )
+                        except Exception:
+                            pass
+                    
+                    Handler(Looper.getMainLooper()).postDelayed(R(post_notification), 100)
                 except Exception:
                     pass
         
@@ -2443,21 +2447,19 @@ class UiTweaksPlugin(BasePlugin):
             if self.get_setting("hide_archived_chats", False) and self.get_setting("hide_archived_from_drawer", False):
                 try:
                     from android.os import Handler, Looper
-                    RunnableClass = find_class("java.lang.Runnable")
-                    RunnableProxy = dynamic_proxy(RunnableClass)
+                    from android_utils import R
                     
-                    class RefreshDrawerRunnable(RunnableProxy):
-                        def run(plugin_self):
-                            try:
-                                from org.telegram.ui import LaunchActivity
-                                if (hasattr(LaunchActivity, 'instance') and LaunchActivity.instance):
-                                    drawer_adapter = get_private_field(LaunchActivity.instance, "drawerLayoutAdapter")
-                                    if drawer_adapter and hasattr(drawer_adapter, 'notifyDataSetChanged'):
-                                        drawer_adapter.notifyDataSetChanged()
-                            except Exception:
-                                pass
+                    def refresh_drawer():
+                        try:
+                            from org.telegram.ui import LaunchActivity
+                            if (hasattr(LaunchActivity, 'instance') and LaunchActivity.instance):
+                                drawer_adapter = get_private_field(LaunchActivity.instance, "drawerLayoutAdapter")
+                                if drawer_adapter and hasattr(drawer_adapter, 'notifyDataSetChanged'):
+                                    drawer_adapter.notifyDataSetChanged()
+                        except Exception:
+                            pass
                     
-                    Handler(Looper.getMainLooper()).postDelayed(RefreshDrawerRunnable(), 500)
+                    Handler(Looper.getMainLooper()).postDelayed(R(refresh_drawer), 500)
                 except Exception:
                     pass
 
@@ -2716,6 +2718,7 @@ class UiTweaksPlugin(BasePlugin):
             "hook_ai_role_limit_constructor_ref",
             "hook_ai_role_limit_settext_ref",
             "hook_select_all_media_ref",
+            "hook_sleep_timer_ref",
         ):
             ref = getattr(self, ref_attr, None)
             if ref:
@@ -2969,6 +2972,9 @@ class UiTweaksPlugin(BasePlugin):
             
             if self.get_setting("enable_select_all_media", True):
                 self._hook_select_all_media()
+            
+            if self.get_setting("enable_sleep_timer", False):
+                self._hook_sleep_timer()
 
         except Exception as e:
             pass
@@ -3632,7 +3638,8 @@ class UiTweaksPlugin(BasePlugin):
                 subtitle=get_text("hide_folders_subtitle", "Select folders to hide"),
                 setting_keys=keys,
                 plugin_instance=self,
-                on_selection_change=on_selection_change
+                on_selection_change=on_selection_change,
+                action_text=get_text("apply", "Apply")
             )
         except Exception:
             pass
@@ -3644,20 +3651,17 @@ class UiTweaksPlugin(BasePlugin):
     def _post_update_notification(self):
         try:
             from android.os import Handler, Looper
+            from android_utils import R
             
-            RunnableClass = find_class("java.lang.Runnable")
-            RunnableProxy = dynamic_proxy(RunnableClass)
+            def post_update():
+                try:
+                    NotificationCenter.getInstance(UserConfig.selectedAccount).postNotificationName(
+                        NotificationCenter.dialogFiltersUpdated
+                    )
+                except:
+                    pass
             
-            class UpdateRunnable(RunnableProxy):
-                def run(self):
-                    try:
-                        NotificationCenter.getInstance(UserConfig.selectedAccount).postNotificationName(
-                            NotificationCenter.dialogFiltersUpdated
-                        )
-                    except:
-                        pass
-        
-            Handler(Looper.getMainLooper()).post(UpdateRunnable())
+            Handler(Looper.getMainLooper()).post(R(post_update))
         except Exception:
             pass
     
@@ -3874,6 +3878,21 @@ class UiTweaksPlugin(BasePlugin):
                 setText_method = OutlineTextContainerViewClass.getClass().getDeclaredMethod("setText", StringClass)
                 self.hook_ai_role_limit_settext_ref = self.hook_method(setText_method, SetTextHook())
             
+        except:
+            pass
+    
+    def _hook_sleep_timer(self):
+        try:
+            AudioPlayerAlert = find_class("org.telegram.ui.Components.AudioPlayerAlert")
+            if not AudioPlayerAlert:
+                return
+            Context = jclass("android.content.Context")
+            Theme_ResourcesProvider = jclass("org.telegram.ui.ActionBar.Theme$ResourcesProvider")
+            
+            constructor = AudioPlayerAlert.getClass().getDeclaredConstructor(Context, Theme_ResourcesProvider)
+            constructor.setAccessible(True)
+            
+            self.hook_sleep_timer_ref = self.hook_method(constructor, SleepTimerHook(self))
         except:
             pass
     
@@ -4299,7 +4318,6 @@ class UiTweaksPlugin(BasePlugin):
                 current_debug_setting = self.get_setting("show_logs", False)
                 new_debug_setting = not current_debug_setting
                 self.set_setting("show_logs", new_debug_setting)
-                self._apply_hooks()
                 
                 if bottom_sheet_instance and hasattr(bottom_sheet_instance, 'update_status'):
                     enabled_text = get_text("enabled", "Enabled")
@@ -4354,7 +4372,8 @@ class UiTweaksPlugin(BasePlugin):
             title=get_text("confirmation_settings", "Confirmation Settings"),
             subtitle=get_text("select_items", "Select which actions require confirmation"),
             setting_keys=confirmation_keys,
-            plugin_instance=self
+            plugin_instance=self,
+            action_text=get_text("apply", "Apply")
         )
 
     def _show_star_reaction_selector(self):
@@ -4372,7 +4391,8 @@ class UiTweaksPlugin(BasePlugin):
             title=get_text("star_reaction_hide_location", "Hide Star Reactions From"),
             subtitle=get_text("select_items", "Select where to hide star reactions"),
             setting_keys=star_reaction_keys,
-            plugin_instance=self
+            plugin_instance=self,
+            action_text=get_text("apply", "Apply")
         )
 
     def _show_progress_timestamp_selector(self):
@@ -4390,7 +4410,8 @@ class UiTweaksPlugin(BasePlugin):
             title=get_text("progress_timestamp_types", "Message Types"),
             subtitle=get_text("progress_timestamp_subtitle", "Select message types"),
             setting_keys=progress_timestamp_keys,
-            plugin_instance=self
+            plugin_instance=self,
+            action_text=get_text("apply", "Apply")
         )
 
     def _show_dont_auto_play_selector(self):
@@ -4408,7 +4429,8 @@ class UiTweaksPlugin(BasePlugin):
             title=get_text("dont_auto_play_types", "Message Types"),
             subtitle=get_text("dont_auto_play_subtitle", "Select message types"),
             setting_keys=dont_auto_play_keys,
-            plugin_instance=self
+            plugin_instance=self,
+            action_text=get_text("apply", "Apply")
         )
 
     def _setup_confirmation_hooks(self):
@@ -9199,4 +9221,131 @@ class DeleteWithDurationOnClickHook:
                 
         except Exception as e:
             self.plugin.log(f"Error handling duration click: {e}")
+
+
+class SleepTimerHook:
+    def __init__(self, plugin):
+        self.plugin = plugin
+    
+    def after_hooked_method(self, param):
+        try:
+            alert = param.thisObject
+            options_button = get_private_field(alert, "optionsButton")
+            if not options_button:
+                return
+            
+            options_button.addSubItem(1390, R_tg.drawable.menu_premium_clock, get_text("sleep_timer_menu", "Sleep Timer"))
+            ActionBarMenuItem_ActionBarMenuItemDelegate = jclass("org.telegram.ui.ActionBar.ActionBarMenuItem$ActionBarMenuItemDelegate")
+            DelegateProxy = dynamic_proxy(ActionBarMenuItem_ActionBarMenuItemDelegate)
+            hook_instance = self
+            
+            class SleepTimerDelegate(DelegateProxy):
+                def onItemClick(self, id):
+                    if id == 1390:
+                        hook_instance._show_sleep_timer_dialog(alert)
+                    else:
+                        if hasattr(alert, 'onSubItemClick'):
+                            alert.onSubItemClick(id)
+            
+            options_button.setDelegate(SleepTimerDelegate())
+        except:
+            pass
+    
+    def _show_sleep_timer_dialog(self, alert):
+        try:
+            preset_labels = [
+                get_text("sleep_timer_disable", "Disable"),
+                LocaleController.formatPluralString("Minutes", 1),
+                LocaleController.formatPluralString("Minutes", 5),
+                LocaleController.formatPluralString("Minutes", 10),
+                LocaleController.formatPluralString("Minutes", 20),
+                LocaleController.formatPluralString("Minutes", 40),
+                LocaleController.formatPluralString("Hours", 1),
+                LocaleController.getString(R_tg.string.AutoDownloadCustom)
+            ]
+            
+            preset_values = [0, 1, 5, 10, 20, 40, 60]
+            hook_instance = self
+            
+            def on_preset_click(builder, which):
+                if which < len(preset_values):
+                    minutes = preset_values[which]
+                    hook_instance._set_sleep_timer(alert, minutes * 60)
+                else:
+                    Callback = jclass("org.telegram.messenger.Utilities$Callback")
+                    CallbackProxy = dynamic_proxy(Callback)
+                    
+                    class TimePickerCallback(CallbackProxy):
+                        def run(self, picked_minutes):
+                            hook_instance._set_sleep_timer(alert, picked_minutes * 60)
+                    
+                    from org.telegram.ui.Components import AlertsCreator
+                    AlertsCreator.createTimePickerDialog(
+                        alert.getContext(),
+                        get_text("sleep_timer_custom", "Sleep Timer"),
+                        0,
+                        0,
+                        12 * 60,
+                        TimePickerCallback()
+                    )
+            
+            resources_provider = get_private_field(alert, "resourcesProvider")
+            builder = AlertDialogBuilder(alert.getContext(), resources_provider=resources_provider)
+            builder.set_title(get_text("sleep_timer_title", "Sleep Timer"))
+            builder.set_items(preset_labels, on_preset_click)
+            builder.set_negative_button(LocaleController.getString(R_tg.string.Cancel))
+            builder.show()
+        except:
+            pass
+    
+    def _set_sleep_timer(self, alert, seconds):
+        try:
+            self.plugin.log(f"Setting sleep timer to {seconds} seconds")
+            if not hasattr(self.plugin, '_sleep_handler') or self.plugin._sleep_handler is None:
+                self.plugin._sleep_handler = Handler(Looper.getMainLooper())
+            if hasattr(self.plugin, '_sleep_runnable') and self.plugin._sleep_runnable is not None:
+                self.plugin._sleep_handler.removeCallbacks(self.plugin._sleep_runnable)
+            
+            if seconds > 0:
+                def pause_music():
+                    from org.telegram.messenger import MediaController
+                    media_controller = MediaController.getInstance()
+                    if not media_controller.isMessagePaused():
+                        media_controller.pauseMessage(media_controller.getPlayingMessageObject())
+                    self.plugin.sleep_timer_active = False
+                
+                from android_utils import R as Runnable
+                self.plugin._sleep_runnable = Runnable(pause_music)
+                self.plugin._sleep_handler.postDelayed(self.plugin._sleep_runnable, seconds * 1000)
+                
+                self.plugin.sleep_timer_active = True
+                if seconds < 3600:
+                    minutes = seconds // 60
+                    formatted_time = LocaleController.formatPluralString("Minutes", minutes)
+                else:
+                    hours = seconds // 3600
+                    formatted_time = LocaleController.formatPluralString("Hours", hours)
+                
+                from org.telegram.ui.Components import BulletinFactory
+                container_view = get_private_field(alert, "containerView")
+                resources_provider = get_private_field(alert, "resourcesProvider")
+                if container_view and isinstance(container_view, FrameLayout):
+                    message = get_text("sleep_timer_set", "Sleep timer is set to {time}").format(time=formatted_time)
+                    BulletinFactory.of(container_view, resources_provider).createSimpleBulletin(
+                        R_tg.raw.done,
+                        AndroidUtilities.replaceTags(message)
+                    ).show()
+            else:
+                if self.plugin.sleep_timer_active:
+                    from org.telegram.ui.Components import BulletinFactory
+                    container_view = get_private_field(alert, "containerView")
+                    resources_provider = get_private_field(alert, "resourcesProvider")
+                    if container_view and isinstance(container_view, FrameLayout):
+                        BulletinFactory.of(container_view, resources_provider).createSimpleBulletin(
+                            R_tg.raw.done,
+                            get_text("sleep_timer_disabled", "Sleep timer is disabled")
+                        ).show()
+                self.plugin.sleep_timer_active = False
+        except Exception as e:
+            self.plugin.log(f"Error in sleep timer: {e}")
 
