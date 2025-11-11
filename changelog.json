@@ -1,7 +1,7 @@
 {
-  "version": "1.7.7.1-Beta",
-  "release_date": "2025-11-11",
-  "changelog_text": "**What's New in v1.7.7.1-Beta:**\n\n• Added sleep timer for audios ~ Miscellaneous",
+  "version": "1.7.7.2-Beta",
+  "release_date": "2025-11-12",
+  "changelog_text": "**What's New in v1.7.7.2-Beta:**\n\n• Added dynamic audio message bubble that adjusts its length based on recording duration and screen width\n• Added an option for choosing custom chats for saved messages",
   "sticker_pack": "sdishes_by_fStikBot",
   "sticker_index": 4,
   "sticker_circle": false,
