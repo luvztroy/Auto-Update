@@ -62,7 +62,7 @@ QuantaHut = quantahut
 __id__ = "ui_tweaks"
 __name__ = "UiTweaks"
 __description__ = "Well sometimes you just need to tweak things... (requires QuantaHut)"
-__version__ = "1.7.7.1-Beta"
+__version__ = "1.7.7.2-Beta"
 __author__ = "@luvztroy"
 __min_version__ = "12.1.1"
 __icon__ = "luvztroyIcons/13"
@@ -1322,6 +1322,9 @@ class UiTweaksPlugin(BasePlugin):
         self.sleep_timer_active = False
         self._sleep_handler = None
         self._sleep_runnable = None
+        
+        self.hook_adaptive_audio_ref = None
+        
 
     def log(self, message: str):
         if self.get_setting("show_logs", False):
@@ -2037,6 +2040,10 @@ class UiTweaksPlugin(BasePlugin):
         
         settings.extend([
             self.Quanta_switch("disable_topics_swipe", get_text("disable_topics_swipe", "Disable Topics Swipe to Hide"), False, lambda v: self._apply_hooks(), link_alias="disable_topics_swipe"),
+            self.Quanta_switch("enable_adaptive_audio_length", get_text("enable_adaptive_audio_length", "Adaptive Audio Message Length"), False, lambda v: self._apply_hooks(), link_alias="enable_adaptive_audio_length"),
+            Divider(text=get_text("adaptive_audio_length_info", "The audio message bubble length will depend on the recording duration and automatically adjust to the screen width.")) if self.get_setting("enable_adaptive_audio_length", False) else None,
+        ])
+        
         ])
         
         
@@ -2719,6 +2726,7 @@ class UiTweaksPlugin(BasePlugin):
             "hook_ai_role_limit_settext_ref",
             "hook_select_all_media_ref",
             "hook_sleep_timer_ref",
+            "hook_adaptive_audio_ref",
         ):
             ref = getattr(self, ref_attr, None)
             if ref:
@@ -2975,6 +2983,10 @@ class UiTweaksPlugin(BasePlugin):
             
             if self.get_setting("enable_sleep_timer", False):
                 self._hook_sleep_timer()
+            
+            if self.get_setting("enable_adaptive_audio_length", False):
+                self._hook_adaptive_audio_length()
+            
 
         except Exception as e:
             pass
@@ -3896,6 +3908,20 @@ class UiTweaksPlugin(BasePlugin):
         except:
             pass
     
+    def _hook_adaptive_audio_length(self):
+        try:
+            ChatMessageCellClass = find_class("org.telegram.ui.Cells.ChatMessageCell")
+            if not ChatMessageCellClass:
+                return
+            
+            self.hook_adaptive_audio_ref = self.hook_all_methods(
+                ChatMessageCellClass,
+                "setMessageContent",
+                AdaptiveAudioHook(self),
+                priority=50
+            )
+        except:
+            pass
     def _hook_select_all_media(self):
         try:
             SharedMediaLayoutClass = find_class("org.telegram.ui.Components.SharedMediaLayout")
@@ -9348,4 +9374,72 @@ class SleepTimerHook:
                 self.plugin.sleep_timer_active = False
         except Exception as e:
             self.plugin.log(f"Error in sleep timer: {e}")
+
+
+class AdaptiveAudioHook:
+    def __init__(self, plugin):
+        self.plugin = plugin
+    
+    def after_hooked_method(self, param):
+        try:
+            cell = param.thisObject
+            
+            documentAttachTypeField = cell.getClass().getDeclaredField("documentAttachType")
+            documentAttachTypeField.setAccessible(True)
+            documentAttachType = documentAttachTypeField.getInt(cell)
+            
+            if documentAttachType != 3:
+                return
+            
+            currentMessageObjectField = cell.getClass().getDeclaredField("currentMessageObject")
+            currentMessageObjectField.setAccessible(True)
+            messageObject = currentMessageObjectField.get(cell)
+            
+            if messageObject is None:
+                return
+            
+            documentAttachField = cell.getClass().getDeclaredField("documentAttach")
+            documentAttachField.setAccessible(True)
+            documentAttach = documentAttachField.get(cell)
+            
+            if documentAttach is None:
+                return
+            
+            duration = 0
+            attributes = documentAttach.attributes
+            for i in range(attributes.size()):
+                attr = attributes.get(i)
+                attr_class_name = attr.getClass().getName()
+                if "TL_documentAttributeAudio" in attr_class_name:
+                    duration = attr.duration
+                    break
+            
+            if duration <= 0:
+                return
+            
+            backgroundWidthField = cell.getClass().getDeclaredField("backgroundWidth")
+            backgroundWidthField.setAccessible(True)
+            currentBackgroundWidth = backgroundWidthField.getInt(cell)
+            
+            extra = 0
+            if duration >= 180:
+                extra = AndroidUtilities.dp(120)
+            elif duration >= 120:
+                extra = AndroidUtilities.dp(80)
+            elif duration >= 60:
+                extra = AndroidUtilities.dp(40)
+            
+            if extra > 0:
+                from java.lang import Class
+                AndroidUtilitiesClass = Class.forName("org.telegram.messenger.AndroidUtilities")
+                displaySizeField = AndroidUtilitiesClass.getDeclaredField("displaySize")
+                displaySizeField.setAccessible(True)
+                displaySize = displaySizeField.get(None)
+                
+                screenLimit = displaySize.x - AndroidUtilities.dp(75)
+                
+                newBackgroundWidth = min(currentBackgroundWidth + extra, screenLimit)
+                backgroundWidthField.setInt(cell, newBackgroundWidth)
+        except:
+            pass
 
