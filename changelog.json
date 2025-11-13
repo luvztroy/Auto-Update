@@ -1,7 +1,7 @@
 {
-  "version": "1.7.7.3-Beta",
+  "version": "1.7.7.4-Beta",
   "release_date": "2025-11-14",
-  "changelog_text": "**What's New in v1.7.7.3-Beta:**\n\n• Unlocked playback speed control for all types of audio",
+  "changelog_text": "**What's New in v1.7.7.4-Beta:**\n\n• Added automatic localization update after plugin update",
   "sticker_pack": "shawawaww_by_fStikBot",
   "sticker_index": 1,
   "sticker_circle": false,
