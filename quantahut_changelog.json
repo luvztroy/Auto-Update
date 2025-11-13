@@ -1,9 +1,9 @@
 {
-  "version": "1.4.7.3-Beta",
+  "version": "1.4.7.4-Beta",
   "release_date": "2025-11-11",
-  "changelog_text": "**What's New in v1.4.7.2-Beta:**\n\n• Tried to fix x button position changing when enabling/disabling anything from search result\n• Added new \"Check for Plugin Update\" button in plugin settings",
-  "sticker_pack": "sdishes_by_fStikBot",
-  "sticker_index": 4,
+  "changelog_text": "**What's New in v1.4.7.4-Beta:**\n\n• Added automatic localization update after plugin update",
+  "sticker_pack": "shawawaww_by_fStikBot",
+  "sticker_index": 1,
   "sticker_circle": false,
   "sticker_size": 160,
   "min_app_version": "11.12.1",
