@@ -51,8 +51,8 @@ from com.google.android.exoplayer2.util import Consumer
 
 try:
     import quantahut
-    if hasattr(quantahut, '__version__') and quantahut.__version__ < "1.4.6":
-        raise Exception(f"QuantaHut {quantahut.__version__} is too old. Need 1.4.6+")
+    if hasattr(quantahut, '__version__') and quantahut.__version__ < "1.4.7":
+        raise Exception(f"QuantaHut {quantahut.__version__} is too old. Need 1.4.7+")
     from quantahut import showmultiselector, showupdatebottomsheet, export_plugin_settings
 except ImportError:
     raise Exception("QuantaHut is required but not installed. Install it first. (Don't report this as a bug - it's your fault.)")
@@ -62,7 +62,7 @@ QuantaHut = quantahut
 __id__ = "ui_tweaks"
 __name__ = "UiTweaks"
 __description__ = "Well sometimes you just need to tweak things... (requires QuantaHut)"
-__version__ = "1.7.7.2-Beta"
+__version__ = "1.7.7.3-Beta"
 __author__ = "@luvztroy"
 __min_version__ = "12.1.1"
 __icon__ = "luvztroyIcons/13"
@@ -1325,6 +1325,8 @@ class UiTweaksPlugin(BasePlugin):
         
         self.hook_adaptive_audio_ref = None
         
+        self.hook_music_speed_control_ref = None
+        
         self.hook_custom_saved_messages_ref = None
         self.custom_saved_chat_id = None
 
@@ -1908,6 +1910,8 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("hide_birthday_alert", get_text("hide_birthday_alert", "Hide Birthday Alert"), False, lambda v: self._apply_hooks(), link_alias="hide_birthday_alert"),
             Divider(text=get_text("hide_birthday_alert_info", "Hides the birthday setup suggestion that appears in the chat list.")),
             self.Quanta_switch("enable_select_all_media", get_text("enable_select_all_media", "Select All Media Button"), True, lambda v: self._apply_hooks(), link_alias="enable_select_all_media"),
+            self.Quanta_switch("enable_music_speed_control", get_text("enable_music_speed_control", "Music Speed Control"), False, lambda v: self._apply_hooks(), link_alias="enable_music_speed_control"),
+            Divider(text=get_text("music_speed_control_info", "Enable playback speed control for all music files regardless of duration.")) if self.get_setting("enable_music_speed_control", False) else None,
 
         ]
 
@@ -2740,6 +2744,7 @@ class UiTweaksPlugin(BasePlugin):
             "hook_select_all_media_ref",
             "hook_sleep_timer_ref",
             "hook_adaptive_audio_ref",
+            "hook_music_speed_control_ref",
             "hook_custom_saved_messages_ref",
         ):
             ref = getattr(self, ref_attr, None)
@@ -3000,6 +3005,9 @@ class UiTweaksPlugin(BasePlugin):
             
             if self.get_setting("enable_adaptive_audio_length", False):
                 self._hook_adaptive_audio_length()
+            
+            if self.get_setting("enable_music_speed_control", False):
+                self._hook_music_speed_control()
             
             if self.get_setting("enable_custom_saved_messages", False):
                 self._hook_custom_saved_messages()
@@ -3936,6 +3944,20 @@ class UiTweaksPlugin(BasePlugin):
                 AdaptiveAudioHook(self),
                 priority=50
             )
+        except:
+            pass
+    
+    def _hook_music_speed_control(self):
+        try:
+            FragmentContextViewClass = find_class("org.telegram.ui.Components.FragmentContextView")
+            if not FragmentContextViewClass:
+                return
+            
+            methods = FragmentContextViewClass.getClass().getDeclaredMethods()
+            for m in methods:
+                if m.getName() == "checkPlayer" and len(m.getParameterTypes()) == 1:
+                    self.hook_music_speed_control_ref = self.hook_method(m, MusicSpeedControlHook(self))
+                    break
         except:
             pass
     
@@ -9544,5 +9566,42 @@ class AdaptiveAudioHook:
                 newBackgroundWidth = min(currentBackgroundWidth + extra, screenLimit)
                 backgroundWidthField.setInt(cell, newBackgroundWidth)
         except:
+            pass
+
+
+class MusicSpeedControlHook:
+    def __init__(self, plugin):
+        self.plugin = plugin
+        self._is_music_field = None
+        self._playback_button_field = None
+    
+    def after_hooked_method(self, param):
+        try:
+            instance = param.thisObject
+            if self._is_music_field is None or self._playback_button_field is None:
+                c = instance.getClass()
+                self._is_music_field = c.getDeclaredField("isMusic")
+                self._is_music_field.setAccessible(True)
+                self._playback_button_field = c.getDeclaredField("playbackSpeedButton")
+                self._playback_button_field.setAccessible(True)
+            is_music = self._is_music_field.getBoolean(instance)
+            btn = self._playback_button_field.get(instance)
+            if is_music and btn is not None:
+                btn.setVisibility(0)
+                btn.setAlpha(1.0)
+                btn.setEnabled(True)
+                try:
+                    methods = instance.getClass().getDeclaredMethods()
+                    target = None
+                    for m in methods:
+                        if m.getName() == "updatePlaybackButton" and len(m.getParameterTypes()) == 1:
+                            target = m
+                            break
+                    if target is not None:
+                        target.setAccessible(True)
+                        target.invoke(instance, False)
+                except Exception:
+                    pass
+        except Exception as e:
             pass
 
