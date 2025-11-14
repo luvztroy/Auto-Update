@@ -1,7 +1,7 @@
 {
-  "version": "1.7.7.4-Beta",
+  "version": "1.7.7.5-Beta",
   "release_date": "2025-11-14",
-  "changelog_text": "**What's New in v1.7.7.4-Beta:**\n\n• Added automatic localization update after plugin update",
+  "changelog_text": "**What's New in v1.7.7.5-Beta:**\n\n• Optimized voice message time display with caching",
   "sticker_pack": "shawawaww_by_fStikBot",
   "sticker_index": 1,
   "sticker_circle": false,
