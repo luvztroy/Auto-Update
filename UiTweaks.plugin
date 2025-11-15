@@ -2038,7 +2038,6 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("enable_delete_with_duration", get_text("enable_delete_with_duration", "Delete with Duration Selection"), False, lambda v: self._apply_delete_with_duration_hooks(), link_alias="enable_delete_with_duration"),
             Divider(text=get_text("delete_with_duration_info", "Adds duration selection when banning/restricting users after deleting their messages.")) if self.get_setting("enable_delete_with_duration", False) else None,
             self.Quanta_switch("send_comments_after_forward", get_text("send_comments_after_forward", "Send Comments After Forward"), False, lambda v: self._apply_hooks(), link_alias="send_comments_after_forward"),
-            Divider(text=get_text("send_comments_after_forward_info", "Automatically send a comment message after forwarding messages.")),
             self.Quanta_switch("enable_no_quote_forward", get_text("enable_no_quote_forward", "Enable No-Quote Forward"), True, lambda v: self._update_no_quote_forward_menu_item(), link_alias="enable_no_quote_forward"),
             Divider(text=get_text("context_menu_info", "These will add items to the context menu that appears when you tap on any message.")),
             self.Quanta_switch("typing_instead_sticker", get_text("typing_instead_sticker", "Typing Instead of Choosing Sticker"), False, lambda v: self._apply_hooks(), link_alias="typing_instead_sticker"),
