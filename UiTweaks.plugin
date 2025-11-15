@@ -1487,6 +1487,10 @@ class UiTweaksPlugin(BasePlugin):
         global uitweaks_plugin_instance
         uitweaks_plugin_instance = self
         
+        self._send_comments_bypass = False
+        self._send_comments_pending = {}
+        self.add_hook("TL_messages_forwardMessages")
+        
         self.update_available = False
         self.latest_version = None
         self.changelog = None
@@ -2033,9 +2037,8 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("enable_reply_private_chat", get_text("enable_reply_private_chat", "Enable Reply in Private Chat"), False, lambda v: self._update_reply_private_chat_menu_item(), link_alias="enable_reply_private_chat"),
             self.Quanta_switch("enable_delete_with_duration", get_text("enable_delete_with_duration", "Delete with Duration Selection"), False, lambda v: self._apply_delete_with_duration_hooks(), link_alias="enable_delete_with_duration"),
             Divider(text=get_text("delete_with_duration_info", "Adds duration selection when banning/restricting users after deleting their messages.")) if self.get_setting("enable_delete_with_duration", False) else None,
-        ])
-        
-        settings.extend([
+            self.Quanta_switch("send_comments_after_forward", get_text("send_comments_after_forward", "Send Comments After Forward"), False, lambda v: self._apply_hooks(), link_alias="send_comments_after_forward"),
+            Divider(text=get_text("send_comments_after_forward_info", "Automatically send a comment message after forwarding messages.")),
             self.Quanta_switch("enable_no_quote_forward", get_text("enable_no_quote_forward", "Enable No-Quote Forward"), True, lambda v: self._update_no_quote_forward_menu_item(), link_alias="enable_no_quote_forward"),
             Divider(text=get_text("context_menu_info", "These will add items to the context menu that appears when you tap on any message.")),
             self.Quanta_switch("typing_instead_sticker", get_text("typing_instead_sticker", "Typing Instead of Choosing Sticker"), False, lambda v: self._apply_hooks(), link_alias="typing_instead_sticker"),
@@ -2818,6 +2821,50 @@ class UiTweaksPlugin(BasePlugin):
         
         if not isinstance(message, str) or not message:
             return HookResult()
+        
+        if self.get_setting("send_comments_after_forward", False) and not self._send_comments_bypass:
+            if not hasattr(params, "message") or not isinstance(params.message, str):
+                return HookResult()
+            if not params.message:
+                return HookResult()
+            if not hasattr(params, "peer") or not params.peer:
+                return HookResult()
+            try:
+                LaunchActivity = jclass("org.telegram.ui.LaunchActivity")
+                ChatActivity = jclass("org.telegram.ui.ChatActivity")
+                DialogsActivity = jclass("org.telegram.ui.DialogsActivity")
+                fragment = LaunchActivity.getLastFragment()
+            except Exception:
+                return HookResult()
+            if fragment is None:
+                return HookResult()
+            should_intercept = False
+            try:
+                if isinstance(fragment, ChatActivity):
+                    preview = get_private_field(fragment, "messagePreviewParams")
+                    if preview is not None:
+                        forward = getattr(preview, "forwardMessages", None)
+                        if forward is not None:
+                            messages = getattr(forward, "messages", None)
+                            try:
+                                has_forward = messages is not None and not messages.isEmpty()
+                            except Exception:
+                                has_forward = False
+                            if has_forward:
+                                should_intercept = True
+                elif isinstance(fragment, DialogsActivity):
+                    dialogs_type = get_private_field(fragment, "dialogsType")
+                    forward_type = getattr(DialogsActivity, "DIALOGS_TYPE_FORWARD", None)
+                    if dialogs_type == forward_type:
+                        should_intercept = True
+            except Exception:
+                should_intercept = False
+            if not should_intercept:
+                return HookResult()
+            peer = params.peer
+            self.log(f"hook_text {peer} {params.message[:30]}")
+            self._send_comments_pending[peer] = (params, account)
+            return HookResult(strategy=HookStrategy.CANCEL)
         
         try:
             decoded = base64.b64decode(message).decode()
@@ -4445,6 +4492,28 @@ class UiTweaksPlugin(BasePlugin):
             request.drop_author = True
             self.no_quote_requested = False
             return HookResult(strategy=HookStrategy.MODIFY, request=request)
+        
+        if request_name == "TL_messages_forwardMessages" and self.get_setting("send_comments_after_forward", False):
+            if not hasattr(request, "to_peer") or request.to_peer is None:
+                return HookResult()
+            try:
+                peer = DialogObject.getPeerDialogId(request.to_peer)
+            except Exception:
+                return HookResult()
+            if not peer:
+                return HookResult()
+            entry = self._send_comments_pending.pop(peer, None)
+            if entry is not None:
+                params, acc = entry
+                self.log(f"forward_match {peer}")
+                def after_forward():
+                    self._send_comments_bypass = True
+                    try:
+                        SendMessagesHelper.getInstance(acc).sendMessage(params)
+                    finally:
+                        self._send_comments_bypass = False
+                run_on_queue(after_forward, PLUGINS_QUEUE, 400)
+            return HookResult()
         
         return HookResult()
     
@@ -9686,4 +9755,12 @@ class MusicSpeedControlHook:
                     pass
         except Exception as e:
             pass
+
+
+class SendCommentsAfterForwardHook:
+    def __init__(self, plugin):
+        self.plugin = plugin
+    
+    def before_hooked_method(self, param):
+        return None
 
