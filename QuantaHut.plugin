@@ -2826,7 +2826,7 @@ class UpdateBottomSheet:
         ))
         self.download_button.setGravity(Gravity.CENTER)
         self.download_button.setSingleLine(True)
-        current_lang_display = "English"
+        current_lang_display = self.current_language.upper()
         try:
             for lang in self.available_languages:
                 if lang['code'] == self.current_language:
