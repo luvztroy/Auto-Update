@@ -922,7 +922,9 @@ class QuantaHut(BasePlugin):
         def load_languages_background():
             try:
                 import urllib.request, json, re
-                with urllib.request.urlopen("https://api.github.com/repos/luvztroy/UiTweaks/contents/") as response:
+                branch = self._get_selected_branch()
+                url = f"https://api.github.com/repos/luvztroy/UiTweaks/contents/?ref={branch}"
+                with urllib.request.urlopen(url) as response:
                     data = json.loads(response.read().decode('utf-8'))
                     languages = []
                     for file_info in data:
