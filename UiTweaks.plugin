@@ -1545,11 +1545,16 @@ class UiTweaksPlugin(BasePlugin):
                         time.sleep(2)
                         
                         import urllib.request
-                        github_url = f"https://raw.githubusercontent.com/luvztroy/UiTweaks/main/UiTweaks%20{current_language}.json"
+                        branch_index = self.get_setting("localization_branch", 0)
+                        branch = "main" if branch_index == 0 else "Beta"
+                        self.log(f"Checking localization availability for {current_language} in branch: {branch}")
+                        github_url = f"https://raw.githubusercontent.com/luvztroy/UiTweaks/refs/heads/{branch}/UiTweaks%20{current_language}.json"
+                        self.log(f"GitHub URL: {github_url}")
                         
                         try:
                             with urllib.request.urlopen(github_url) as response:
                                 if response.getcode() == 200:
+                                    self.log(f"Language {current_language} found in {branch} branch")
                                     def show_available_sheet():
                                         showupdatebottomsheet(
                                             title=get_text("download_localization_title", "Download Localization"),
@@ -1568,7 +1573,8 @@ class UiTweaksPlugin(BasePlugin):
                                     run_on_ui_thread(show_available_sheet)
                                 else:
                                     raise Exception("Not found")
-                        except Exception:
+                        except Exception as e:
+                            self.log(f"Language {current_language} not found in {branch} branch: {e}")
                             def show_unavailable_sheet():
                                 showupdatebottomsheet(
                                     title=get_text("localization_not_available", "Localization Not Available"),
@@ -2090,7 +2096,8 @@ class UiTweaksPlugin(BasePlugin):
             settings.extend([
                 Header(text=get_text("auto_update", "Auto Update")),
                 self.Quanta_selector("update_branch", get_text("update_branch", "Update Branch"), [get_text("branch_main", "Main"), get_text("branch_beta", "Beta")], 0, link_alias="update_branch"),
-                Divider(text=get_text("update_branch_info", "Select which branch to receive updates from. Beta may contain experimental features."))
+                self.Quanta_selector("localization_branch", get_text("localization_branch", "Localization Branch"), [get_text("branch_main", "Main"), get_text("branch_beta", "Beta")], 0, link_alias="localization_branch"),
+                Divider(text=get_text("branch_info", "Select which branch to receive updates and download localization files from. Beta may contain experimental features and newer translations."))
             ])
         
         settings.extend([
