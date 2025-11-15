@@ -4507,11 +4507,13 @@ class UiTweaksPlugin(BasePlugin):
                 params, acc = entry
                 self.log(f"forward_match {peer}")
                 def after_forward():
-                    self._send_comments_bypass = True
-                    try:
-                        SendMessagesHelper.getInstance(acc).sendMessage(params)
-                    finally:
-                        self._send_comments_bypass = False
+                    def send_on_main_thread():
+                        self._send_comments_bypass = True
+                        try:
+                            SendMessagesHelper.getInstance(acc).sendMessage(params)
+                        finally:
+                            self._send_comments_bypass = False
+                    run_on_ui_thread(send_on_main_thread)
                 run_on_queue(after_forward, PLUGINS_QUEUE, 400)
             return HookResult()
         
