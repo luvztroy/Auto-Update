@@ -1,7 +1,7 @@
 {
-  "version": "1.7.7.5-Beta",
+  "version": "1.7.7.6-Beta",
   "release_date": "2025-11-15",
-  "changelog_text": "**What's New in v1.7.7.5-Beta:**\n\n• Optimized voice message time display with caching\n• Added send comments after forwarded message",
+  "changelog_text": "**What's New in v1.7.7.6-Beta:**\n\n• Added localization branch selector",
   "sticker_pack": "shawawaww_by_fStikBot",
   "sticker_index": 1,
   "sticker_circle": false,
