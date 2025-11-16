@@ -8738,16 +8738,18 @@ class DisableAutoWebLoginHook:
     def __init__(self, plugin):
         self.plugin = plugin
 
-    def before_hooked_method(self, param):
+    def replace_hooked_method(self, param):
         try:
+            context = param.args[0]
             uri = param.args[1]
             
-            if uri is None:
+            if context is None or uri is None:
                 return
             
             uri_string = str(uri.toString())
             
             from org.telegram.messenger import AndroidUtilities, AccountInstance, UserConfig
+            from android.content import Intent
             from android.net import Uri
             import re
             
@@ -8770,10 +8772,19 @@ class DisableAutoWebLoginHook:
                             modified_uri_string = re.sub(r'[?&]$', '', modified_uri_string)
                             
                             if modified_uri_string != uri_string:
-                                param.args[1] = Uri.parse(modified_uri_string)
+                                uri = Uri.parse(modified_uri_string)
+            
+            try:
+                intent = Intent(Intent.ACTION_VIEW, uri)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            except Exception as e:
+                pass
+            
+            return
             
         except Exception as e:
-            pass
+            return
 
 
 class DoNotSharePhoneNumberHook:
