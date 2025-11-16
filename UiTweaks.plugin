@@ -1497,6 +1497,8 @@ class UiTweaksPlugin(BasePlugin):
         self.download_url = None
         self.checking_update = False
         
+        self.hook_always_visible_schedule_button_ref = None
+        
         try:
             locale_controller = LocaleController.getInstance()
             current_language = locale_controller.getCurrentLocaleInfo().getLangCode()
@@ -2047,6 +2049,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("enable_no_quote_forward", get_text("enable_no_quote_forward", "Enable No-Quote Forward"), True, lambda v: self._update_no_quote_forward_menu_item(), link_alias="enable_no_quote_forward"),
             Divider(text=get_text("context_menu_info", "These will add items to the context menu that appears when you tap on any message.")),
             self.Quanta_switch("typing_instead_sticker", get_text("typing_instead_sticker", "Typing Instead of Choosing Sticker"), False, lambda v: self._apply_hooks(), link_alias="typing_instead_sticker"),
+            self.Quanta_switch("always_visible_schedule_button", get_text("always_visible_schedule_button", "Always Visible Schedule Button"), False, lambda v: self._apply_hooks(), link_alias="always_visible_schedule_button"),
         ])
         
         settings.extend([
@@ -2760,6 +2763,7 @@ class UiTweaksPlugin(BasePlugin):
             "hook_ai_role_limit_constructor_ref",
             "hook_ai_role_limit_settext_ref",
             "hook_select_all_media_ref",
+            "hook_always_visible_schedule_button_ref",
             "hook_sleep_timer_ref",
             "hook_adaptive_audio_ref",
             "hook_music_speed_control_ref",
@@ -3062,6 +3066,9 @@ class UiTweaksPlugin(BasePlugin):
             if self.get_setting("enable_select_all_media", True):
                 self._hook_select_all_media()
             
+            if self.get_setting("always_visible_schedule_button", False):
+                self._hook_always_visible_schedule_button()
+
             if self.get_setting("enable_sleep_timer", False):
                 self._hook_sleep_timer()
             
@@ -4295,6 +4302,21 @@ class UiTweaksPlugin(BasePlugin):
             self._scroll_and_select(shared_media_layout, current_page, selected_files, dialog_id, shared_media_data, media_type)
         except:
             pass
+    
+    def _hook_always_visible_schedule_button(self):
+        try:
+            ChatActivityEnterViewClass = find_class("org.telegram.ui.Components.ChatActivityEnterView")
+            if not ChatActivityEnterViewClass:
+                return
+            
+            update_schedule_button_method = ChatActivityEnterViewClass.getClass().getDeclaredMethod(
+                "updateScheduleButton",
+                find_class("java.lang.Boolean").TYPE
+            )
+            update_schedule_button_method.setAccessible(True)
+            self.hook_always_visible_schedule_button_ref = self.hook_method(update_schedule_button_method, AlwaysVisibleScheduleButtonHook(self))
+        except Exception as e:
+            self.log(f"Error hooking always visible schedule button: {e}")
     
     def _hook_gift_drawer(self):
         try:
@@ -9770,5 +9792,41 @@ class SendCommentsAfterForwardHook:
         self.plugin = plugin
     
     def before_hooked_method(self, param):
+        return None
+
+
+class AlwaysVisibleScheduleButtonHook:
+    def __init__(self, plugin):
+        self.plugin = plugin
+    
+    def replace_hooked_method(self, param):
+        try:
+            enter_view = param.thisObject
+            animated = param.args[0]
+            
+            schedule_button_hidden = get_private_field(enter_view, "scheduleButtonHidden")
+            recording_audio_video = get_private_field(enter_view, "recordingAudioVideo")
+            visible = (not schedule_button_hidden) and (not recording_audio_video)
+            scheduled_button = get_private_field(enter_view, "scheduledButton")
+            
+            if visible and not scheduled_button:
+                try:
+                    ChatActivityEnterViewClass = find_class("org.telegram.ui.Components.ChatActivityEnterView")
+                    create_method = ChatActivityEnterViewClass.getClass().getDeclaredMethod("createScheduledButton")
+                    create_method.setAccessible(True)
+                    create_method.invoke(enter_view)
+                    scheduled_button = get_private_field(enter_view, "scheduledButton")
+                except Exception:
+                    pass
+            
+            if scheduled_button and visible:
+                scheduled_button.setVisibility(0)
+                scheduled_button.setAlpha(1.0)
+                scheduled_button.setScaleX(1.0)
+                scheduled_button.setScaleY(1.0)
+                scheduled_button.setTag(1)
+        except Exception:
+            pass
+        
         return None
 
