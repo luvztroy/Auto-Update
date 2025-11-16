@@ -1,7 +1,7 @@
 {
-  "version": "1.7.7.6-Beta",
-  "release_date": "2025-11-15",
-  "changelog_text": "**What's New in v1.7.7.6-Beta:**\n\n• Added localization branch selector",
+  "version": "1.7.7.7-Beta",
+  "release_date": "2025-11-17",
+  "changelog_text": "**What's New in v1.7.7.7-Beta:**\n\n• Added always show schedule button\n• refactored disable auto web login",
   "sticker_pack": "shawawaww_by_fStikBot",
   "sticker_index": 1,
   "sticker_circle": false,
