@@ -78,17 +78,17 @@ class QuantaHut(BasePlugin):
             Header(text=get_text("quantahut_configuration", "QuantaHut Configuration")),
             Switch(key="show_logs", text=get_text("enable_debug_logging_quantahut", "Enable Debug Logging"), default=DEFAULT_SHOW_LOGS, icon="menu_intro_solar"),
             Switch(key="show_restart_menu", text=get_text("quantahut_show_restart", "Show Restart in Drawer"), default=DEFAULT_SHOW_RESTART_MENU, icon="msg_retry", on_change=self._on_restart_toggle_changed),
-            
             Header(text=get_text("updates", "Updates")),
-            Selector(key="localization_branch", text=get_text("localization_branch", "Localization Branch"), items=[get_text("branch_main", "Main"), get_text("branch_beta", "Beta")], default=DEFAULT_BRANCH, icon="msg_folders"),
+
             Text(text=get_text("localization_update", "Update Localization"), accent=True, icon="msg_download_solar", on_click=lambda v: self._show_quanta_bottom_sheet()),
             Text(text=get_text("check_update", "Check for Plugin Updates"), accent=True, icon="msg_download_solar", on_click=lambda v: check_quanta_updates()),
         ]
         
         if show_branch_selector:
             settings.extend([
+                Selector(key="localization_branch", text=get_text("localization_branch", "Localization Branch"), items=[get_text("branch_main", "Main"), get_text("branch_beta", "Beta")], default=DEFAULT_BRANCH, icon="msg_folders"),                
                 Selector(key="update_branch", text=get_text("update_branch", "Update Branch"), items=[get_text("branch_main", "Main"), get_text("branch_beta", "Beta")], default=DEFAULT_BRANCH, icon="msg_folders"),
-                Divider(text=get_text("update_branch_info", "Select which branch to receive updates from. Beta may contain experimental features.")),
+                Divider(text=get_text("update_branch_info", "Select which branch to receive updates and download localization files from. Beta may contain experimental features and newer translations.")),
             ])
 
             
