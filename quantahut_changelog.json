@@ -1,7 +1,7 @@
 {
-  "version": "1.4.7.5-Beta",
-  "release_date": "2025-11-11",
-  "changelog_text": "**What's New in v1.4.7.5-Beta:**\n\n• Fixed available language check is not respecting branch selection\n• Fixed action button showing hardcoded text instead of language code",
+  "version": "1.4.7.6-Pre release",
+  "release_date": "2025-11-17",
+  "changelog_text": "**What's New in v1.4.7.6-Pre release:**\n\n**Added:**\n• Loading dialogue when plugins are importing\n• New long click menu for filter pills with 2 new items: Delete plugins, Export plugins\n• New \"Update Localization\" & \"Check for Plugin Update\" button in plugin settings\n\n**Fixed:**\n• Tried to fix x button position changing when enabling/disabling anything from search results",
   "sticker_pack": "shawawaww_by_fStikBot",
   "sticker_index": 1,
   "sticker_circle": false,
