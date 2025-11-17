@@ -2100,7 +2100,7 @@ class UiTweaksPlugin(BasePlugin):
                 Header(text=get_text("auto_update", "Auto Update")),
                 self.Quanta_selector("update_branch", get_text("update_branch", "Update Branch"), [get_text("branch_main", "Main"), get_text("branch_beta", "Beta")], 0, link_alias="update_branch"),
                 self.Quanta_selector("localization_branch", get_text("localization_branch", "Localization Branch"), [get_text("branch_main", "Main"), get_text("branch_beta", "Beta")], 0, link_alias="localization_branch"),
-                Divider(text=get_text("branch_info", "Select which branch to receive updates and download localization files from. Beta may contain experimental features and newer translations."))
+                Divider(text=get_text("update_branch_info", "Select which branch to receive updates and download localization files from. Beta may contain experimental features and newer translations."))
             ])
         
         settings.extend([
@@ -8737,54 +8737,18 @@ class MessagePreviewViewHook:
 class DisableAutoWebLoginHook:
     def __init__(self, plugin):
         self.plugin = plugin
+        uitweaks_log("DisableAutoWebLoginHook initialized")
 
-    def replace_hooked_method(self, param):
+    def before_hooked_method(self, param):
         try:
-            context = param.args[0]
-            uri = param.args[1]
-            
-            if context is None or uri is None:
-                return
-            
-            uri_string = str(uri.toString())
-            
-            from org.telegram.messenger import AndroidUtilities, AccountInstance, UserConfig
-            from android.content import Intent
-            from android.net import Uri
-            import re
-            
-            uri_string_lower = uri_string.lower()
-            host = AndroidUtilities.getHostAuthority(uri_string_lower)
-            
-            if host:
-                currentAccount = UserConfig.selectedAccount
-                messagesController = AccountInstance.getInstance(currentAccount).getMessagesController()
-                
-                if hasattr(messagesController, 'autologinDomains'):
-                    if host == "web.telegram.org":
-                        messagesController.autologinDomains.add("web.telegram.org")
-                    
-                    if messagesController.autologinDomains.contains(host):
-                        if "tgWebAuthToken=" in uri_string or "autologin_token=" in uri_string:
-                            modified_uri_string = re.sub(r'[?&#](autologin_token|tgWebAuthToken|tgWebAuthUserId|tgWebAuthDcId)=[^&#]*', '', uri_string)
-                            modified_uri_string = re.sub(r'\?&', '?', modified_uri_string)
-                            modified_uri_string = re.sub(r'&&', '&', modified_uri_string)
-                            modified_uri_string = re.sub(r'[?&]$', '', modified_uri_string)
-                            
-                            if modified_uri_string != uri_string:
-                                uri = Uri.parse(modified_uri_string)
-            
-            try:
-                intent = Intent(Intent.ACTION_VIEW, uri)
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-            except Exception as e:
-                pass
-            
-            return
-            
+            from org.telegram.messenger import AccountInstance, UserConfig
+            currentAccount = UserConfig.selectedAccount
+            messagesController = AccountInstance.getInstance(currentAccount).getMessagesController()
+            if hasattr(messagesController, 'autologinDomains'):
+                uitweaks_log("Clearing autologinDomains to prevent token injection")
+                messagesController.autologinDomains.clear()
         except Exception as e:
-            return
+            uitweaks_log("Error clearing autologinDomains: " + str(e))
 
 
 class DoNotSharePhoneNumberHook:
