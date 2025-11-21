@@ -1329,6 +1329,8 @@ class UiTweaksPlugin(BasePlugin):
         
         self.hook_custom_saved_messages_ref = None
         self.custom_saved_chat_id = None
+        
+        self.hook_disable_emoji_suggestions_ref = None
 
     def log(self, message: str):
         if self.get_setting("show_logs", False):
@@ -2050,6 +2052,7 @@ class UiTweaksPlugin(BasePlugin):
             Divider(text=get_string("context_menu_info", "These will add items to the context menu that appears when you tap on any message.")),
             self.Quanta_switch("typing_instead_sticker", get_string("typing_instead_sticker", "Typing Instead of Choosing Sticker"), False, lambda v: self._apply_hooks(), link_alias="typing_instead_sticker"),
             self.Quanta_switch("always_visible_schedule_button", get_string("always_visible_schedule_button", "Always Visible Schedule Button"), False, lambda v: self._apply_hooks(), link_alias="always_visible_schedule_button"),
+            self.Quanta_switch("disable_emoji_suggestions", get_string("disable_emoji_suggestions", "Disable Emoji Suggestions"), False, lambda v: self._apply_hooks(), link_alias="disable_emoji_suggestions"),
         ])
         
         settings.extend([
@@ -2768,6 +2771,7 @@ class UiTweaksPlugin(BasePlugin):
             "hook_adaptive_audio_ref",
             "hook_music_speed_control_ref",
             "hook_custom_saved_messages_ref",
+            "hook_disable_emoji_suggestions_ref",
         ):
             ref = getattr(self, ref_attr, None)
             if ref:
@@ -3080,6 +3084,9 @@ class UiTweaksPlugin(BasePlugin):
             
             if self.get_setting("enable_custom_saved_messages", False):
                 self._hook_custom_saved_messages()
+            
+            if self.get_setting("disable_emoji_suggestions", False):
+                self._hook_disable_emoji_suggestions()
 
         except Exception as e:
             pass
@@ -4115,6 +4122,29 @@ class UiTweaksPlugin(BasePlugin):
         if user:
             return f"{getattr(user, 'first_name', '') or ''} {getattr(user, 'last_name', '') or ''}".strip() or "Unknown"
         return "Unknown"
+    
+    def _hook_disable_emoji_suggestions(self):
+        try:
+            SuggestEmojiViewClass = find_class("org.telegram.ui.Components.SuggestEmojiView")
+            if not SuggestEmojiViewClass:
+                return
+            
+            JavaClass = SuggestEmojiViewClass.getClass()
+            
+            update_method = JavaClass.getDeclaredMethod("update")
+            self.hook_disable_emoji_suggestions_ref = self.hook_method(update_method, DisableEmojiSuggestionsHook())
+            
+            fire_update_method = JavaClass.getDeclaredMethod("fireUpdate")
+            self.hook_method(fire_update_method, DisableFireUpdateHook())
+            
+            StringClass = find_class("java.lang.String")
+            searchKeywords_method = JavaClass.getDeclaredMethod("searchKeywords", StringClass)
+            self.hook_method(searchKeywords_method, DisableEmojiSuggestionsHook())
+            
+            searchAnimated_method = JavaClass.getDeclaredMethod("searchAnimated", StringClass)
+            self.hook_method(searchAnimated_method, DisableEmojiSuggestionsHook())
+        except Exception as e:
+            pass
     
     def _hook_select_all_media(self):
         try:
@@ -9804,4 +9834,14 @@ class AlwaysVisibleScheduleButtonHook:
             pass
         
         return None
+
+
+class DisableEmojiSuggestionsHook:
+    def before_hooked_method(self, param):
+        param.setResult(None)
+
+
+class DisableFireUpdateHook:
+    def before_hooked_method(self, param):
+        param.setResult(None)
 
