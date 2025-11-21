@@ -81,7 +81,7 @@ def show_confirmation_selector():
     except Exception as e:
         pass
 
-def get_text(key: str, default: str = None) -> str:
+def get_string(key: str, default: str = None) -> str:
     try:
         selected_language = get_selected_language_preference()
         if selected_language:
@@ -347,7 +347,7 @@ class RecentChatsPopup:
         title_text_view = TextView(context)
         title_text_view.setTextColor(Theme.getColor(Theme.key_dialogTextBlue))
         title_text_view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16)
-        title_text_view.setText(get_text("recent_chats", "Recent Chats"))
+        title_text_view.setText(get_string("recent_chats", "Recent Chats"))
         title_text_view.setTypeface(AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM))
         header_view.addView(title_text_view, LayoutHelper.createFrame(
             -2, 24, Gravity.LEFT
@@ -392,10 +392,10 @@ class RecentChatsPopup:
                 return
                 
             builder = AlertDialogBuilder(activity)
-            builder.set_title(get_text("clear_recent_chats", "Clear Recent Chats"))
-            builder.set_message(get_text("clear_recent_chats_confirm", "Are you sure you want to clear all recent chats?"))
-            builder.set_positive_button(get_text("clear", "Clear"), lambda dialog, which: popup._clear_recent_chats(current_account))
-            builder.set_negative_button(get_text("cancel", "Cancel"), None)
+            builder.set_title(get_string("clear_recent_chats", "Clear Recent Chats"))
+            builder.set_message(get_string("clear_recent_chats_confirm", "Are you sure you want to clear all recent chats?"))
+            builder.set_positive_button(get_string("clear", "Clear"), lambda dialog, which: popup._clear_recent_chats(current_account))
+            builder.set_negative_button(get_string("cancel", "Cancel"), None)
             builder.show()
         
         return clear_click_listener
@@ -463,11 +463,11 @@ class RecentChatsPopup:
             title_view.setText(chat.title)
         else:
             if UserObject.isReplyUser(user):
-                name = get_text("replies", "Replies")
+                name = get_string("replies", "Replies")
                 avatar_drawable.setInfo(user)
                 image_view.setImageDrawable(avatar_drawable)
             elif UserObject.isDeleted(user):
-                name = get_text("hidden_name", "Hidden Name")
+                name = get_string("hidden_name", "Hidden Name")
                 avatar_drawable.setInfo(user)
                 image_view.setImage(ImageLocation.getForUser(user, ImageLocation.TYPE_SMALL), "50_50", avatar_drawable, user)
             else:
@@ -655,7 +655,7 @@ class NonClickablePreviewPresentFragmentHook:
             DialogObject = jclass("org.telegram.messenger.DialogObject")
             R = jclass("org.telegram.messenger.R")
             
-            item_text = get_text("open_profile", "Open Profile")
+            item_text = get_string("open_profile", "Open Profile")
             item_icon = R.drawable.msg_openprofile
             
             open_profile_item = ActionBarMenuSubItem(fragment.getParentActivity(), False, False)
@@ -674,7 +674,7 @@ class NonClickablePreviewPresentFragmentHook:
             ActionBarMenuSubItem = jclass("org.telegram.ui.ActionBar.ActionBarMenuSubItem")
             R = jclass("org.telegram.messenger.R")
             
-            item_text = get_text("open_chat", "Open Chat")
+            item_text = get_string("open_chat", "Open Chat")
             item_icon = R.drawable.msg_msgbubble3
             
             open_chat_item = ActionBarMenuSubItem(fragment.getParentActivity(), False, False)
@@ -1170,8 +1170,8 @@ class ContactStatusListAdapterBindViewHolderHook:
             from org.telegram.ui.Cells import TextDetailCell
             if isinstance(item_view, TextDetailCell):
                 item_view.setTextAndValue(
-                    get_text("mutual_contact", "Mutual contact"),
-                    get_text("both_saved_as_contacts", "Both saved as contacts"),
+                    get_string("mutual_contact", "Mutual contact"),
+                    get_string("both_saved_as_contacts", "Both saved as contacts"),
                     True
                 )
             param.setResult(None)
@@ -1400,8 +1400,8 @@ class UiTweaksPlugin(BasePlugin):
                 context = ApplicationLoader.applicationContext
             
             builder = AlertDialogBuilder(context)
-            title_text = get_text("memory_warning_title", "Memory Warning")
-            message_template = get_text("memory_warning_message", "High memory usage: {used_mb}MB.\n\nRestart app or dump memory?")
+            title_text = get_string("memory_warning_title", "Memory Warning")
+            message_template = get_string("memory_warning_message", "High memory usage: {used_mb}MB.\n\nRestart app or dump memory?")
             message_text = message_template.replace("{used_mb}", f"{used_mb:.0f}")
             builder.set_title(title_text)
             builder.set_message(message_text)
@@ -1415,9 +1415,9 @@ class UiTweaksPlugin(BasePlugin):
                 dialog.dismiss()
                 self._dump_memory()
             
-            builder.set_positive_button(get_text("restart_app", "Restart"), on_restart)
-            builder.set_neutral_button(get_text("dump_memory", "Dump Memory"), on_dump_memory)
-            builder.set_negative_button(get_text("cancel", "Cancel"), lambda d, w: d.dismiss())
+            builder.set_positive_button(get_string("restart_app", "Restart"), on_restart)
+            builder.set_neutral_button(get_string("dump_memory", "Dump Memory"), on_dump_memory)
+            builder.set_negative_button(get_string("cancel", "Cancel"), lambda d, w: d.dismiss())
             builder.show()
         except Exception as e:
             self.log(f"Error showing memory alert: {e}")
@@ -1444,14 +1444,14 @@ class UiTweaksPlugin(BasePlugin):
             
             from ui.bulletin import BulletinHelper
             if freed_memory > 0:
-                BulletinHelper.show_success(get_text("memory_dump_success", "Memory dump successful! Freed {freed_memory:.1f}MB").format(freed_memory=freed_memory))
+                BulletinHelper.show_success(get_string("memory_dump_success", "Memory dump successful! Freed {freed_memory:.1f}MB").format(freed_memory=freed_memory))
             else:
-                BulletinHelper.show_info(get_text("memory_dump_no_freed", "Memory dump completed. No significant memory was freed."))
+                BulletinHelper.show_info(get_string("memory_dump_no_freed", "Memory dump completed. No significant memory was freed."))
                 
         except Exception as e:
             self.log(f"Error dumping memory: {e}")
             from ui.bulletin import BulletinHelper
-            BulletinHelper.show_error(get_text("memory_dump_failed", "Failed to dump memory"))
+            BulletinHelper.show_error(get_string("memory_dump_failed", "Failed to dump memory"))
     
     def _start_memory_monitoring(self):
         if self.memory_check_running:
@@ -1559,14 +1559,14 @@ class UiTweaksPlugin(BasePlugin):
                                     self.log(f"Language {current_language} found in {branch} branch")
                                     def show_available_sheet():
                                         showupdatebottomsheet(
-                                            title=get_text("download_localization_title", "Download Localization"),
-                                            subtitle=get_text("current_language_detected", "Current language detected: {language}").format(language=current_language.lower()),
-                                            description=get_text("unlock_uitweaks_description", "Unlock UiTweaks in {language} for a seamless experience.").format(language=language_name),
+                                            title=get_string("download_localization_title", "Download Localization"),
+                                            subtitle=get_string("current_language_detected", "Current language detected: {language}").format(language=current_language.lower()),
+                                            description=get_string("unlock_uitweaks_description", "Unlock UiTweaks in {language} for a seamless experience.").format(language=language_name),
                                             github_url=github_url,
                                             plugin_name="UiTweaks_Localization",
                                             sticker_pack="luvztroyIcons",
                                             sticker_index=13,
-                                            bottom_text=get_text("localization_bottom_text", "This process only happens once. After downloading, the files are saved locally to give you seamless access to UiTweaks in your language anytime."),
+                                            bottom_text=get_string("localization_bottom_text", "This process only happens once. After downloading, the files are saved locally to give you seamless access to UiTweaks in your language anytime."),
                                             show_language_selector=False,
                                             available_languages=quantahut.available_languages,
                                             show_user_avatar=False,
@@ -1579,15 +1579,15 @@ class UiTweaksPlugin(BasePlugin):
                             self.log(f"Language {current_language} not found in {branch} branch: {e}")
                             def show_unavailable_sheet():
                                 showupdatebottomsheet(
-                                    title=get_text("localization_not_available", "Localization Not Available"),
-                                    subtitle=get_text("current_language_detected", "Current language detected: {language}").format(language=current_language.lower()),
-                                    description=get_text("localization_not_available_description", "UiTweaks localization for {language} is not available yet.").format(language=language_name),
+                                    title=get_string("localization_not_available", "Localization Not Available"),
+                                    subtitle=get_string("current_language_detected", "Current language detected: {language}").format(language=current_language.lower()),
+                                    description=get_string("localization_not_available_description", "UiTweaks localization for {language} is not available yet.").format(language=language_name),
                                     github_url=None,
                                     plugin_name="UiTweaks_Localization",
                                     sticker_pack="luvztroyIcons",
                                     sticker_index=13,
-                                    button_text=get_text("continue", "Continue"),
-                                    bottom_text=get_text("localization_continue_text", "The plugin will continue to work in English. Check back later for localization updates."),
+                                    button_text=get_string("continue", "Continue"),
+                                    bottom_text=get_string("localization_continue_text", "The plugin will continue to work in English. Check back later for localization updates."),
                                     show_language_selector=False,
                                     available_languages=quantahut.available_languages,
                                     show_user_avatar=False,
@@ -1690,7 +1690,7 @@ class UiTweaksPlugin(BasePlugin):
                                         return
                         except Exception:
                             pass
-                        title = get_text("select_all", "Select all")
+                        title = get_string("select_all", "Select all")
                         otherItem.addSubItem(self.plugin._select_all_id, R_tg.drawable.msg_select_between_solar, title)
                         try:
                             self.plugin._select_all_added_modes.add(hc)
@@ -1901,95 +1901,95 @@ class UiTweaksPlugin(BasePlugin):
 
     def _create_general_settings(self):
         return [
-            self.Quanta_switch("confirm_deeplinks", get_text("confirm_deeplinks", "Confirm Telegram Deep Links"), True, lambda v: self._apply_hooks(), link_alias="confirm_deeplinks"),
-            self.Quanta_switch("confirm_ayugram_deeplinks", get_text("confirm_ayugram_deeplinks", "Confirm AyuGram Deep Links"), True, lambda v: self._apply_hooks(), link_alias="confirm_ayugram_deeplinks"),
-            Divider(text=get_text("deeplink_confirmation_info", "These toggles add confirmation dialogs before opening deep links to prevent accidental navigation to external content.")),
-            self.Quanta_switch("disable_auto_web_login", get_text("disable_auto_web_login", "Disable Auto Web Login"), False, lambda v: self._apply_hooks(), link_alias="disable_auto_web_login"),
-            self.Quanta_switch("do_not_share_phone_number", get_text("do_not_share_phone_number", "Do Not Share My Phone Number"), False, lambda v: self._apply_hooks(), link_alias="do_not_share_phone_number"),
-            self.Quanta_switch("prefer_common_groups_tab", get_text("prefer_common_groups_tab", "Prefer Common Groups Tab"), False, lambda v: self._apply_hooks(), link_alias="prefer_common_groups_tab"),
-            Divider(text=get_text("prefer_common_groups_tab_info", "Automatically selects the Groups tab instead of Gifts tab in user profiles when both are available.")),
-            self.Quanta_switch("hide_phone_number", get_text("hide_phone_number", "Hide Phone Number in Profiles"), False, lambda v: self._apply_hooks(), link_alias="hide_phone_number"),
-            Divider(text=get_text("hide_phone_number_info", "This will hide the recipient's phone number from their profile.")),
-            Header(text=get_text("navigation_controls", "Navigation controls")),
-            self.Quanta_switch("prevent_swipe_while_editing", get_text("prevent_swipe_while_editing", "Prevent swipe back while editing"), True, lambda v: self._apply_hooks(), link_alias="prevent_swipe_while_editing"),
-            self.Quanta_switch("prevent_swipe_while_typing", get_text("prevent_swipe_while_typing", "Prevent swipe back while typing"), True, lambda v: self._apply_hooks(), link_alias="prevent_swipe_while_typing"),
-            self.Quanta_switch("disable_article_viewer_swipe", get_text("disable_article_viewer_swipe", "Disable ArticleViewer swipe to close"), False, lambda v: self._apply_hooks(), link_alias="disable_article_viewer_swipe"),
-            self.Quanta_switch("prevent_webapp_swipe_down", get_text("prevent_webapp_swipe_down", "Prevent swipe down in webapp bots"), False, lambda v: self._apply_hooks(), link_alias="prevent_webapp_swipe_down"),
-            Divider(text=get_text("navigation_controls_info", "This will prevent the Telegram navigation gestures to work from these scenarios.")),      
-            self.Quanta_switch("fab_settings_shortcut", get_text("fab_settings_shortcut", "FAB Shortcut"), False, lambda v: self._apply_hooks(), link_alias="fab_settings_shortcut"),
-            self.Quanta_selector("fab_action_selector", get_text("fab_action_selector", "Action"), [get_text("fab_action_uitweaks_settings", "UiTweaks Settings"), get_text("fab_action_archived_chats", "Archived Chats")], 0, lambda v: self._apply_hooks(), link_alias="fab_action_selector") if self.get_setting("fab_settings_shortcut", False) else None,
+            self.Quanta_switch("confirm_deeplinks", get_string("confirm_deeplinks", "Confirm Telegram Deep Links"), True, lambda v: self._apply_hooks(), link_alias="confirm_deeplinks"),
+            self.Quanta_switch("confirm_ayugram_deeplinks", get_string("confirm_ayugram_deeplinks", "Confirm AyuGram Deep Links"), True, lambda v: self._apply_hooks(), link_alias="confirm_ayugram_deeplinks"),
+            Divider(text=get_string("deeplink_confirmation_info", "These toggles add confirmation dialogs before opening deep links to prevent accidental navigation to external content.")),
+            self.Quanta_switch("disable_auto_web_login", get_string("disable_auto_web_login", "Disable Auto Web Login"), False, lambda v: self._apply_hooks(), link_alias="disable_auto_web_login"),
+            self.Quanta_switch("do_not_share_phone_number", get_string("do_not_share_phone_number", "Do Not Share My Phone Number"), False, lambda v: self._apply_hooks(), link_alias="do_not_share_phone_number"),
+            self.Quanta_switch("prefer_common_groups_tab", get_string("prefer_common_groups_tab", "Prefer Common Groups Tab"), False, lambda v: self._apply_hooks(), link_alias="prefer_common_groups_tab"),
+            Divider(text=get_string("prefer_common_groups_tab_info", "Automatically selects the Groups tab instead of Gifts tab in user profiles when both are available.")),
+            self.Quanta_switch("hide_phone_number", get_string("hide_phone_number", "Hide Phone Number in Profiles"), False, lambda v: self._apply_hooks(), link_alias="hide_phone_number"),
+            Divider(text=get_string("hide_phone_number_info", "This will hide the recipient's phone number from their profile.")),
+            Header(text=get_string("navigation_controls", "Navigation controls")),
+            self.Quanta_switch("prevent_swipe_while_editing", get_string("prevent_swipe_while_editing", "Prevent swipe back while editing"), True, lambda v: self._apply_hooks(), link_alias="prevent_swipe_while_editing"),
+            self.Quanta_switch("prevent_swipe_while_typing", get_string("prevent_swipe_while_typing", "Prevent swipe back while typing"), True, lambda v: self._apply_hooks(), link_alias="prevent_swipe_while_typing"),
+            self.Quanta_switch("disable_article_viewer_swipe", get_string("disable_article_viewer_swipe", "Disable ArticleViewer swipe to close"), False, lambda v: self._apply_hooks(), link_alias="disable_article_viewer_swipe"),
+            self.Quanta_switch("prevent_webapp_swipe_down", get_string("prevent_webapp_swipe_down", "Prevent swipe down in webapp bots"), False, lambda v: self._apply_hooks(), link_alias="prevent_webapp_swipe_down"),
+            Divider(text=get_string("navigation_controls_info", "This will prevent the Telegram navigation gestures to work from these scenarios.")),      
+            self.Quanta_switch("fab_settings_shortcut", get_string("fab_settings_shortcut", "FAB Shortcut"), False, lambda v: self._apply_hooks(), link_alias="fab_settings_shortcut"),
+            self.Quanta_selector("fab_action_selector", get_string("fab_action_selector", "Action"), [get_string("fab_action_uitweaks_settings", "UiTweaks Settings"), get_string("fab_action_archived_chats", "Archived Chats")], 0, lambda v: self._apply_hooks(), link_alias="fab_action_selector") if self.get_setting("fab_settings_shortcut", False) else None,
             Divider(),
-            self.Quanta_switch("hide_birthday_alert", get_text("hide_birthday_alert", "Hide Birthday Alert"), False, lambda v: self._apply_hooks(), link_alias="hide_birthday_alert"),
-            Divider(text=get_text("hide_birthday_alert_info", "Hides the birthday setup suggestion that appears in the chat list.")),
-            self.Quanta_switch("enable_select_all_media", get_text("enable_select_all_media", "Select All Media Button"), True, lambda v: self._apply_hooks(), link_alias="enable_select_all_media"),
-            self.Quanta_switch("enable_music_speed_control", get_text("enable_music_speed_control", "Music Speed Control"), False, lambda v: self._apply_hooks(), link_alias="enable_music_speed_control"),
-            Divider(text=get_text("music_speed_control_info", "Enable playback speed control for all music files regardless of duration.")) if self.get_setting("enable_music_speed_control", False) else None,
+            self.Quanta_switch("hide_birthday_alert", get_string("hide_birthday_alert", "Hide Birthday Alert"), False, lambda v: self._apply_hooks(), link_alias="hide_birthday_alert"),
+            Divider(text=get_string("hide_birthday_alert_info", "Hides the birthday setup suggestion that appears in the chat list.")),
+            self.Quanta_switch("enable_select_all_media", get_string("enable_select_all_media", "Select All Media Button"), True, lambda v: self._apply_hooks(), link_alias="enable_select_all_media"),
+            self.Quanta_switch("enable_music_speed_control", get_string("enable_music_speed_control", "Music Speed Control"), False, lambda v: self._apply_hooks(), link_alias="enable_music_speed_control"),
+            Divider(text=get_string("music_speed_control_info", "Enable playback speed control for all music files regardless of duration.")) if self.get_setting("enable_music_speed_control", False) else None,
 
         ]
 
     def _create_miscellaneous_settings(self):
         return [ 
-            self.Quanta_switch("enable_message_preview_enhancement", get_text("message_preview_send_button", "Share media from link preview"), False, lambda v: self._apply_hooks(), link_alias="enable_message_preview_enhancement"),
-            self.Quanta_switch("enable_code_formatting", get_text("code_formatting_menu", "Code & Mention Formatting"), False, lambda v: self._apply_hooks(), link_alias="enable_code_formatting"),
-            self.Quanta_switch("enable_sender_select_enhancement", get_text("sender_select_improvements", "Send message as menu improvements"), False, lambda v: self._apply_hooks(), link_alias="enable_sender_select_enhancement"),
-            Divider(text=get_text("sender_select_subtext", "Show personal account in \"send message as\" menu where you are the owner of the group")),
-            self.Quanta_switch("enable_select_all_dialogs", get_text("select_all_dialogs_menu", "Select All Chats"), False, lambda v: self._apply_hooks(), link_alias="enable_select_all_dialogs"),
-            self.Quanta_switch("enable_gif_spoiler", get_text("gif_spoiler_caption", "GIF Spoiler & Caption"), False, lambda v: self._apply_hooks(), link_alias="enable_gif_spoiler"),
-            self.Quanta_switch("enable_swipe_disable", get_text("disable_swipe_gestures", "Swipe gesture menu improvements"), False, lambda v: self._apply_hooks(), link_alias="enable_swipe_disable"),
-            Divider(text=get_text("disable_swipe_subtext", "Add disable option in Telegrams \"Chat list swipe gesture\" menu")),
-            self.Quanta_switch("enable_share_sheet_folders", get_text("add_folders_to_share_sheet", "Folders in direct share sheet"), False, lambda v: self._apply_hooks(), link_alias="enable_share_sheet_folders"),
-            self.Quanta_switch("enable_account_visibility", get_text("account_visibility", "Account Visibility"), False, lambda v: self._apply_hooks(), link_alias="enable_account_visibility"),
-            Divider(text=get_text("account_visibility_subtext", "Hide/show accounts by long-pressing theme button")),
-            self.Quanta_switch("enable_non_clickable_preview", get_text("non_clickable_preview", "Non-Clickable Chat Preview"), False, lambda v: self._apply_hooks(), link_alias="enable_non_clickable_preview"),
-            self.Quanta_switch("enable_add_to_folder_all_tabs", get_text("add_to_folder_all_tabs", "Add to Folder in All Tabs"), False, lambda v: self._apply_hooks(), link_alias="enable_add_to_folder_all_tabs"),
-            Divider(text=get_text("add_to_folder_all_tabs_subtext", "Enables 'Add to folder' option in all folder tabs, not just the All chats tab")),
-            self.Quanta_switch("enable_contact_status_in_profile", get_text("contact_status_in_profile", "Mutual Contact in Profile"), False, lambda v: self._apply_hooks(), link_alias="enable_contact_status_in_profile"),
-            self.Quanta_switch("enable_safe_mode", get_text("safe_mode", "Safe Mode"), False, lambda v: self._apply_hooks(), link_alias="enable_safe_mode"),
-            Divider(text=get_text("safe_mode_subtext", "Press volume down 5 times quickly to enable plugin safe mode ~ In Safe Mode, all plugins are inactive. This allows you to safely find and disable a problematic plugin.")),
-            self.Quanta_switch("enable_search_by_user_id", get_text("search_by_user_id", "Search by User ID"), False, lambda v: self._apply_hooks(), link_alias="enable_search_by_user_id"),
-            self.Quanta_switch("enable_ai_role_limit", get_text("ai_role_limit", "AI Role Limit Increaser"), False, lambda v: self._apply_hooks(), link_alias="enable_ai_role_limit"),
-            self.Quanta_switch("enable_sleep_timer", get_text("sleep_timer", "Music Sleep Timer"), False, lambda v: self._apply_hooks(), link_alias="enable_sleep_timer"),
+            self.Quanta_switch("enable_message_preview_enhancement", get_string("message_preview_send_button", "Share media from link preview"), False, lambda v: self._apply_hooks(), link_alias="enable_message_preview_enhancement"),
+            self.Quanta_switch("enable_code_formatting", get_string("code_formatting_menu", "Code & Mention Formatting"), False, lambda v: self._apply_hooks(), link_alias="enable_code_formatting"),
+            self.Quanta_switch("enable_sender_select_enhancement", get_string("sender_select_improvements", "Send message as menu improvements"), False, lambda v: self._apply_hooks(), link_alias="enable_sender_select_enhancement"),
+            Divider(text=get_string("sender_select_subtext", "Show personal account in \"send message as\" menu where you are the owner of the group")),
+            self.Quanta_switch("enable_select_all_dialogs", get_string("select_all_dialogs_menu", "Select All Chats"), False, lambda v: self._apply_hooks(), link_alias="enable_select_all_dialogs"),
+            self.Quanta_switch("enable_gif_spoiler", get_string("gif_spoiler_caption", "GIF Spoiler & Caption"), False, lambda v: self._apply_hooks(), link_alias="enable_gif_spoiler"),
+            self.Quanta_switch("enable_swipe_disable", get_string("disable_swipe_gestures", "Swipe gesture menu improvements"), False, lambda v: self._apply_hooks(), link_alias="enable_swipe_disable"),
+            Divider(text=get_string("disable_swipe_subtext", "Add disable option in Telegrams \"Chat list swipe gesture\" menu")),
+            self.Quanta_switch("enable_share_sheet_folders", get_string("add_folders_to_share_sheet", "Folders in direct share sheet"), False, lambda v: self._apply_hooks(), link_alias="enable_share_sheet_folders"),
+            self.Quanta_switch("enable_account_visibility", get_string("account_visibility", "Account Visibility"), False, lambda v: self._apply_hooks(), link_alias="enable_account_visibility"),
+            Divider(text=get_string("account_visibility_subtext", "Hide/show accounts by long-pressing theme button")),
+            self.Quanta_switch("enable_non_clickable_preview", get_string("non_clickable_preview", "Non-Clickable Chat Preview"), False, lambda v: self._apply_hooks(), link_alias="enable_non_clickable_preview"),
+            self.Quanta_switch("enable_add_to_folder_all_tabs", get_string("add_to_folder_all_tabs", "Add to Folder in All Tabs"), False, lambda v: self._apply_hooks(), link_alias="enable_add_to_folder_all_tabs"),
+            Divider(text=get_string("add_to_folder_all_tabs_subtext", "Enables 'Add to folder' option in all folder tabs, not just the All chats tab")),
+            self.Quanta_switch("enable_contact_status_in_profile", get_string("contact_status_in_profile", "Mutual Contact in Profile"), False, lambda v: self._apply_hooks(), link_alias="enable_contact_status_in_profile"),
+            self.Quanta_switch("enable_safe_mode", get_string("safe_mode", "Safe Mode"), False, lambda v: self._apply_hooks(), link_alias="enable_safe_mode"),
+            Divider(text=get_string("safe_mode_subtext", "Press volume down 5 times quickly to enable plugin safe mode ~ In Safe Mode, all plugins are inactive. This allows you to safely find and disable a problematic plugin.")),
+            self.Quanta_switch("enable_search_by_user_id", get_string("search_by_user_id", "Search by User ID"), False, lambda v: self._apply_hooks(), link_alias="enable_search_by_user_id"),
+            self.Quanta_switch("enable_ai_role_limit", get_string("ai_role_limit", "AI Role Limit Increaser"), False, lambda v: self._apply_hooks(), link_alias="enable_ai_role_limit"),
+            self.Quanta_switch("enable_sleep_timer", get_string("sleep_timer", "Music Sleep Timer"), False, lambda v: self._apply_hooks(), link_alias="enable_sleep_timer"),
         ]
 
     def _create_appearance_settings(self):
         settings = []
         
         settings.extend([
-            Header(text=get_text("hide_elements", "Hide elements")),
-            self.Quanta_switch("hide_bot_open", get_text("hide_bot_open", "Bot 'Open' button in chat list"), False, lambda v: self._apply_hooks(), link_alias="hide_bot_open"),
-            self.Quanta_switch("hide_hd_icon", get_text("hide_hd_icon", "HD icon in media picker"), False, lambda v: self._apply_hooks(), link_alias="hide_hd_icon"),
-            Divider(text=get_text("hide_hd_icon_info", "This will only remove the HD icon from the media picker. It will not affect the quality of the media.")),
+            Header(text=get_string("hide_elements", "Hide elements")),
+            self.Quanta_switch("hide_bot_open", get_string("hide_bot_open", "Bot 'Open' button in chat list"), False, lambda v: self._apply_hooks(), link_alias="hide_bot_open"),
+            self.Quanta_switch("hide_hd_icon", get_string("hide_hd_icon", "HD icon in media picker"), False, lambda v: self._apply_hooks(), link_alias="hide_hd_icon"),
+            Divider(text=get_string("hide_hd_icon_info", "This will only remove the HD icon from the media picker. It will not affect the quality of the media.")),
         ])
         
         settings.extend([
-            self.Quanta_switch("always_show_download_manager", get_text("always_show_download_manager", "Always Show Download Manager"), False, lambda v: self._apply_hooks(), link_alias="always_show_download_manager"),
-            self.Quanta_switch("always_show_proxy_button", get_text("always_show_proxy_button", "Always Show Proxy Button"), False, lambda v: self._apply_hooks(), link_alias="always_show_proxy_button"),
-            Divider(text=get_text("menu_visibility_info", "This will force the buttons to always show in the action bar.")),
+            self.Quanta_switch("always_show_download_manager", get_string("always_show_download_manager", "Always Show Download Manager"), False, lambda v: self._apply_hooks(), link_alias="always_show_download_manager"),
+            self.Quanta_switch("always_show_proxy_button", get_string("always_show_proxy_button", "Always Show Proxy Button"), False, lambda v: self._apply_hooks(), link_alias="always_show_proxy_button"),
+            Divider(text=get_string("menu_visibility_info", "This will force the buttons to always show in the action bar.")),
         ])
         
         settings.extend([
-            self.Quanta_switch("unread_badge_on_back_button", get_text("unread_badge_on_back_button", "Unread Badge on Back Button"), False, lambda v: self._apply_hooks(), link_alias="unread_badge_on_back_button"),
+            self.Quanta_switch("unread_badge_on_back_button", get_string("unread_badge_on_back_button", "Unread Badge on Back Button"), False, lambda v: self._apply_hooks(), link_alias="unread_badge_on_back_button"),
         ])
         
         settings.extend([
-            self.Quanta_switch("enable_recent_chats_menu", get_text("enable_recent_chats_menu", "Enable Recent Chats Menu"), True, lambda v: self._apply_hooks(), link_alias="enable_recent_chats_menu"),
-            Divider(text=get_text("recent_chats_menu_info", "Shows recent chats when long-pressing the drawer icon in chat list. Stores up to 20 chats.")),
-            self.Quanta_switch("quick_access_gift_market", get_text("quick_access_gift_market", "Quick Access to Gift Market"), False, lambda v: self._apply_hooks(), link_alias="quick_access_gift_market"),
+            self.Quanta_switch("enable_recent_chats_menu", get_string("enable_recent_chats_menu", "Enable Recent Chats Menu"), True, lambda v: self._apply_hooks(), link_alias="enable_recent_chats_menu"),
+            Divider(text=get_string("recent_chats_menu_info", "Shows recent chats when long-pressing the drawer icon in chat list. Stores up to 20 chats.")),
+            self.Quanta_switch("quick_access_gift_market", get_string("quick_access_gift_market", "Quick Access to Gift Market"), False, lambda v: self._apply_hooks(), link_alias="quick_access_gift_market"),
         ])
         
         settings.extend([
-            Header(text=get_text("manage_folders", "Manage Folders")),
-            self.Quanta_switch("unread_chat_count", get_text("unread_chat_count", "Show Unread Chat Count"), False, lambda v: self._apply_hooks(), link_alias="unread_chat_count"),
-            self.Quanta_switch("unread_message_count", get_text("unread_message_count", "Show Unread Message Count"), False, lambda v: self._apply_hooks(), link_alias="unread_message_count"),
-            self.Quanta_switch("exclude_archived_from_count", get_text("exclude_archived_from_count", "Exclude Archived Chats from Count"), False, lambda v: self._apply_hooks(), link_alias="exclude_archived_from_count"),
-            Divider(text=get_text("unread_count_info", "Adjust how unread counters behave in folders. When both are enabled, only non-muted chats are counted.")),
-            self.Quanta_switch("hidefolders_enabled", get_text("hide_folders", "Hide Folders"), False, lambda v: self._toggle_hide_folders(v), link_alias="hide_folders"),
+            Header(text=get_string("manage_folders", "Manage Folders")),
+            self.Quanta_switch("unread_chat_count", get_string("unread_chat_count", "Show Unread Chat Count"), False, lambda v: self._apply_hooks(), link_alias="unread_chat_count"),
+            self.Quanta_switch("unread_message_count", get_string("unread_message_count", "Show Unread Message Count"), False, lambda v: self._apply_hooks(), link_alias="unread_message_count"),
+            self.Quanta_switch("exclude_archived_from_count", get_string("exclude_archived_from_count", "Exclude Archived Chats from Count"), False, lambda v: self._apply_hooks(), link_alias="exclude_archived_from_count"),
+            Divider(text=get_string("unread_count_info", "Adjust how unread counters behave in folders. When both are enabled, only non-muted chats are counted.")),
+            self.Quanta_switch("hidefolders_enabled", get_string("hide_folders", "Hide Folders"), False, lambda v: self._toggle_hide_folders(v), link_alias="hide_folders"),
             self.Quanta_text(
-                text=get_text("select_folders", "Select Folders"),
+                text=get_string("select_folders", "Select Folders"),
                 on_click=lambda v: self._show_folder_selector(),
                 link_alias="select_folders"
             ) if self.get_setting("hidefolders_enabled", False) else None,
-            Divider(text=get_text("hide_folders_info", "Hide specific folders from the folder list. Select which folders to hide.")) if self.get_setting("hidefolders_enabled", False) else None,
+            Divider(text=get_string("hide_folders_info", "Hide specific folders from the folder list. Select which folders to hide.")) if self.get_setting("hidefolders_enabled", False) else None,
         ])
         
         
@@ -2000,76 +2000,76 @@ class UiTweaksPlugin(BasePlugin):
         settings = []
         
         settings.extend([
-            Header(text=get_text("hide_chat_controls", "Hide Chat Controls")),
-            self.Quanta_switch("hide_bot_button", get_text("hide_bot_button", "Hide Bot Button in Input Field"), False, lambda v: self._apply_hooks(), link_alias="hide_bot_button"),
+            Header(text=get_string("hide_chat_controls", "Hide Chat Controls")),
+            self.Quanta_switch("hide_bot_button", get_string("hide_bot_button", "Hide Bot Button in Input Field"), False, lambda v: self._apply_hooks(), link_alias="hide_bot_button"),
         ])
         
         settings.extend([
-            self.Quanta_switch("hide_archived_chats", get_text("hide_archived_chats", "Hide Archived Chats"), False, lambda v: self._apply_hooks(), link_alias="hide_archived_chats"),
-            self.Quanta_switch("hide_archived_from_drawer", get_text("hide_archived_from_drawer", "Hide from drawer"), False, lambda v: self._apply_hooks(), link_alias="hide_archived_from_drawer") if self.get_setting("hide_archived_chats", False) else None,
-            Divider(text=get_text("hide_archived_chats_info", "This will remove archived chats cell from the chat list by filtering them out of the dialogs query.")),
-            self.Quanta_switch("hide_star_reaction", get_text("hide_star_reaction", "Hide Star Reaction"), False, lambda v: self._apply_hooks(), link_alias="hide_star_reaction"),
+            self.Quanta_switch("hide_archived_chats", get_string("hide_archived_chats", "Hide Archived Chats"), False, lambda v: self._apply_hooks(), link_alias="hide_archived_chats"),
+            self.Quanta_switch("hide_archived_from_drawer", get_string("hide_archived_from_drawer", "Hide from drawer"), False, lambda v: self._apply_hooks(), link_alias="hide_archived_from_drawer") if self.get_setting("hide_archived_chats", False) else None,
+            Divider(text=get_string("hide_archived_chats_info", "This will remove archived chats cell from the chat list by filtering them out of the dialogs query.")),
+            self.Quanta_switch("hide_star_reaction", get_string("hide_star_reaction", "Hide Star Reaction"), False, lambda v: self._apply_hooks(), link_alias="hide_star_reaction"),
             self.Quanta_text(
-                text=get_text("star_reaction_hide_location", "Select from where"),
+                text=get_string("star_reaction_hide_location", "Select from where"),
                 on_click=lambda v: self._show_star_reaction_selector(),
                 link_alias="star_reaction_hide_location"
             ) if self.get_setting("hide_star_reaction", False) else None,
         ])
         
         settings.extend([
-            self.Quanta_switch("enable_confirmation_settings", get_text("enable_confirmation_settings", "Enable Confirmation Settings"), True, lambda v: self._apply_hooks(), link_alias="enable_confirmation_settings"),
+            self.Quanta_switch("enable_confirmation_settings", get_string("enable_confirmation_settings", "Enable Confirmation Settings"), True, lambda v: self._apply_hooks(), link_alias="enable_confirmation_settings"),
             self.Quanta_text(
-                text=get_text("confirmation_settings", "Choose actions"),
+                text=get_string("confirmation_settings", "Choose actions"),
                 on_click=lambda v: show_confirmation_selector(),
                 link_alias="confirmation_settings"
             ) if self.get_setting("enable_confirmation_settings", True) else None,
         ])
         
         settings.extend([
-            Header(text=get_text("chat_features", "Chat Features")),
-            self.Quanta_switch("dont_auto_play_enabled", get_text("dont_auto_play_enabled", "Don't Auto Play Next"), False, lambda v: self._apply_hooks(), link_alias="dont_auto_play_enabled"),
+            Header(text=get_string("chat_features", "Chat Features")),
+            self.Quanta_switch("dont_auto_play_enabled", get_string("dont_auto_play_enabled", "Don't Auto Play Next"), False, lambda v: self._apply_hooks(), link_alias="dont_auto_play_enabled"),
             self.Quanta_text(
-                text=get_text("dont_auto_play_types", "Message Types"),
+                text=get_string("dont_auto_play_types", "Message Types"),
                 on_click=lambda v: self._show_dont_auto_play_selector(),
                 link_alias="dont_auto_play_types"
             ) if self.get_setting("dont_auto_play_enabled", False) else None,
-            Divider(text=get_text("dont_auto_play_info", "Prevents automatic playback of the next voice or video message in a chat, giving you control over when media plays.")) if self.get_setting("dont_auto_play_enabled", False) else None,
-            self.Quanta_switch("progress_timestamp_enabled", get_text("progress_timestamp_enabled", "Progress Timestamp"), True, lambda v: self._apply_hooks(), link_alias="progress_timestamp_enabled"),
+            Divider(text=get_string("dont_auto_play_info", "Prevents automatic playback of the next voice or video message in a chat, giving you control over when media plays.")) if self.get_setting("dont_auto_play_enabled", False) else None,
+            self.Quanta_switch("progress_timestamp_enabled", get_string("progress_timestamp_enabled", "Progress Timestamp"), True, lambda v: self._apply_hooks(), link_alias="progress_timestamp_enabled"),
             self.Quanta_text(
-                text=get_text("progress_timestamp_types", "Message Types"),
+                text=get_string("progress_timestamp_types", "Message Types"),
                 on_click=lambda v: self._show_progress_timestamp_selector(),
                 link_alias="progress_timestamp_types"
             ) if self.get_setting("progress_timestamp_enabled", True) else None,
-            Divider(text=get_text("progress_timestamp_info", "Shows the current playback time and total duration on voice and video messages for better media control.")) if self.get_setting("progress_timestamp_enabled", True) else None,
-            self.Quanta_switch("enable_goto_message", get_text("enable_goto_message", "Search by Message ID"), False, lambda v: self._apply_hooks(), link_alias="enable_goto_message"),
-            self.Quanta_switch("enable_reply_private_chat", get_text("enable_reply_private_chat", "Enable Reply in Private Chat"), False, lambda v: self._update_reply_private_chat_menu_item(), link_alias="enable_reply_private_chat"),
-            self.Quanta_switch("enable_delete_with_duration", get_text("enable_delete_with_duration", "Delete with Duration Selection"), False, lambda v: self._apply_delete_with_duration_hooks(), link_alias="enable_delete_with_duration"),
-            Divider(text=get_text("delete_with_duration_info", "Adds duration selection when banning/restricting users after deleting their messages.")) if self.get_setting("enable_delete_with_duration", False) else None,
-            self.Quanta_switch("send_comments_after_forward", get_text("send_comments_after_forward", "Send Comments After Forward"), False, lambda v: self._apply_hooks(), link_alias="send_comments_after_forward"),
-            self.Quanta_switch("enable_no_quote_forward", get_text("enable_no_quote_forward", "Enable No-Quote Forward"), True, lambda v: self._update_no_quote_forward_menu_item(), link_alias="enable_no_quote_forward"),
-            Divider(text=get_text("context_menu_info", "These will add items to the context menu that appears when you tap on any message.")),
-            self.Quanta_switch("typing_instead_sticker", get_text("typing_instead_sticker", "Typing Instead of Choosing Sticker"), False, lambda v: self._apply_hooks(), link_alias="typing_instead_sticker"),
-            self.Quanta_switch("always_visible_schedule_button", get_text("always_visible_schedule_button", "Always Visible Schedule Button"), False, lambda v: self._apply_hooks(), link_alias="always_visible_schedule_button"),
+            Divider(text=get_string("progress_timestamp_info", "Shows the current playback time and total duration on voice and video messages for better media control.")) if self.get_setting("progress_timestamp_enabled", True) else None,
+            self.Quanta_switch("enable_goto_message", get_string("enable_goto_message", "Search by Message ID"), False, lambda v: self._apply_hooks(), link_alias="enable_goto_message"),
+            self.Quanta_switch("enable_reply_private_chat", get_string("enable_reply_private_chat", "Enable Reply in Private Chat"), False, lambda v: self._update_reply_private_chat_menu_item(), link_alias="enable_reply_private_chat"),
+            self.Quanta_switch("enable_delete_with_duration", get_string("enable_delete_with_duration", "Delete with Duration Selection"), False, lambda v: self._apply_delete_with_duration_hooks(), link_alias="enable_delete_with_duration"),
+            Divider(text=get_string("delete_with_duration_info", "Adds duration selection when banning/restricting users after deleting their messages.")) if self.get_setting("enable_delete_with_duration", False) else None,
+            self.Quanta_switch("send_comments_after_forward", get_string("send_comments_after_forward", "Send Comments After Forward"), False, lambda v: self._apply_hooks(), link_alias="send_comments_after_forward"),
+            self.Quanta_switch("enable_no_quote_forward", get_string("enable_no_quote_forward", "Enable No-Quote Forward"), True, lambda v: self._update_no_quote_forward_menu_item(), link_alias="enable_no_quote_forward"),
+            Divider(text=get_string("context_menu_info", "These will add items to the context menu that appears when you tap on any message.")),
+            self.Quanta_switch("typing_instead_sticker", get_string("typing_instead_sticker", "Typing Instead of Choosing Sticker"), False, lambda v: self._apply_hooks(), link_alias="typing_instead_sticker"),
+            self.Quanta_switch("always_visible_schedule_button", get_string("always_visible_schedule_button", "Always Visible Schedule Button"), False, lambda v: self._apply_hooks(), link_alias="always_visible_schedule_button"),
         ])
         
         settings.extend([
-            self.Quanta_switch("enable_ai_summarize", get_text("enable_ai_summarize", "Summarize Chat"), False, lambda v: self._apply_hooks(), link_alias="enable_ai_summarize"),
+            self.Quanta_switch("enable_ai_summarize", get_string("enable_ai_summarize", "Summarize Chat"), False, lambda v: self._apply_hooks(), link_alias="enable_ai_summarize"),
         ])
         
         settings.extend([
-            self.Quanta_switch("disable_topics_swipe", get_text("disable_topics_swipe", "Disable Topics Swipe to Hide"), False, lambda v: self._apply_hooks(), link_alias="disable_topics_swipe"),
-            self.Quanta_switch("enable_adaptive_audio_length", get_text("enable_adaptive_audio_length", "Adaptive Audio Message Length"), False, lambda v: self._apply_hooks(), link_alias="enable_adaptive_audio_length"),
-            Divider(text=get_text("adaptive_audio_length_info", "The audio message bubble length will depend on the recording duration and automatically adjust to the screen width.")) if self.get_setting("enable_adaptive_audio_length", False) else None,
+            self.Quanta_switch("disable_topics_swipe", get_string("disable_topics_swipe", "Disable Topics Swipe to Hide"), False, lambda v: self._apply_hooks(), link_alias="disable_topics_swipe"),
+            self.Quanta_switch("enable_adaptive_audio_length", get_string("enable_adaptive_audio_length", "Adaptive Audio Message Length"), False, lambda v: self._apply_hooks(), link_alias="enable_adaptive_audio_length"),
+            Divider(text=get_string("adaptive_audio_length_info", "The audio message bubble length will depend on the recording duration and automatically adjust to the screen width.")) if self.get_setting("enable_adaptive_audio_length", False) else None,
         ])
         
         settings.extend([
-            self.Quanta_switch("enable_custom_saved_messages", get_text("enable_custom_saved_messages", "Custom Saved Messages"), False, lambda v: self._apply_hooks(), link_alias="enable_custom_saved_messages"),
+            self.Quanta_switch("enable_custom_saved_messages", get_string("enable_custom_saved_messages", "Custom Saved Messages"), False, lambda v: self._apply_hooks(), link_alias="enable_custom_saved_messages"),
         ])
         
         if self.get_setting("enable_custom_saved_messages", False):
             settings.append(
                 Text(
-                    text=get_text("selected_chat", "Selected Chat") + f": {self._get_custom_saved_chat_name()}",
+                    text=get_string("selected_chat", "Selected Chat") + f": {self._get_custom_saved_chat_name()}",
                     on_click=lambda v: self._select_custom_saved_chat(),
                     link_alias="select_custom_saved_chat"
                 )
@@ -2083,32 +2083,32 @@ class UiTweaksPlugin(BasePlugin):
         show_branch_selector = self.get_setting("show_branch_selector", False)
         
         settings.extend([
-            Header(text=get_text("support", "Support Development")),
-            Text(text=get_text("boosty", "Boosty"), icon="boosty_icon", on_click=lambda v: self._open_boosty()),
-            Text(text=get_text("ton_keeper", "Ton Keeper"), icon="ton_icon", on_click=lambda v: self._copy_ton_address()),
-            Text(text=get_text("know_more", "Know more"), icon="msg_info", accent=True, on_click=lambda v: self._show_donation_info()),
-            Divider(text=get_text("another_services", "If the provided services are not available in your country, you can contact me via [direct message](https://t.me/luvztroy)")),
+            Header(text=get_string("support", "Support Development")),
+            Text(text=get_string("boosty", "Boosty"), icon="boosty_icon", on_click=lambda v: self._open_boosty()),
+            Text(text=get_string("ton_keeper", "Ton Keeper"), icon="ton_icon", on_click=lambda v: self._copy_ton_address()),
+            Text(text=get_string("know_more", "Know more"), icon="msg_info", accent=True, on_click=lambda v: self._show_donation_info()),
+            Divider(text=get_string("another_services", "If the provided services are not available in your country, you can contact me via [direct message](https://t.me/luvztroy)")),
 
-            Text(text=get_text("export_settings", "Export Settings"), icon="msg_photo_rotate_solar", on_click=lambda v: self._export_settings()),
+            Text(text=get_string("export_settings", "Export Settings"), icon="msg_photo_rotate_solar", on_click=lambda v: self._export_settings()),
             
-            Text(text=get_text("reset_shared_preferences", "Reset Shared Preferences"), icon="msg_delete", red=True, on_click=lambda v: self._reset_all_preferences()),
-            Divider(text=get_text("reset_preferences_description", "Reset all application settings including themes, language, notifications, and user configurations. This action cannot be undone.")),
+            Text(text=get_string("reset_shared_preferences", "Reset Shared Preferences"), icon="msg_delete", red=True, on_click=lambda v: self._reset_all_preferences()),
+            Divider(text=get_string("reset_preferences_description", "Reset all application settings including themes, language, notifications, and user configurations. This action cannot be undone.")),
         ])
         
         if show_branch_selector:
             settings.extend([
-                Header(text=get_text("auto_update", "Auto Update")),
-                self.Quanta_selector("update_branch", get_text("update_branch", "Update Branch"), [get_text("branch_main", "Main"), get_text("branch_beta", "Beta")], 0, link_alias="update_branch"),
-                self.Quanta_selector("localization_branch", get_text("localization_branch", "Localization Branch"), [get_text("branch_main", "Main"), get_text("branch_beta", "Beta")], 0, link_alias="localization_branch"),
-                Divider(text=get_text("update_branch_info", "Select which branch to receive updates and download localization files from. Beta may contain experimental features and newer translations."))
+                Header(text=get_string("auto_update", "Auto Update")),
+                self.Quanta_selector("update_branch", get_string("update_branch", "Update Branch"), [get_string("branch_main", "Main"), get_string("branch_beta", "Beta")], 0, link_alias="update_branch"),
+                self.Quanta_selector("localization_branch", get_string("localization_branch", "Localization Branch"), [get_string("branch_main", "Main"), get_string("branch_beta", "Beta")], 0, link_alias="localization_branch"),
+                Divider(text=get_string("update_branch_info", "Select which branch to receive updates and download localization files from. Beta may contain experimental features and newer translations."))
             ])
         
         settings.extend([
-            Header(text=get_text("links", "Links")),
-            Text(text=get_text("channel", "Channel"), icon="msg_channel_solar", on_click=lambda v: self._open_channel()),
-            Text(text=get_text("chats", "Chats"), icon="msg_groups_solar", on_click=lambda v: self._open_group()),
-            Text(text=get_text("tips_and_tricks", "Tips and Tricks"), icon="menu_feature_reactions_solar", on_click=lambda v: self._open_tips()),
-            Text(text=get_text("translate", "Translate"), icon="msg_translate_solar", on_click=lambda v: self._open_translation(), on_long_click=lambda v: self._toggle_branch_selector()),
+            Header(text=get_string("links", "Links")),
+            Text(text=get_string("channel", "Channel"), icon="msg_channel_solar", on_click=lambda v: self._open_channel()),
+            Text(text=get_string("chats", "Chats"), icon="msg_groups_solar", on_click=lambda v: self._open_group()),
+            Text(text=get_string("tips_and_tricks", "Tips and Tricks"), icon="menu_feature_reactions_solar", on_click=lambda v: self._open_tips()),
+            Text(text=get_string("translate", "Translate"), icon="msg_translate_solar", on_click=lambda v: self._open_translation(), on_long_click=lambda v: self._toggle_branch_selector()),
         ])
         
         
@@ -2134,38 +2134,38 @@ class UiTweaksPlugin(BasePlugin):
 
     def create_settings(self):
         return [
-            Header(text=get_text("uitweaks_settings", "Categories")),
+            Header(text=get_string("uitweaks_settings", "Categories")),
             
             self.Quanta_text(
-                text=get_text("general", "General"),
+                text=get_string("general", "General"),
                 icon="msg_media_solar",
                 link_alias="general",
                 create_sub_fragment=self._create_general_settings
             ),
             
             self.Quanta_text(
-                text=get_text("appearance", "Appearance"), 
+                text=get_string("appearance", "Appearance"), 
                 icon="msg_theme",
                 link_alias="appearance",
                 create_sub_fragment=self._create_appearance_settings   
             ),
             
             self.Quanta_text(
-                text=get_text("chats", "Chats"),
+                text=get_string("chats", "Chats"),
                 icon="msg_msgbubble3_solar",
                 link_alias="chats",
                 create_sub_fragment=self._create_chats_settings 
             ),
             
             self.Quanta_text(
-                text=get_text("miscellaneous", "Miscellaneous"),
+                text=get_string("miscellaneous", "Miscellaneous"),
                 icon="msg_reactions_solar",
                 link_alias="miscellaneous",
                 create_sub_fragment=self._create_miscellaneous_settings
             ),
 
             self.Quanta_text(
-                text=get_text("others", "Others"),
+                text=get_string("others", "Others"),
                 icon="msg_fave_solar",
                 link_alias="others",
                 create_sub_fragment=self._create_others_settings   
@@ -2173,14 +2173,14 @@ class UiTweaksPlugin(BasePlugin):
             
             
             Text(
-                text=get_text("performance_warning", "Performance Warning"),
+                text=get_string("performance_warning", "Performance Warning"),
                 icon="msg_info_solar",
                 accent=True,
                 on_click=lambda view: self._show_performance_warning()
             ),
             
             Divider(),
-            Divider(text=get_text("thank_you_message", "Thank you for using UiTweaks! Feedback?\nJoin: @QuantaPlugins"))
+            Divider(text=get_string("thank_you_message", "Thank you for using UiTweaks! Feedback?\nJoin: @QuantaPlugins"))
         ]
 
     def _collect_all_settings_with_values(self):
@@ -2213,9 +2213,9 @@ class UiTweaksPlugin(BasePlugin):
         self.set_setting("show_branch_selector", not current, reload_settings=True)
         
         if not current:
-            BulletinHelper.show_success(get_text("branch_selector_enabled", "Branch selector enabled!"))
+            BulletinHelper.show_success(get_string("branch_selector_enabled", "Branch selector enabled!"))
         else:
-            BulletinHelper.show_info(get_text("branch_selector_disabled", "Branch selector hidden"))
+            BulletinHelper.show_info(get_string("branch_selector_disabled", "Branch selector hidden"))
     
     def _setup_quanta_file_hook(self):
         try:
@@ -2266,7 +2266,7 @@ class UiTweaksPlugin(BasePlugin):
                             backup_data = json.loads(content)
                             
                             if backup_data.get("plugin") != "UiTweaks":
-                                BulletinHelper.show_error(get_text("not_uitweaks_settings_file", "Not a UiTweaks settings file"))
+                                BulletinHelper.show_error(get_string("not_uitweaks_settings_file", "Not a UiTweaks settings file"))
                                 return
                             
                             settings = backup_data.get("settings", {})
@@ -2283,19 +2283,19 @@ class UiTweaksPlugin(BasePlugin):
                     changes_count = 1
                 
                 if changes_count == 0:
-                    BulletinHelper.show_error(get_text("settings_same_as_current", "It looks like the settings are the same as the current ones."))
+                    BulletinHelper.show_error(get_string("settings_same_as_current", "It looks like the settings are the same as the current ones."))
                     return
                 
-                subtitle = get_text("changes_will_be_applied_singular", "{count} change will be applied to the current settings.").format(count=changes_count) if changes_count == 1 else get_text("changes_will_be_applied_plural", "{count} changes will be applied to the current settings.").format(count=changes_count)
+                subtitle = get_string("changes_will_be_applied_singular", "{count} change will be applied to the current settings.").format(count=changes_count) if changes_count == 1 else get_string("changes_will_be_applied_plural", "{count} changes will be applied to the current settings.").format(count=changes_count)
                 
                 def on_import_click():
                     self._import_from_message(message_object)
                 
                 showupdatebottomsheet(
-                    title=get_text("apply_settings_confirmation", "Are you sure you want to apply these settings?"),
+                    title=get_string("apply_settings_confirmation", "Are you sure you want to apply these settings?"),
                     subtitle=subtitle,
-                    button_text=get_text("yes_apply", "Yes, apply"),
-                    button2_text=get_text("no_leave_as_is", "No, leave as is"),
+                    button_text=get_string("yes_apply", "Yes, apply"),
+                    button2_text=get_string("no_leave_as_is", "No, leave as is"),
                     show_close_button=False,
                     raw_resource=R_tg.raw.email_check_inbox,
                     on_button_click=on_import_click,
@@ -2323,7 +2323,7 @@ class UiTweaksPlugin(BasePlugin):
             backup_data = json.loads(content)
 
             if backup_data.get("plugin") != "UiTweaks":
-                BulletinHelper.show_error(get_text("not_uitweaks_settings_file", "Not a UiTweaks settings file"))
+                BulletinHelper.show_error(get_string("not_uitweaks_settings_file", "Not a UiTweaks settings file"))
                 return
             
             settings = backup_data.get("settings", {})
@@ -2341,10 +2341,10 @@ class UiTweaksPlugin(BasePlugin):
                 
                 controller.loadPluginSettings("ui_tweaks")
             
-            BulletinHelper.show_success(get_text("imported_settings_count", "Imported {count} settings").format(count=imported_count))
+            BulletinHelper.show_success(get_string("imported_settings_count", "Imported {count} settings").format(count=imported_count))
             
         except Exception as e:
-            BulletinHelper.show_error(get_text("failed_to_import_settings", "Failed to import settings"))
+            BulletinHelper.show_error(get_string("failed_to_import_settings", "Failed to import settings"))
     
     def _reset_all_preferences(self):
         fragment = get_last_fragment()
@@ -2352,10 +2352,10 @@ class UiTweaksPlugin(BasePlugin):
             return
 
         builder = AlertDialogBuilder(fragment.getParentActivity())
-        builder.set_title(get_text("warning", "Warning"))
-        builder.set_message(get_text("reset_confirmation", "Are you sure you want to reset?"))
-        builder.set_positive_button(get_text("reset_all", "Reset All"), lambda bld, which: (self._perform_reset(), bld.dismiss()))
-        builder.set_negative_button(get_text("cancel", "Cancel"), lambda bld, which: bld.dismiss())
+        builder.set_title(get_string("warning", "Warning"))
+        builder.set_message(get_string("reset_confirmation", "Are you sure you want to reset?"))
+        builder.set_positive_button(get_string("reset_all", "Reset All"), lambda bld, which: (self._perform_reset(), bld.dismiss()))
+        builder.set_negative_button(get_string("cancel", "Cancel"), lambda bld, which: bld.dismiss())
         builder.show()
 
     def _perform_reset(self):
@@ -2378,7 +2378,7 @@ class UiTweaksPlugin(BasePlugin):
                 log("Reset operation cancelled by user")
             
             BulletinHelper.show_undo(
-                get_text("shared_preferences_reset_success", "Reset {count} preferences? App will restart.").format(count=count),
+                get_string("shared_preferences_reset_success", "Reset {count} preferences? App will restart.").format(count=count),
                 on_undo=undo_reset,
                 on_action=perform_reset,
                 fragment=get_last_fragment()
@@ -2386,7 +2386,7 @@ class UiTweaksPlugin(BasePlugin):
             
         except Exception as e:
             log(f"Reset failed: {str(e)}")
-            BulletinHelper.show_error(get_text("reset_failed", "Reset failed: {error}").format(error=str(e)))
+            BulletinHelper.show_error(get_string("reset_failed", "Reset failed: {error}").format(error=str(e)))
     
     def _restart_after_bulletin(self):
         from quantahut import restart_app
@@ -2403,7 +2403,7 @@ class UiTweaksPlugin(BasePlugin):
     def _copy_ton_address(self):
         clipboard = get_last_fragment().getParentActivity().getSystemService(Context.CLIPBOARD_SERVICE)
         clipboard.setPrimaryClip(ClipData.newPlainText("TON Address", "UQAZFPWF06gVehwcXlYDj3AWgx6i0x0VwUZOOUJ0A_gTcshN"))
-        BulletinHelper.show_copied_to_clipboard(get_text("ton_address_copied", "TON address copied to clipboard"))
+        BulletinHelper.show_copied_to_clipboard(get_string("ton_address_copied", "TON address copied to clipboard"))
     
     def _open_channel(self):
         try:
@@ -2443,16 +2443,16 @@ class UiTweaksPlugin(BasePlugin):
     
     def _show_donation_info(self):
         showupdatebottomsheet(
-            title=get_text("donation_info_title", "About Donations"),
-            subtitle=get_text("donation_info_subtitle", "Supporting UiTweaks Development"),
-            description=get_text("donation_info_description", 
+            title=get_string("donation_info_title", "About Donations"),
+            subtitle=get_string("donation_info_subtitle", "Supporting UiTweaks Development"),
+            description=get_string("donation_info_description", 
                 "Donations are a way to appreciate the effort behind this Plugin. They don’t grant special privileges, though you may request a feature as thanks."),
             github_url=None,
             plugin_name="UiTweaks_DonationInfo",
             sticker_pack="luvztroyIcons",
             sticker_index=15,
-            button_text=get_text("understood", "Understood"),
-            bottom_text=get_text("donation_info_footer", "Thank you for considering supporting the development of UiTweaks!"),
+            button_text=get_string("understood", "Understood"),
+            bottom_text=get_string("donation_info_footer", "Thank you for considering supporting the development of UiTweaks!"),
             show_language_selector=False,
             show_user_avatar=False,
             description_centered=True
@@ -2681,8 +2681,8 @@ class UiTweaksPlugin(BasePlugin):
         try:
             from quantahut import show_restart_bulletin
             show_restart_bulletin(
-                message=get_text("restart_to_apply_uitweaks_update", "Restart app to apply UiTweaks update"),
-                button_text=get_text("restart", "Restart")
+                message=get_string("restart_to_apply_uitweaks_update", "Restart app to apply UiTweaks update"),
+                button_text=get_string("restart", "Restart")
             )
         except Exception as e:
             self.log(f"Error showing restart bulletin: {e}")
@@ -3090,7 +3090,7 @@ class UiTweaksPlugin(BasePlugin):
     def _add_reply_private_chat_menu_item(self):
         try:
             self.reply_private_chat_menu_handle = quantahut.utilities.register_message_menu_item(
-                text=get_text("reply_in_private_chat", "Reply in private chat"),
+                text=get_string("reply_in_private_chat", "Reply in private chat"),
                 option_id=2033,
                 icon_res=R_tg.drawable.msg_reply_solar,
                 condition_predicate=lambda m: (m is not None and not m.isOut() and self._is_group_chat(m) and hasattr(m.messageOwner.from_id, 'user_id') and m.messageOwner.from_id.user_id),
@@ -3152,7 +3152,7 @@ class UiTweaksPlugin(BasePlugin):
     def _add_no_quote_forward_menu_item(self):
         try:
             self.no_quote_forward_menu_handle = quantahut.utilities.register_message_menu_item(
-                text=get_text("no_quote_forward", "NoQuote forward"),
+                text=get_string("no_quote_forward", "NoQuote forward"),
                 option_id=9999,
                 icon_res=R_tg.drawable.media_share,
                 condition_predicate=lambda m: m is not None and not self._is_service_message(m) and not self._is_failed_message(m),
@@ -3399,7 +3399,7 @@ class UiTweaksPlugin(BasePlugin):
             Context = chat.getContext()
             TextView = find_class("android.widget.TextView")
             btn = TextView(Context)
-            btn.setText(get_text("no_quote", "NoQuote"))
+            btn.setText(get_string("no_quote", "NoQuote"))
             try:
                 from android.util import TypedValue
                 btn.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15)
@@ -3739,12 +3739,12 @@ class UiTweaksPlugin(BasePlugin):
 
             showmultiselector(
                 items=items,
-                title=get_text("hide_folders_title", "Hide Folders"),
-                subtitle=get_text("hide_folders_subtitle", "Select folders to hide"),
+                title=get_string("hide_folders_title", "Hide Folders"),
+                subtitle=get_string("hide_folders_subtitle", "Select folders to hide"),
                 setting_keys=keys,
                 plugin_instance=self,
                 on_selection_change=on_selection_change,
-                action_text=get_text("apply", "Apply")
+                action_text=get_string("apply", "Apply")
             )
         except Exception:
             pass
@@ -4560,12 +4560,12 @@ class UiTweaksPlugin(BasePlugin):
             except Exception:
                 pass
             
-            description_template = get_text("performance_warning_description", 
+            description_template = get_string("performance_warning_description", 
                 "UiTweaks adds advanced features in {client_name} but may impact device performance over time.")
             description_text = description_template.replace("{client_name}", client_name)
 
             memory_warning_enabled = self.get_setting("enable_memory_warning", True)
-            button_text = get_text("disable_memory_warning", "Disable Memory Warning") if memory_warning_enabled else get_text("enable_memory_warning", "Enable Memory Warning")
+            button_text = get_string("disable_memory_warning", "Disable Memory Warning") if memory_warning_enabled else get_string("enable_memory_warning", "Enable Memory Warning")
 
             def on_button_click():
                 current_setting = self.get_setting("enable_memory_warning", True)
@@ -4579,15 +4579,15 @@ class UiTweaksPlugin(BasePlugin):
                 self.set_setting("show_logs", new_debug_setting)
                 
                 if bottom_sheet_instance and hasattr(bottom_sheet_instance, 'update_status'):
-                    enabled_text = get_text("enabled", "Enabled")
-                    disabled_text = get_text("disabled", "Disabled")
-                    debug_logging_text = get_text("debug_logging", "Debug logging")
+                    enabled_text = get_string("enabled", "Enabled")
+                    disabled_text = get_string("disabled", "Disabled")
+                    debug_logging_text = get_string("debug_logging", "Debug logging")
                     status_text = f"{debug_logging_text}: {enabled_text if new_debug_setting else disabled_text}"
                     bottom_sheet_instance.update_status(status_text)
 
             showupdatebottomsheet(
-                title=get_text("performance_warning", "Performance Warning"),
-                subtitle=get_text("performance_warning_subtitle", "Important Information"),
+                title=get_string("performance_warning", "Performance Warning"),
+                subtitle=get_string("performance_warning_subtitle", "Important Information"),
                 description=description_text,
                 github_url=None,
                 plugin_name="UiTweaks_PerformanceInfo",
@@ -4596,7 +4596,7 @@ class UiTweaksPlugin(BasePlugin):
                 button_text=button_text,
                 on_button_click=on_button_click,
                 on_sticker_long_click=on_sticker_long_click,
-                bottom_text=get_text("performance_warning_footer", 
+                bottom_text=get_string("performance_warning_footer", 
                     "For optimal performance, consider reviewing your enabled features regularly and keeping only what you need active."),
                 show_language_selector=False,
                 show_user_avatar=False,
@@ -4607,17 +4607,17 @@ class UiTweaksPlugin(BasePlugin):
 
     def _show_confirmation_selector(self):
         confirmation_items = [
-            get_text("item_stickers", "Stickers"),
-            get_text("item_voice_messages", "Voice Messages"), 
-            get_text("item_bot_commands", "Bot Commands"),
-            get_text("item_video_messages", "Video Messages"),
-            get_text("item_video_files", "Video Files"),
-            get_text("item_photos", "Photos"),
-            get_text("item_documents", "Documents"),
-            get_text("item_gifs", "GIFs"),
-            get_text("item_forward", "Forward"),
-            get_text("item_join_chat", "Join Chat"),
-            get_text("item_external_links", "External Links")
+            get_string("item_stickers", "Stickers"),
+            get_string("item_voice_messages", "Voice Messages"), 
+            get_string("item_bot_commands", "Bot Commands"),
+            get_string("item_video_messages", "Video Messages"),
+            get_string("item_video_files", "Video Files"),
+            get_string("item_photos", "Photos"),
+            get_string("item_documents", "Documents"),
+            get_string("item_gifs", "GIFs"),
+            get_string("item_forward", "Forward"),
+            get_string("item_join_chat", "Join Chat"),
+            get_string("item_external_links", "External Links")
         ]
         
         confirmation_keys = [
@@ -4628,17 +4628,17 @@ class UiTweaksPlugin(BasePlugin):
         
         showmultiselector(
             items=confirmation_items,
-            title=get_text("confirmation_settings", "Confirmation Settings"),
-            subtitle=get_text("select_items", "Select which actions require confirmation"),
+            title=get_string("confirmation_settings", "Confirmation Settings"),
+            subtitle=get_string("select_items", "Select which actions require confirmation"),
             setting_keys=confirmation_keys,
             plugin_instance=self,
-            action_text=get_text("apply", "Apply")
+            action_text=get_string("apply", "Apply")
         )
 
     def _show_star_reaction_selector(self):
         star_reaction_items = [
-            get_text("item_reaction_menu", "Reaction Menu"),
-            get_text("item_message_cells", "Message Cells")
+            get_string("item_reaction_menu", "Reaction Menu"),
+            get_string("item_message_cells", "Message Cells")
         ]
         
         star_reaction_keys = [
@@ -4647,17 +4647,17 @@ class UiTweaksPlugin(BasePlugin):
         
         showmultiselector(
             items=star_reaction_items,
-            title=get_text("star_reaction_hide_location", "Hide Star Reactions From"),
-            subtitle=get_text("select_items", "Select where to hide star reactions"),
+            title=get_string("star_reaction_hide_location", "Hide Star Reactions From"),
+            subtitle=get_string("select_items", "Select where to hide star reactions"),
             setting_keys=star_reaction_keys,
             plugin_instance=self,
-            action_text=get_text("apply", "Apply")
+            action_text=get_string("apply", "Apply")
         )
 
     def _show_progress_timestamp_selector(self):
         progress_timestamp_items = [
-            get_text("progress_timestamp_voice", "Voice Messages"),
-            get_text("progress_timestamp_video", "Video Messages")
+            get_string("progress_timestamp_voice", "Voice Messages"),
+            get_string("progress_timestamp_video", "Video Messages")
         ]
         
         progress_timestamp_keys = [
@@ -4666,17 +4666,17 @@ class UiTweaksPlugin(BasePlugin):
         
         showmultiselector(
             items=progress_timestamp_items,
-            title=get_text("progress_timestamp_types", "Message Types"),
-            subtitle=get_text("progress_timestamp_subtitle", "Select message types"),
+            title=get_string("progress_timestamp_types", "Message Types"),
+            subtitle=get_string("progress_timestamp_subtitle", "Select message types"),
             setting_keys=progress_timestamp_keys,
             plugin_instance=self,
-            action_text=get_text("apply", "Apply")
+            action_text=get_string("apply", "Apply")
         )
 
     def _show_dont_auto_play_selector(self):
         dont_auto_play_items = [
-            get_text("dont_auto_play_voice", "Voice Messages"),
-            get_text("dont_auto_play_video", "Video Messages")
+            get_string("dont_auto_play_voice", "Voice Messages"),
+            get_string("dont_auto_play_video", "Video Messages")
         ]
         
         dont_auto_play_keys = [
@@ -4685,11 +4685,11 @@ class UiTweaksPlugin(BasePlugin):
         
         showmultiselector(
             items=dont_auto_play_items,
-            title=get_text("dont_auto_play_types", "Message Types"),
-            subtitle=get_text("dont_auto_play_subtitle", "Select message types"),
+            title=get_string("dont_auto_play_types", "Message Types"),
+            subtitle=get_string("dont_auto_play_subtitle", "Select message types"),
             setting_keys=dont_auto_play_keys,
             plugin_instance=self,
-            action_text=get_text("apply", "Apply")
+            action_text=get_string("apply", "Apply")
         )
 
     def _setup_confirmation_hooks(self):
@@ -5342,10 +5342,10 @@ class UiTweaksPlugin(BasePlugin):
                 dialog.dismiss()
             
             builder = AlertDialogBuilder(context)
-            builder.set_title(get_text("create_code_dialog_title", "Create Code"))
+            builder.set_title(get_string("create_code_dialog_title", "Create Code"))
             builder.set_view(language_edit_text)
-            builder.set_positive_button(get_text("ok", "OK"), on_ok_click)
-            builder.set_negative_button(get_text("cancel", "Cancel"), lambda d, w: d.dismiss())
+            builder.set_positive_button(get_string("ok", "OK"), on_ok_click)
+            builder.set_negative_button(get_string("cancel", "Cancel"), lambda d, w: d.dismiss())
             builder.show()
             
         except Exception as e:
@@ -5389,7 +5389,7 @@ class UiTweaksPlugin(BasePlugin):
             context = edit_text.getContext()
             
             mention_edit_text = EditTextBoldCursor(context)
-            mention_edit_text.setHint(get_text("mention_id_hint", "ID"))
+            mention_edit_text.setHint(get_string("mention_id_hint", "ID"))
             mention_edit_text.setInputType(InputType.TYPE_CLASS_TEXT)
             mention_edit_text.setMaxLines(1)
             mention_edit_text.setSingleLine(True)
@@ -5436,10 +5436,10 @@ class UiTweaksPlugin(BasePlugin):
             on_ok_click_listener = DialogOkClick(self, edit_text, start, end, mention_edit_text)
             
             builder = AlertDialogBuilder(context)
-            builder.set_title(get_text("create_mention_dialog_title", "Create Mention"))
+            builder.set_title(get_string("create_mention_dialog_title", "Create Mention"))
             builder.set_view(mention_edit_text)
-            builder.set_positive_button(get_text("ok", "OK"), on_ok_click_listener)
-            builder.set_negative_button(get_text("cancel", "Cancel"), lambda d, w: d.dismiss())
+            builder.set_positive_button(get_string("ok", "OK"), on_ok_click_listener)
+            builder.set_negative_button(get_string("cancel", "Cancel"), lambda d, w: d.dismiss())
             builder.show()
             
         except Exception as e:
@@ -5648,11 +5648,11 @@ class UiTweaksPlugin(BasePlugin):
             
             if webpage.document:
                 if hasattr(message_preview_params, 'isVideo') and message_preview_params.isVideo:
-                    text = get_text("send_video", "Send Video")
+                    text = get_string("send_video", "Send Video")
                 else:
-                    text = get_text("send_file", "Send File")
+                    text = get_string("send_file", "Send File")
             else:
-                text = get_text("send_photo", "Send Photo")
+                text = get_string("send_photo", "Send Photo")
             
             send_button.setTextAndIcon(text, R.drawable.msg_send)
             send_button.setVisibility(1 if (webpage.document or webpage.photo) else 8)
@@ -5743,7 +5743,7 @@ class UiTweaksPlugin(BasePlugin):
             
             current_activity = chat_activity
             message_id_edit_text = EditTextBoldCursor(activity)
-            message_id_edit_text.setHint(get_text("message_id_hint", "Message ID"))
+            message_id_edit_text.setHint(get_string("message_id_hint", "Message ID"))
             message_id_edit_text.setInputType(InputType.TYPE_CLASS_NUMBER)
             message_id_edit_text.setMaxLines(1)
             message_id_edit_text.setSingleLine(True)
@@ -5788,10 +5788,10 @@ class UiTweaksPlugin(BasePlugin):
                 close_dialog_and_menu(dialog)
             
             builder = AlertDialogBuilder(activity)
-            builder.set_title(get_text("enter_message_id", "Enter Message ID"))
+            builder.set_title(get_string("enter_message_id", "Enter Message ID"))
             builder.set_view(message_id_edit_text)
-            builder.set_positive_button(get_text("ok", "OK"), on_ok_click)
-            builder.set_negative_button(get_text("cancel", "Cancel"), on_cancel_click)
+            builder.set_positive_button(get_string("ok", "OK"), on_ok_click)
+            builder.set_negative_button(get_string("cancel", "Cancel"), on_cancel_click)
             
             dialog = builder.show()
             def focus_input():
@@ -6088,7 +6088,7 @@ class UiTweaksPlugin(BasePlugin):
                             new_strings = Array.newInstance(stringsComponentType, 7)
                             System.arraycopy(strings, 0, new_strings, 0, 6)
                             try:
-                                Array.set(new_strings, 6, get_text("disable", "Disable"))
+                                Array.set(new_strings, 6, get_string("disable", "Disable"))
                             except Exception:
                                 pass
                             set_private_field(instance, "strings", new_strings)
@@ -6121,7 +6121,7 @@ class UiTweaksPlugin(BasePlugin):
                                     picker.setAllItemsCount(7)
                                 else:
                                     if strings and Array.getLength(strings) >= 6:
-                                        Array.set(strings, 5, get_text("disable", "Disable"))
+                                        Array.set(strings, 5, get_string("disable", "Disable"))
                                     picker.setMaxValue(5)
                                     picker.setAllItemsCount(6)
                                 SharedConfig = jclass("org.telegram.messenger.SharedConfig")
@@ -6911,29 +6911,29 @@ class ConfirmationHook:
             elif is_command and self.plugin.get_setting("confirm_commands", False):
                 if self.plugin.command_from_message_click:
                     should_confirm = True
-                    message_type = get_text("message_type_command", "command")
+                    message_type = get_string("message_type_command", "command")
             elif is_photo and self.plugin.get_setting("confirm_photo", False):
                 should_confirm = True
-                message_type = get_text("message_type_photo", "photo")
+                message_type = get_string("message_type_photo", "photo")
             elif is_sticker and self.plugin.get_setting("confirm_stickers", True):
                 should_confirm = True
-                message_type = get_text("message_type_sticker", "sticker")
+                message_type = get_string("message_type_sticker", "sticker")
                 self.pending_sticker_doc = doc
             elif is_voice and self.plugin.get_setting("confirm_voice", True):
                 should_confirm = True
-                message_type = get_text("message_type_voice_message", "voice message")
+                message_type = get_string("message_type_voice_message", "voice message")
             elif is_round_video and self.plugin.get_setting("confirm_round_video", True):
                 should_confirm = True
-                message_type = get_text("message_type_round_video_message", "round video message")
+                message_type = get_string("message_type_round_video_message", "round video message")
             elif is_video_file and self.plugin.get_setting("confirm_video_file", False):
                 should_confirm = True
-                message_type = get_text("message_type_video_file", "video file")
+                message_type = get_string("message_type_video_file", "video file")
             elif is_gif and self.plugin.get_setting("confirm_gif", False):
                 should_confirm = True
-                message_type = get_text("message_type_gif", "GIF")
+                message_type = get_string("message_type_gif", "GIF")
             elif is_generic_document and self.plugin.get_setting("confirm_document", False):
                 should_confirm = True
-                message_type = get_text("message_type_file", "file")
+                message_type = get_string("message_type_file", "file")
 
             if not should_confirm:
                 if is_command:
@@ -6961,13 +6961,13 @@ class ConfirmationHook:
                     count = len(self.pending_params)
                     if count > 1:
                         if is_photo:
-                            message_type = get_text("message_type_photo_plural", "photos")
+                            message_type = get_string("message_type_photo_plural", "photos")
                         elif is_video_file:
-                            message_type = get_text("message_type_video_file_plural", "video files")
+                            message_type = get_string("message_type_video_file_plural", "video files")
                         elif is_round_video:
-                            message_type = get_text("message_type_round_video_message", "round video messages")
+                            message_type = get_string("message_type_round_video_message", "round video messages")
                         elif is_generic_document:
-                            message_type = get_text("message_type_file_plural", "files")
+                            message_type = get_string("message_type_file_plural", "files")
                     
                     run_on_ui_thread(lambda: self.show_confirmation_dialog(f"{count} {message_type}"))
                 return
@@ -6995,9 +6995,9 @@ class ConfirmationHook:
             dialog_ref = None
 
         builder = AlertDialogBuilder(activity)
-        builder.set_title(get_text("confirm_send_title", "Confirm Send"))
+        builder.set_title(get_string("confirm_send_title", "Confirm Send"))
         
-        confirmation_text = get_text("confirm_send_message", "Do you really want to send this {message_type}?").format(message_type=message_type)
+        confirmation_text = get_string("confirm_send_message", "Do you really want to send this {message_type}?").format(message_type=message_type)
 
         if is_sticker and sticker_doc:
             try:
@@ -7034,9 +7034,9 @@ class ConfirmationHook:
         else:
             builder.set_message(confirmation_text)
         
-        builder.set_positive_button(get_text("send", "Send"), self.proceed_sending)
+        builder.set_positive_button(get_string("send", "Send"), self.proceed_sending)
         
-        builder.set_negative_button(get_text("cancel", "Cancel"), lambda dialog, which: cleanup())
+        builder.set_negative_button(get_string("cancel", "Cancel"), lambda dialog, which: cleanup())
         builder.set_on_cancel_listener(lambda b: (self.cancel_sending(b, 0), cleanup()))
         dialog_ref = builder.show()
 
@@ -7356,10 +7356,10 @@ class DeepLinkHook:
                 return
 
             builder = AlertDialogBuilder(activity)
-            builder.set_title(get_text("ayugram_deeplink_title", "AyuGram Deep Link"))
-            builder.set_message(get_text("ayugram_deeplink_message", "This AyuGram link may redirect to auto-playing content with blocked controls."))
-            builder.set_positive_button(get_text("proceed_anyway", "Proceed Anyway"), lambda b, w: self.proceed_deeplink())
-            builder.set_negative_button(get_text("cancel", "Cancel"), lambda b, w: self.cancel_deeplink())
+            builder.set_title(get_string("ayugram_deeplink_title", "AyuGram Deep Link"))
+            builder.set_message(get_string("ayugram_deeplink_message", "This AyuGram link may redirect to auto-playing content with blocked controls."))
+            builder.set_positive_button(get_string("proceed_anyway", "Proceed Anyway"), lambda b, w: self.proceed_deeplink())
+            builder.set_negative_button(get_string("cancel", "Cancel"), lambda b, w: self.cancel_deeplink())
             builder.set_on_cancel_listener(lambda b: self.cancel_deeplink())
             builder.make_button_red(AlertDialogBuilder.BUTTON_POSITIVE)
             builder.show()
@@ -7377,10 +7377,10 @@ class DeepLinkHook:
                 return
 
             builder = AlertDialogBuilder(activity)
-            builder.set_title(get_text("confirm_deeplink_title", "Confirm Deep Link"))
-            builder.set_message(get_text("confirm_deeplink_message", "Do you really want to open this deep link?\n{url}").format(url=url))
-            builder.set_positive_button(get_text("open", "Open"), lambda b, w: self.proceed_deeplink())
-            builder.set_negative_button(get_text("cancel", "Cancel"), lambda b, w: self.cancel_deeplink())
+            builder.set_title(get_string("confirm_deeplink_title", "Confirm Deep Link"))
+            builder.set_message(get_string("confirm_deeplink_message", "Do you really want to open this deep link?\n{url}").format(url=url))
+            builder.set_positive_button(get_string("open", "Open"), lambda b, w: self.proceed_deeplink())
+            builder.set_negative_button(get_string("cancel", "Cancel"), lambda b, w: self.cancel_deeplink())
             builder.set_on_cancel_listener(lambda b: self.cancel_deeplink())
             builder.show()
 
@@ -7713,7 +7713,7 @@ class PhoneFormatHook:
             if phone_str and str(phone_str).startswith('+'):
                 is_other = self.is_other_user_profile()
                 if is_other:
-                    param.setResult(get_text("MobileHidden", "Mobile hidden"))
+                    param.setResult(get_string("MobileHidden", "Mobile hidden"))
         except:
             pass
     
@@ -8155,7 +8155,7 @@ class GifSpoilerHook:
             spoiler_item = ActionBarMenuItem.addItem(
                 preview_menu,
                 R_tg.drawable.msg_spoiler,
-                get_text("hide_with_spoiler", "Hide with spoiler"),
+                get_string("hide_with_spoiler", "Hide with spoiler"),
                 False,
                 resources_provider)
             spoiler_item.setOnClickListener(OnClickListener(lambda *_: self.send_gif_with_spoiler(viewer, document, delegate)))
@@ -8165,7 +8165,7 @@ class GifSpoilerHook:
             caption_item = ActionBarMenuItem.addItem(
                 preview_menu,
                 R_tg.drawable.menu_tag_edit_solar,
-                get_text("send_with_caption", "Send with Caption"),
+                get_string("send_with_caption", "Send with Caption"),
                 False,
                 resources_provider)
             caption_item.setOnClickListener(OnClickListener(lambda *_: self.show_caption_dialog(viewer, document, delegate)))
@@ -8249,7 +8249,7 @@ class GifSpoilerHook:
                 return
 
             input_field = EditTextBoldCursor(activity)
-            input_field.setHint(get_text("enter_caption", "Enter caption..."))
+            input_field.setHint(get_string("enter_caption", "Enter caption..."))
             input_field.setInputType(InputType.TYPE_CLASS_TEXT)
             input_field.setMaxLines(1)
             input_field.setSingleLine(True)
@@ -8262,10 +8262,10 @@ class GifSpoilerHook:
             input_field.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(12), AndroidUtilities.dp(12), AndroidUtilities.dp(12))
 
             builder = AlertDialogBuilder(activity)
-            builder.set_title(get_text("add_caption_to_gif", "Add Caption to GIF"))
+            builder.set_title(get_string("add_caption_to_gif", "Add Caption to GIF"))
             builder.set_view(input_field)
-            builder.set_positive_button(get_text("send", "Send"), lambda b, w: (self.send_gif_with_caption(viewer, document, delegate, input_field.getText().toString()), b.dismiss()))
-            builder.set_negative_button(get_text("cancel", "Cancel"), lambda b, w: b.dismiss())
+            builder.set_positive_button(get_string("send", "Send"), lambda b, w: (self.send_gif_with_caption(viewer, document, delegate, input_field.getText().toString()), b.dismiss()))
+            builder.set_negative_button(get_string("cancel", "Cancel"), lambda b, w: b.dismiss())
             builder.show()
         except:
             pass
@@ -8520,10 +8520,10 @@ class ForwardConfirmationHook:
                 def _show():
                     try:
                         builder = AlertDialogBuilder(ctx)
-                        builder.set_title(get_text("confirm_forward", "Confirm Forwarding Messages"))
-                        builder.set_message(get_text("confirm_forward_message", "Are you sure you want to forward this message?"))
-                        builder.set_positive_button(get_text("ok", "OK"), lambda dialog, which: on_confirm())
-                        builder.set_negative_button(get_text("cancel", "Cancel"), None)
+                        builder.set_title(get_string("confirm_forward", "Confirm Forwarding Messages"))
+                        builder.set_message(get_string("confirm_forward_message", "Are you sure you want to forward this message?"))
+                        builder.set_positive_button(get_string("ok", "OK"), lambda dialog, which: on_confirm())
+                        builder.set_negative_button(get_string("cancel", "Cancel"), None)
                         builder.show()
                     except Exception:
                         pass
@@ -8555,8 +8555,8 @@ class JoinConfirmationClickListener(dynamic_proxy(find_class("android.view.View$
                 
                 chat_name = self._get_chat_name()
                 
-                builder.set_title(get_text("join_confirmation", "Join Confirmation"))
-                message = get_text("join_confirmation_message", "Are you sure you want to join **{chat_name}**?").format(chat_name=chat_name)
+                builder.set_title(get_string("join_confirmation", "Join Confirmation"))
+                message = get_string("join_confirmation_message", "Are you sure you want to join **{chat_name}**?").format(chat_name=chat_name)
                 builder.set_message(AndroidUtilities.replaceTags(message))
                 
                 def on_confirm(dialog, which):
@@ -8566,8 +8566,8 @@ class JoinConfirmationClickListener(dynamic_proxy(find_class("android.view.View$
                 def on_cancel(dialog, which):
                     dialog.dismiss()
                 
-                builder.set_positive_button(get_text("join", "Join"), on_confirm)
-                builder.set_negative_button(get_text("cancel", "Cancel"), on_cancel)
+                builder.set_positive_button(get_string("join", "Join"), on_confirm)
+                builder.set_negative_button(get_string("cancel", "Cancel"), on_cancel)
                 builder.show()
                 
             except Exception as e:
@@ -8628,11 +8628,11 @@ class FillActionModeMenuHook:
             if menu.findItem(CUSTOM_CODE_ID) is not None:
                 return
             
-            string_builder = SpannableStringBuilder(get_text("code_menu_item", "Code"))
+            string_builder = SpannableStringBuilder(get_string("code_menu_item", "Code"))
             string_builder.setSpan(TypefaceSpan(Typeface.MONOSPACE), 0, string_builder.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             menu.add(R_tg.id.menu_groupbolditalic, CUSTOM_CODE_ID, 7, string_builder)
             
-            mention_string_builder = SpannableStringBuilder(get_text("mention_menu_item", "Mention"))
+            mention_string_builder = SpannableStringBuilder(get_string("mention_menu_item", "Mention"))
             menu.add(R_tg.id.menu_groupbolditalic, CUSTOM_MENTION_ID, 8, mention_string_builder)
             
         except Exception as e:
@@ -8906,7 +8906,7 @@ class ChatActionBarItemsHook:
             
             try:
                 ai_icon = R.drawable.ai_chat
-                summarize_text = get_text("summarize_menu_item", "Summarize")
+                summarize_text = get_string("summarize_menu_item", "Summarize")
                 
                 lazy_list = get_private_field(headerItem, "lazyList")
                 lazy_map = get_private_field(headerItem, "lazyMap")
@@ -8979,7 +8979,7 @@ class ChatActionBarItemsHook:
             
             try:
                 goto_icon = R.drawable.msg_to_beginning_solar
-                goto_text = get_text("goto_message", "Go to Message")
+                goto_text = get_string("goto_message", "Go to Message")
                 
                 lazy_list = get_private_field(headerItem, "lazyList")
                 lazy_map = get_private_field(headerItem, "lazyMap")
@@ -9120,11 +9120,11 @@ class ChatActionBarMenuItemClickHook:
                 def after_hooked_method(self, param):
                     string_id = param.args[0]
                     if string_id == self.role_prompt_id:
-                        param.setResult(get_text("message_count_label", "Message Count"))
+                        param.setResult(get_string("message_count_label", "Message Count"))
                     elif string_id == self.proceed_id:
-                        param.setResult(get_text("summarize_button", "Summarize"))
+                        param.setResult(get_string("summarize_button", "Summarize"))
                     elif string_id == self.generate_id:
-                        param.setResult(get_text("summarize_title", "Summarize"))
+                        param.setResult(get_string("summarize_title", "Summarize"))
             
             unhook_locale = self.plugin.hook_method(getStringMethod, LocaleHook())
         
@@ -9226,7 +9226,7 @@ class ChatActionBarMenuItemClickHook:
                             param.args[0] = self.display_text
                             self.hooked = True
             
-            unhook = self.plugin.hook_method(setText, TextViewHook(full_prompt, get_text("ai_summarizing", "Summarizing...")))
+            unhook = self.plugin.hook_method(setText, TextViewHook(full_prompt, get_string("ai_summarizing", "Summarizing...")))
             
             Callback2 = jclass("org.telegram.messenger.Utilities$Callback2")
             class InsertCallback(dynamic_proxy(Callback2)):
@@ -9541,7 +9541,7 @@ class SleepTimerHook:
             if not options_button:
                 return
             
-            options_button.addSubItem(1390, R_tg.drawable.menu_premium_clock, get_text("sleep_timer_menu", "Sleep Timer"))
+            options_button.addSubItem(1390, R_tg.drawable.menu_premium_clock, get_string("sleep_timer_menu", "Sleep Timer"))
             ActionBarMenuItem_ActionBarMenuItemDelegate = jclass("org.telegram.ui.ActionBar.ActionBarMenuItem$ActionBarMenuItemDelegate")
             DelegateProxy = dynamic_proxy(ActionBarMenuItem_ActionBarMenuItemDelegate)
             hook_instance = self
@@ -9561,7 +9561,7 @@ class SleepTimerHook:
     def _show_sleep_timer_dialog(self, alert):
         try:
             preset_labels = [
-                get_text("sleep_timer_disable", "Disable"),
+                get_string("sleep_timer_disable", "Disable"),
                 LocaleController.formatPluralString("Minutes", 1),
                 LocaleController.formatPluralString("Minutes", 5),
                 LocaleController.formatPluralString("Minutes", 10),
@@ -9589,7 +9589,7 @@ class SleepTimerHook:
                     from org.telegram.ui.Components import AlertsCreator
                     AlertsCreator.createTimePickerDialog(
                         alert.getContext(),
-                        get_text("sleep_timer_custom", "Sleep Timer"),
+                        get_string("sleep_timer_custom", "Sleep Timer"),
                         0,
                         0,
                         12 * 60,
@@ -9598,7 +9598,7 @@ class SleepTimerHook:
             
             resources_provider = get_private_field(alert, "resourcesProvider")
             builder = AlertDialogBuilder(alert.getContext(), resources_provider=resources_provider)
-            builder.set_title(get_text("sleep_timer_title", "Sleep Timer"))
+            builder.set_title(get_string("sleep_timer_title", "Sleep Timer"))
             builder.set_items(preset_labels, on_preset_click)
             builder.set_negative_button(LocaleController.getString(R_tg.string.Cancel))
             builder.show()
@@ -9637,7 +9637,7 @@ class SleepTimerHook:
                 container_view = get_private_field(alert, "containerView")
                 resources_provider = get_private_field(alert, "resourcesProvider")
                 if container_view and isinstance(container_view, FrameLayout):
-                    message = get_text("sleep_timer_set", "Sleep timer is set to {time}").format(time=formatted_time)
+                    message = get_string("sleep_timer_set", "Sleep timer is set to {time}").format(time=formatted_time)
                     BulletinFactory.of(container_view, resources_provider).createSimpleBulletin(
                         R_tg.raw.done,
                         AndroidUtilities.replaceTags(message)
@@ -9650,7 +9650,7 @@ class SleepTimerHook:
                     if container_view and isinstance(container_view, FrameLayout):
                         BulletinFactory.of(container_view, resources_provider).createSimpleBulletin(
                             R_tg.raw.done,
-                            get_text("sleep_timer_disabled", "Sleep timer is disabled")
+                            get_string("sleep_timer_disabled", "Sleep timer is disabled")
                         ).show()
                 self.plugin.sleep_timer_active = False
         except Exception as e:
