@@ -8179,16 +8179,7 @@ class GifSpoilerHook:
                 self.plugin.log("GIF Menu: Delegate cannot send, skipping menu addition")
                 return
 
-            try:
-                from client_utils import get_last_fragment
-                current_fragment = get_last_fragment()
-                if current_fragment and hasattr(current_fragment, 'getTopicId'):
-                    topic_id = current_fragment.getTopicId()
-                    if topic_id > 0:
-                        self.plugin.log("GIF Menu: In topic chat, skipping menu addition")
-                        return 
-            except:
-                pass
+
 
             self.cleanup_menu_items()
 
