@@ -8346,15 +8346,23 @@ class GifSpoilerHook:
             current_account = get_private_field(viewer, "currentAccount")
             
             topic_id = 0
+            user_reply_to_msg = None
+            topic_reply_to_msg = None
+            
             try:
                 from client_utils import get_last_fragment
                 current_fragment = get_last_fragment()
-                if current_fragment and hasattr(current_fragment, 'getTopicId'):
-                    topic_id = current_fragment.getTopicId()
+                if current_fragment:
+                    if hasattr(current_fragment, 'getTopicId'):
+                        topic_id = current_fragment.getTopicId()
+                    
+                    if hasattr(current_fragment, 'getChatActivityEnterView'):
+                        enter_view = current_fragment.getChatActivityEnterView()
+                        if enter_view and hasattr(enter_view, 'getReplyingMessageObject'):
+                            user_reply_to_msg = enter_view.getReplyingMessageObject()
             except:
                 pass
 
-            reply_to_msg = None
             if topic_id != 0:
                 try:
                     from org.telegram.messenger import AccountInstance
@@ -8362,14 +8370,17 @@ class GifSpoilerHook:
                     account_instance = AccountInstance.getInstance(current_account)
                     topic = account_instance.getMessagesController().getTopicsController().findTopic(-delegate.getDialogId(), topic_id)
                     if topic and topic.topicStartMessage:
-                        reply_to_msg = MessageObject(current_account, topic.topicStartMessage, False, False)
-                        reply_to_msg.isTopicMainMessage = True
+                        topic_reply_to_msg = MessageObject(current_account, topic.topicStartMessage, False, False)
+                        topic_reply_to_msg.isTopicMainMessage = True
                 except:
                     pass
             
             SendMessagesHelper.getInstance(current_account).sendMessage(
                 SendMessagesHelper.SendMessageParams.of(
-                    document, None, None, delegate.getDialogId(), reply_to_msg, reply_to_msg, caption,
+                    document, None, None, delegate.getDialogId(), 
+                    user_reply_to_msg, 
+                    topic_reply_to_msg if topic_reply_to_msg else user_reply_to_msg, 
+                    caption,
                     None, None, None, True, 0, 0, get_private_field(viewer, "parentObject"), None, False
                 )
             )
