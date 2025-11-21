@@ -3281,10 +3281,11 @@ class UiTweaksPlugin(BasePlugin):
                     for i in range(dids.size()):
                         dialog = dids.get(i)
                         did = dialog.dialogId
+                        topic_id = dialog.topicId if hasattr(dialog, 'topicId') and dialog.topicId else 0
                         
                         send_helper = self.chat_activity.getSendMessagesHelper()
                         if send_helper:
-                            send_helper.sendMessage(self.messages, did, True, False, True, 0, 0)
+                            send_helper.sendMessage(self.messages, did, True, False, True, topic_id, 0)
                     
                     fragment1.finishFragment()
                     
@@ -3307,6 +3308,10 @@ class UiTweaksPlugin(BasePlugin):
                     self.chat_activity.getNotificationCenter().postNotificationName(NotificationCenter.closeChats)
                     
                     new_chat_activity = ChatActivity(args1)
+                    
+                    ForumUtilities = find_class("org.telegram.ui.Components.Forum.ForumUtilities")
+                    if ForumUtilities:
+                        ForumUtilities.applyTopic(new_chat_activity, dids.get(0))
                     
                     fragment1.presentFragment(new_chat_activity, True)
 
