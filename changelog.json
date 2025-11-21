@@ -1,7 +1,7 @@
 {
-  "version": "1.7.8.1-Beta",
+  "version": "1.7.8.2-Beta",
   "release_date": "2025-11-21",
-  "changelog_text": "**What's New in v1.7.8.1-Beta:**\n\n**Added:**\n• Disable emoji suggestion on word input",
+  "changelog_text": "**What's New in v1.7.8.2-Beta:**\n\n**Fixed:**\n• Open QuantaTips from settings",
   "sticker_pack": "lidreron",
   "sticker_index": 57,
   "sticker_circle": false,
