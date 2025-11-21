@@ -8237,15 +8237,37 @@ class GifSpoilerHook:
             parent = get_private_field(viewer, "parentObject")
             current_account = get_private_field(viewer, "currentAccount")
 
+            topic_id = 0
+            try:
+                from client_utils import get_last_fragment
+                current_fragment = get_last_fragment()
+                if current_fragment and hasattr(current_fragment, 'getTopicId'):
+                    topic_id = current_fragment.getTopicId()
+            except:
+                pass
+
             send_messages_helper = SendMessagesHelper.getInstance(current_account)
+
+            from org.telegram.messenger import AccountInstance
+            account_instance = AccountInstance.getInstance(current_account)
+            reply_to_msg = None
+            if topic_id != 0:
+                try:
+                    from org.telegram.tgnet import TLRPC
+                    topic = account_instance.getMessagesController().getTopicsController().findTopic(-delegate.getDialogId(), topic_id)
+                    if topic and topic.topicStartMessage:
+                        reply_to_msg = MessageObject(current_account, topic.topicStartMessage, False, False)
+                        reply_to_msg.isTopicMainMessage = True
+                except:
+                    pass
 
             send_message_params = SendMessagesHelper.SendMessageParams.of(
                 document,
                 None,
                 None,
                 delegate.getDialogId(),
-                None,
-                None,
+                reply_to_msg,
+                reply_to_msg,
                 None,
                 None,
                 None,
