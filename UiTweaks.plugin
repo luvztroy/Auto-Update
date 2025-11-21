@@ -8327,9 +8327,32 @@ class GifSpoilerHook:
     def send_gif_with_caption(self, viewer, document, delegate, caption):
         try:
             current_account = get_private_field(viewer, "currentAccount")
+            
+            topic_id = 0
+            try:
+                from client_utils import get_last_fragment
+                current_fragment = get_last_fragment()
+                if current_fragment and hasattr(current_fragment, 'getTopicId'):
+                    topic_id = current_fragment.getTopicId()
+            except:
+                pass
+
+            reply_to_msg = None
+            if topic_id != 0:
+                try:
+                    from org.telegram.messenger import AccountInstance
+                    from org.telegram.tgnet import TLRPC
+                    account_instance = AccountInstance.getInstance(current_account)
+                    topic = account_instance.getMessagesController().getTopicsController().findTopic(-delegate.getDialogId(), topic_id)
+                    if topic and topic.topicStartMessage:
+                        reply_to_msg = MessageObject(current_account, topic.topicStartMessage, False, False)
+                        reply_to_msg.isTopicMainMessage = True
+                except:
+                    pass
+            
             SendMessagesHelper.getInstance(current_account).sendMessage(
                 SendMessagesHelper.SendMessageParams.of(
-                    document, None, None, delegate.getDialogId(), None, None, caption,
+                    document, None, None, delegate.getDialogId(), reply_to_msg, reply_to_msg, caption,
                     None, None, None, True, 0, 0, get_private_field(viewer, "parentObject"), None, False
                 )
             )
