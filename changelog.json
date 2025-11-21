@@ -1,7 +1,7 @@
 {
-  "version": "1.7.7",
-  "release_date": "2025-11-17",
-  "changelog_text": "**What's New in v1.7.7:**\n\n**Added:**\n• Sleep timer for audios\n• Dynamic audio message bubble that adjusts its length based on recording duration and screen width\n• Option for choosing custom chats for saved messages\n• Automatic localization update after plugin update\n• Send comments after forwarded message\n• Option to show schedule button always\n• Playback speed control for all types of audio\n\n**Fixed:**\n• Long click on the performance warning sheet is not working\n\n**Optimized:**\n• Voice message time display with caching\n• Disable auto web login",
+  "version": "1.7.8.1-Beta",
+  "release_date": "2025-11-21",
+  "changelog_text": "**What's New in v1.7.8.1-Beta:**\n\n**Added:**\n• Disable emoji suggestion on word input",
   "sticker_pack": "lidreron",
   "sticker_index": 57,
   "sticker_circle": false,
