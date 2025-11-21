@@ -8387,6 +8387,15 @@ class GifSpoilerHook:
             from org.telegram.messenger import MediaDataController
             from java.lang import System
             MediaDataController.getInstance(current_account).addRecentGif(document, int(System.currentTimeMillis() / 1000), True)
+            
+            try:
+                from client_utils import get_last_fragment
+                current_fragment = get_last_fragment()
+                if current_fragment and hasattr(current_fragment, 'hideFieldPanel'):
+                    current_fragment.hideFieldPanel(False)
+            except:
+                pass
+            
             self.dismiss_popup(viewer)
         except:
             pass
