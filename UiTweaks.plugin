@@ -1220,8 +1220,7 @@ class UiTweaksPlugin(BasePlugin):
         self.hook_video_message_control_ref = None
         self.hook_unread_badge_ref = None
         self.hook_back_button_draw_ref = None
-        self.hook_no_quote_create_buttons_ref = None
-        self.hook_no_quote_update_bottom_panel_ref = None
+        self._unhook_layout = None
         self.hook_add_to_folder_all_tabs_ref = None
         self.current_back_button = None
         self.unread_count = 0
@@ -1281,7 +1280,6 @@ class UiTweaksPlugin(BasePlugin):
         self.safe_mode_is_holding = False
         
         self.no_quote_forward_menu_handle = None
-        self.no_quote_requested = False
         
         self.hook_search_by_user_id_ref = None
         self.added_send_media_buttons = set()
@@ -1492,6 +1490,8 @@ class UiTweaksPlugin(BasePlugin):
         self._send_comments_bypass = False
         self._send_comments_pending = {}
         self.add_hook("TL_messages_forwardMessages")
+        
+        self.current_mode = self.get_setting("forward_mode", "forward")
         
         self.update_available = False
         self.latest_version = None
@@ -2725,8 +2725,6 @@ class UiTweaksPlugin(BasePlugin):
             "hook_back_button_draw_ref",
             "hook_forward_confirmation_ref",
             "hook_join_confirmation_ref",
-            "hook_no_quote_create_buttons_ref",
-            "hook_no_quote_update_bottom_panel_ref",
             "hook_send_typing_refs",
             "hook_gif_spoiler_ref",
             "hook_gif_dismiss_ref",
@@ -2804,6 +2802,9 @@ class UiTweaksPlugin(BasePlugin):
         if hasattr(self, 'unhook_set_command') and self.unhook_set_command:
             self.unhook_method(self.unhook_set_command)
             self.unhook_set_command = None
+        if self._unhook_layout:
+            self.unhook_method(self._unhook_layout)
+            self._unhook_layout = None
         
         self._remove_reply_private_chat_menu_item()
         self._remove_no_quote_forward_menu_item()
@@ -3006,8 +3007,7 @@ class UiTweaksPlugin(BasePlugin):
             if self.get_setting("confirm_join_chat", False):
                 self._hook_join_confirmation()
             if self.get_setting("enable_no_quote_forward", True):
-                self._hook_no_quote_label_and_custom_button()
-                self._hook_no_quote_update_bottom_panel()
+                self._hook_actions_buttons_layout()
             if self.get_setting("typing_instead_sticker", False):
                 self._hook_send_typing_method()
             if self.get_setting("enable_recent_chats_menu", True):
@@ -3209,8 +3209,7 @@ class UiTweaksPlugin(BasePlugin):
             self._remove_no_quote_forward_menu_item()
 
     def _on_no_quote_forward_click(self, chat_activity, message):
-        self.no_quote_requested = True
-        self.log("NoQuote: Set no_quote_requested = True")
+        self.current_mode = "no_quote"
         
         if not chat_activity:
             return
@@ -3331,23 +3330,6 @@ class UiTweaksPlugin(BasePlugin):
         delegate = NoQuoteForwardDelegate(messages_to_forward, chat_activity, self)
         dialogs_fragment.setDelegate(delegate)
         
-        try:
-            DialogsActivityClass = find_class("org.telegram.ui.DialogsActivity")
-            onPauseMethod = DialogsActivityClass.getClass().getDeclaredMethod("onPause")
-            onPauseMethod.setAccessible(True)
-            
-            class DialogsPauseHook:
-                def __init__(self, plugin_instance):
-                    self.plugin = plugin_instance
-                
-                def before_hooked_method(self, param):
-                    self.plugin.no_quote_requested = False
-            
-            pause_hook = DialogsPauseHook(self)
-            self.hook_method(onPauseMethod, pause_hook)
-        except Exception:
-            pass
-        
         chat_activity.presentFragment(dialogs_fragment)
 
     def _collect_selected_messages(self, chat_activity):
@@ -3377,127 +3359,159 @@ class UiTweaksPlugin(BasePlugin):
         except Exception:
             return None
 
-    def _ensure_no_quote_custom_left_button(self, chat):
+
+    
+    def _hook_actions_buttons_layout(self):
         try:
-            chat_id = id(chat)
+            ChatActivityActionsButtonsLayoutClass = find_class(
+                "org.telegram.ui.Components.chat.layouts.ChatActivityActionsButtonsLayout"
+            )
             
-            if chat_id in self._no_quote_button_cache:
-                cached_button = self._no_quote_button_cache[chat_id]
-                if cached_button and cached_button.getVisibility() == cached_button.VISIBLE:
-                    return
-                elif cached_button:
-                    cached_button.setVisibility(cached_button.VISIBLE)
-                    return
-            
-            bottom = get_private_field(chat, "bottomMessagesActionContainer")
-            if bottom is None:
+            if ChatActivityActionsButtonsLayoutClass is None:
                 return
-
-            count = bottom.getChildCount()
-            for i in range(count):
-                v = bottom.getChildAt(i)
-                try:
-                    tag = v.getTag(CUSTOM_BUTTON_TAG)
-                    if tag is not None:
-                        v.setVisibility(v.VISIBLE)
-                        self._no_quote_button_cache[chat_id] = v
-                        self._no_quote_buttons_created.add(chat_id)
-                        return
-                except Exception:
-                    pass
             
-            if chat_id not in self._no_quote_buttons_created:
-                self._create_no_quote_button(chat, bottom)
-                self._no_quote_buttons_created.add(chat_id)
-        except Exception:
+            ContextClass = find_class("android.content.Context")
+            ResourcesProviderClass = find_class("org.telegram.ui.ActionBar.Theme$ResourcesProvider")
+            ColorProviderClass = find_class("org.telegram.ui.Components.blur3.drawable.color.BlurredBackgroundColorProvider")
+            BlurredBackgroundDrawableViewFactoryClass = find_class("org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory")
+            
+            constructor = ChatActivityActionsButtonsLayoutClass.getClass().getDeclaredConstructor(
+                ContextClass,
+                ResourcesProviderClass,
+                ColorProviderClass,
+                BlurredBackgroundDrawableViewFactoryClass
+            )
+            constructor.setAccessible(True)
+            
+            class LayoutConstructorHook:
+                def __init__(hook_self):
+                    hook_self.plugin = self
+                
+                def after_hooked_method(hook_self, param):
+                    try:
+                        layout = param.thisObject
+                        hook_self.plugin._setup_forward_button(layout)
+                    except Exception as e:
+                        pass
+            
+            self._unhook_layout = self.hook_method(constructor, LayoutConstructorHook())
+            
+        except Exception as e:
             pass
-
-    def _create_no_quote_button(self, chat, bottom):
+    
+    def _setup_forward_button(self, layout):
         try:
-            Context = chat.getContext()
-            TextView = find_class("android.widget.TextView")
-            btn = TextView(Context)
-            btn.setText(get_string("no_quote", "NoQuote"))
-            try:
-                from android.util import TypedValue
-                btn.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15)
-            except Exception:
-                pass
-            try:
-                btn.setPadding(AndroidUtilities.dp(14), 0, AndroidUtilities.dp(21), 0)
-            except Exception:
-                pass
-            btn.setClickable(True)
-            try:
-                from android.view import Gravity
-                btn.setGravity(Gravity.CENTER_VERTICAL)
-            except Exception:
-                pass
-            try:
-                btn.setBackgroundDrawable(Theme.createSelectorDrawable(chat.getThemedColor(Theme.key_actionBarActionModeDefaultSelector), 3))
-                btn.setTextColor(chat.getThemedColor(Theme.key_actionBarActionModeDefaultIcon))
-            except Exception:
-                pass
-            try:
-                from android.widget import FrameLayout
-                lp = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.MATCH_PARENT)
-                from android.view import Gravity as Grav
-                lp.gravity = Grav.CENTER
-                bottom.addView(btn, lp)
-            except Exception:
-                bottom.addView(btn)
-            try:
-                btn.setTag(CUSTOM_BUTTON_TAG, True)
-            except Exception:
-                pass
-            OnClickInterface = find_class("android.view.View$OnClickListener")
-            OnClick = dynamic_proxy(OnClickInterface)
-            plugin_ref = weakref.ref(self)
-            class ClickImpl(OnClick):
-                def __init__(self, host):
-                    super().__init__()
-                    self.host = host
-                def onClick(self, v):
-                    plugin = plugin_ref()
-                    if plugin is None:
-                        return
-                    plugin._on_no_quote_forward_click(self.host, None)
-            btn.setOnClickListener(ClickImpl(chat))
-            chat_id = id(chat)
-            self._no_quote_button_cache[chat_id] = btn
-        except Exception:
+            forward_button = layout.getForwardButton()
+            
+            if forward_button is None:
+                return
+            
+            plugin_ref = self
+            
+            def on_forward_long_click(view):
+                try:
+                    view.performHapticFeedback(
+                        HapticFeedbackConstants.LONG_PRESS,
+                        HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+                    )
+                    plugin_ref._show_mode_selector_dialog(view, layout)
+                    return True
+                except Exception as e:
+                    return False
+            
+            forward_button.setOnLongClickListener(OnLongClickListener(on_forward_long_click))
+            self._update_forward_button_text(layout)
+            
+        except Exception as e:
             pass
-
-    def _hook_no_quote_label_and_custom_button(self):
-        try:
-            ChatActivity = find_class("org.telegram.ui.ChatActivity")
-            method = ChatActivity.getClass().getDeclaredMethod("createBottomMessagesActionButtons")
-            method.setAccessible(True)
-            class Hook:
-                def __init__(self, plugin):
-                    self.plugin = plugin
-                def after_hooked_method(self, param):
-                    chat = param.thisObject
-                    self.plugin._ensure_no_quote_custom_left_button(chat)
-            self.hook_no_quote_create_buttons_ref = self.hook_method(method, Hook(self))
-        except Exception:
-            pass
-
-    def _hook_no_quote_update_bottom_panel(self):
-        try:
-            ChatActivity = find_class("org.telegram.ui.ChatActivity")
-            BooleanTYPE = find_class("java.lang.Boolean").TYPE
-            method = ChatActivity.getClass().getDeclaredMethod("updateBottomPanel", BooleanTYPE)
-            method.setAccessible(True)
-            class UpdateHook:
-                def __init__(self, plugin):
-                    self.plugin = plugin
-                def after_hooked_method(self, param):
-                    chat = param.thisObject
-                    self.plugin._ensure_no_quote_custom_left_button(chat)
-            self.hook_no_quote_update_bottom_panel_ref = self.hook_method(method, UpdateHook(self))
-        except Exception:
-            pass
+    
+    def _show_mode_selector_dialog(self, button_view, layout):
+        def show_dialog():
+            try:
+                from android.widget import LinearLayout
+                from org.telegram.ui.ActionBar import AlertDialog, Theme
+                from org.telegram.messenger import AndroidUtilities
+                
+                context = button_view.getContext()
+                
+                builder = AlertDialog.Builder(context)
+                builder.setTitle("Forward Mode")
+                
+                linear_layout = LinearLayout(context)
+                linear_layout.setOrientation(LinearLayout.VERTICAL)
+                builder.setView(linear_layout)
+                
+                options = ["Forward", "No Quote"]
+                current_index = 0 if self.current_mode == "forward" else 1
+                
+                RadioColorCellClass = find_class("org.telegram.ui.Cells.RadioColorCell")
+                
+                for i in range(len(options)):
+                    cell = RadioColorCellClass(context)
+                    cell.setPadding(AndroidUtilities.dp(4), 0, AndroidUtilities.dp(4), 0)
+                    cell.setTag(i)
+                    cell.setCheckColor(
+                        Theme.getColor(Theme.key_radioBackground),
+                        Theme.getColor(Theme.key_dialogRadioBackgroundChecked)
+                    )
+                    cell.setTextAndValue(options[i], i == current_index)
+                    cell.setBackground(Theme.getSelectorDrawable(False))
+                    linear_layout.addView(cell)
+                    
+                    plugin_ref = self
+                    layout_ref = layout
+                    
+                    def create_click_listener(index):
+                        def on_click(v):
+                            try:
+                                if index == 0:
+                                    plugin_ref.current_mode = "forward"
+                                elif index == 1:
+                                    plugin_ref.current_mode = "no_quote"
+                                
+                                plugin_ref.set_setting("forward_mode", plugin_ref.current_mode)
+                                plugin_ref._update_forward_button_text(layout_ref)
+                                builder.getDismissRunnable().run()
+                            except Exception as e:
+                                pass
+                        return on_click
+                    
+                    cell.setOnClickListener(OnClickListener(create_click_listener(i)))
+                
+                builder.setNegativeButton("Cancel", None)
+                builder.show()
+                
+            except Exception as e:
+                pass
+        
+        run_on_ui_thread(show_dialog)
+    
+    def _update_forward_button_text(self, layout):
+        def update_text():
+            try:
+                forwardButton_field = layout.getClass().getDeclaredField("forwardButton")
+                forwardButton_field.setAccessible(True)
+                button_holder = forwardButton_field.get(layout)
+                
+                if button_holder is None:
+                    return
+                
+                textView_field = button_holder.getClass().getDeclaredField("textView")
+                textView_field.setAccessible(True)
+                text_view = textView_field.get(button_holder)
+                
+                if text_view is None:
+                    return
+                
+                if self.current_mode == "no_quote":
+                    text_view.setText("No Quote")
+                else:
+                    text_view.setText("Forward")
+                
+            except Exception as e:
+                pass
+        
+        run_on_ui_thread(update_text)
     
     def _hook_add_to_folder_all_tabs(self):
         try:
@@ -4557,9 +4571,8 @@ class UiTweaksPlugin(BasePlugin):
             pass
     
     def pre_request_hook(self, request_name: str, account: int, request):
-        if request_name == "TL_messages_forwardMessages" and self.no_quote_requested and hasattr(request, 'drop_author'):
+        if request_name == "TL_messages_forwardMessages" and self.current_mode == "no_quote" and hasattr(request, 'drop_author'):
             request.drop_author = True
-            self.no_quote_requested = False
             return HookResult(strategy=HookStrategy.MODIFY, request=request)
         
         if request_name == "TL_messages_forwardMessages" and self.get_setting("send_comments_after_forward", False):
