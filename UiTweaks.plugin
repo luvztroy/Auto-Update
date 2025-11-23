@@ -3435,13 +3435,13 @@ class UiTweaksPlugin(BasePlugin):
                 context = button_view.getContext()
                 
                 builder = AlertDialog.Builder(context)
-                builder.setTitle("Forward Mode")
+                builder.setTitle(get_string("forward_mode", "Forward Mode"))
                 
                 linear_layout = LinearLayout(context)
                 linear_layout.setOrientation(LinearLayout.VERTICAL)
                 builder.setView(linear_layout)
                 
-                options = ["Forward", "No Quote"]
+                options = [get_string("forward_option", "Forward"), get_string("no_quote_option", "No Quote")]
                 current_index = 0 if self.current_mode == "forward" else 1
                 
                 RadioColorCellClass = find_class("org.telegram.ui.Cells.RadioColorCell")
