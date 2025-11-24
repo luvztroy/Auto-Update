@@ -1,7 +1,7 @@
 {
-  "version": "1.7.8.3-Beta",
-  "release_date": "2025-11-22",
-  "changelog_text": "**What's New in v1.7.8.3-Beta:**\n\n**Fixed:**\n• forum handling for noQuote forward\n• forum handling for gif with spoiler\n• forum handling for gif with caption\n• handle user and forum replies for GIFs with caption\n• handle user and forum replies for GIFs with spoiler\n• draft panel not hiding after sending message\n\n**Removed:**\n• forum checks for GIF spoiler and caption menu items",
+  "version": "1.7.8.4-Beta",
+  "release_date": "2025-11-24",
+  "changelog_text": "**What's New in v1.7.8.4-Beta:**\n\n**Fixed:**\n• adapt plugin to Telegram’s redesigned bottom bar with long-press action selector for No Quote",
   "sticker_pack": "lidreron",
   "sticker_index": 57,
   "sticker_circle": false,
