@@ -1486,7 +1486,7 @@ class QuantaHut(BasePlugin):
             for pill, filter_id in self.filter_pills:
                 base_text = self.filter_base_texts.get(filter_id, "")
                 count = counts.get(filter_id, 0)
-                pill.setText(f"{base_text}-{count}")
+                pill.setText(f"{base_text} - {count}")
         except:
             pass
     
