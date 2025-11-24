@@ -11,7 +11,7 @@ import time
 from collections import deque
 
 from typing import Set, Any, Optional, List, Dict
-from base_plugin import BasePlugin, MenuItemData, MenuItemType, HookResult, HookStrategy, MethodReplacement, AppEvent
+from base_plugin import BasePlugin, MenuItemData, MenuItemType, HookResult, HookStrategy, MethodReplacement, AppEvent, MethodHook
 from hook_utils import find_class, get_private_field, set_private_field
 from java import dynamic_proxy, jclass, jlong
 
@@ -1207,7 +1207,6 @@ class UiTweaksPlugin(BasePlugin):
         self.hook_webapp_swipe_prevention_ref = None
         self.hook_download_manager_ref = None
         self.hook_proxy_button_ref = None
-        self.current_chat_activity = None
         self.current_popup = None
         self._cached_accounts = None
         self.hook_phone_number_ref = None
@@ -1218,15 +1217,13 @@ class UiTweaksPlugin(BasePlugin):
         self.hook_voice_message_control_ref = None
         self.hook_voice_message_time_display_ref = None
         self.hook_video_message_control_ref = None
-        self.hook_unread_badge_ref = None
-        self.hook_back_button_draw_ref = None
+        self.create_view_hook_ref = None
+        self.destroy_hook_ref = None
+        self.current_chat_activity = None
+        self.current_back_button = None
+        self.counter_views = {}
         self._unhook_layout = None
         self.hook_add_to_folder_all_tabs_ref = None
-        self.current_back_button = None
-        self.unread_count = 0
-        self._unread_count_cache = 0
-        self._last_unread_update = 0
-        self._cached_dialog_id = 0
         self.forced_scroll_offset = 200
         
         self.unhook_send_message = None
@@ -2721,8 +2718,6 @@ class UiTweaksPlugin(BasePlugin):
             "hook_voice_message_control_ref",
             "hook_voice_message_time_display_ref",
             "hook_video_message_control_ref",
-            "hook_unread_badge_ref",
-            "hook_back_button_draw_ref",
             "hook_forward_confirmation_ref",
             "hook_join_confirmation_ref",
             "hook_send_typing_refs",
@@ -2776,6 +2771,8 @@ class UiTweaksPlugin(BasePlugin):
             "hook_music_speed_control_ref",
             "hook_custom_saved_messages_ref",
             "hook_disable_emoji_suggestions_ref",
+            "create_view_hook_ref",
+            "destroy_hook_ref",
         ):
             ref = getattr(self, ref_attr, None)
             if ref:
@@ -2786,6 +2783,10 @@ class UiTweaksPlugin(BasePlugin):
                 else:
                     self.unhook_method(ref)
                 setattr(self, ref_attr, None)
+        
+        self.current_chat_activity = None
+        self.current_back_button = None
+        self.counter_views.clear()
 
         for ref_attr in ("hook_open_link_internally_ref",):
             ref = getattr(self, ref_attr, None)
@@ -5246,13 +5247,27 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_unread_badge(self):
         try:
-            ChatActivityClass = jclass("org.telegram.ui.ChatActivity")
-            chat_java_class = ChatActivityClass.getClass()
+            ChatActivityClass = find_class("org.telegram.ui.ChatActivity")
+            if not ChatActivityClass:
+                return
             
-            onResume_method = chat_java_class.getDeclaredMethod("onResume")
-            onResume_method.setAccessible(True)
-            self.hook_unread_badge_ref = self.hook_method(onResume_method, UnreadBadgeHook(self))
-            pass
+            ContextClass = find_class("android.content.Context")
+            create_view_method = ChatActivityClass.getClass().getDeclaredMethod(
+                "createView", 
+                ContextClass
+            )
+            create_view_method.setAccessible(True)
+            self.create_view_hook_ref = self.hook_method(
+                create_view_method,
+                CreateViewHook(self)
+            )
+            
+            destroy_method = ChatActivityClass.getClass().getDeclaredMethod("onFragmentDestroy")
+            destroy_method.setAccessible(True)
+            self.destroy_hook_ref = self.hook_method(
+                destroy_method,
+                FragmentDestroyHook(self)
+            )
             
         except Exception as e:
             pass
@@ -8465,137 +8480,208 @@ class ProcessExternalUrlHook:
             return True
 
 
-class UnreadBadgeHook:
-    def __init__(self, plugin: UiTweaksPlugin):
+class CreateViewHook(MethodHook):
+    def __init__(self, plugin):
         self.plugin = plugin
-        
+    
     def after_hooked_method(self, param):
         try:
             chat_activity = param.thisObject
             if chat_activity is None:
                 return
-                
-            action_bar = chat_activity.getActionBar()
+            
+            action_bar = chat_activity.actionBar
             if action_bar is None:
                 return
-                
+            
             back_button = action_bar.backButtonImageView
             if back_button is None:
                 return
-                
-            current_dialog_id = chat_activity.getDialogId()
-            current_time = int(jclass("java.lang.System").currentTimeMillis() / 1000)
             
-            if (self.plugin._cached_dialog_id == current_dialog_id and 
-                current_time - self.plugin._last_unread_update < 2):
-                if self.plugin.unread_count != self.plugin._unread_count_cache:
-                    self.plugin.unread_count = self.plugin._unread_count_cache
-                    back_button.invalidate()
-                return
-                
-            messages_storage = chat_activity.getMessagesStorage()
-            if messages_storage is None:
-                return
-                
-            total_unread_count = messages_storage.getMainUnreadCount()
-            current_chat_unread = 0
+            self.plugin.current_chat_activity = chat_activity
+            self.plugin.current_back_button = back_button
             
-            try:
-                messages_controller = chat_activity.getMessagesController()
-                if messages_controller and current_dialog_id != 0:
-                    dialog = messages_controller.getDialog(current_dialog_id)
-                    if dialog:
-                        current_chat_unread = dialog.unread_count
-            except Exception:
-                pass
+            back_button_id = id(back_button)
+            if back_button_id not in self.plugin.counter_views:
+                self._create_badge(chat_activity, back_button)
             
-            unread_count = max(0, total_unread_count - current_chat_unread)
+            self._update_badge(chat_activity)
             
-            if self.plugin.current_back_button != back_button:
-                self._hook_back_button(back_button, action_bar)
-                self.plugin.current_back_button = back_button
-            
-            if self.plugin.unread_count != unread_count:
-                self.plugin.unread_count = unread_count
-                self.plugin._unread_count_cache = unread_count
-                self.plugin._last_unread_update = current_time
-                self.plugin._cached_dialog_id = current_dialog_id
-                back_button.invalidate()
-                
-        except Exception as e:
+        except Exception:
             pass
-            
-    def _hook_back_button(self, back_button, action_bar):
+    
+    def _create_badge(self, chat_activity, back_button):
         try:
-            if self.plugin.hook_back_button_draw_ref:
-                self.plugin.unhook_method(self.plugin.hook_back_button_draw_ref)
-                self.plugin.hook_back_button_draw_ref = None
+            CounterViewClass = find_class("org.telegram.ui.Components.CounterView")
+            LayoutHelperClass = find_class("org.telegram.ui.Components.LayoutHelper")
+            GravityClass = find_class("android.view.Gravity")
+            AndroidUtilities = jclass("org.telegram.messenger.AndroidUtilities")
+            
+            if not CounterViewClass:
+                return
+            
+            context = back_button.getContext()
+            counter_view = CounterViewClass(context, None)
+            counter_view.setGravity(GravityClass.LEFT)
+            counter_view.setReverse(True)
+            
+            layout_params = LayoutHelperClass.createFrame(
+                -2,
+                -2,
+                GravityClass.LEFT | GravityClass.TOP,
+                0, 0, 0, 0
+            )
+            
+            action_bar = back_button.getParent()
+            action_bar.addView(counter_view, layout_params)
+            
+            self.plugin.counter_views[id(back_button)] = counter_view
+            
+            from android_utils import run_on_ui_thread
+            def force_layout():
+                try:
+                    ViewClass = find_class("android.view.View")
+                    counter_view.setVisibility(ViewClass.VISIBLE)
+                    
+                    status_bar_height = AndroidUtilities.statusBarHeight if action_bar.getOccupyStatusBar() else 0
+                    
+                    badge_x = AndroidUtilities.dp(30)
+                    badge_y = status_bar_height - AndroidUtilities.dp(30)
+                    
+                    counter_view.setX(badge_x)
+                    counter_view.setY(badge_y)
+                    counter_view.setElevation(AndroidUtilities.dp(2))
+                    
+                    counter_view.bringToFront()
+                    counter_view.requestLayout()
+                    action_bar.requestLayout()
+                    action_bar.invalidate()
+                    
+                    self._update_badge(chat_activity)
+                except Exception:
+                    pass
+            
+            run_on_ui_thread(force_layout)
+            
+            def register_observer():
+                try:
+                    NotificationCenter = jclass("org.telegram.messenger.NotificationCenter")
+                    notification_center = chat_activity.getNotificationCenter()
+                    
+                    from java import dynamic_proxy
+                    NotificationCenterDelegate = find_class("org.telegram.messenger.NotificationCenter$NotificationCenterDelegate")
+                    
+                    ObserverProxy = dynamic_proxy(NotificationCenterDelegate)
+                    
+                    class UnreadObserver(ObserverProxy):
+                        def __init__(self, plugin_ref, chat_ref, back_btn_id):
+                            super().__init__()
+                            self.plugin = plugin_ref
+                            self.chat_activity = chat_ref
+                            self.back_button_id = back_btn_id
+                        
+                        def didReceivedNotification(self, notification_id, account, *args):
+                            try:
+                                if notification_id == NotificationCenter.dialogsUnreadCounterChanged:
+                                    if self.back_button_id not in self.plugin.counter_views:
+                                        return
+                                    
+                                    counter = self.plugin.counter_views[self.back_button_id]
+                                    storage = self.chat_activity.getMessagesStorage()
+                                    
+                                    if storage:
+                                        count = storage.getMainUnreadCount()
+                                        
+                                        from android_utils import run_on_ui_thread
+                                        def update():
+                                            try:
+                                                ViewClass = find_class("android.view.View")
+                                                if count > 0:
+                                                    counter.setVisibility(ViewClass.VISIBLE)
+                                                    counter.setCount(count, True)
+                                                else:
+                                                    counter.setVisibility(ViewClass.GONE)
+                                            except Exception:
+                                                pass
+                                        
+                                        run_on_ui_thread(update)
+                            except Exception:
+                                pass
+                    
+                    observer = UnreadObserver(self.plugin, chat_activity, id(back_button))
+                    notification_center.addObserver(observer, NotificationCenter.dialogsUnreadCounterChanged)
+                    
+                    self.plugin.counter_views[id(back_button) + 1000000] = observer
+                    
+                except Exception:
+                    pass
+            
+            run_on_ui_thread(register_observer)
+            
+        except Exception:
+            pass
+    
+    def _update_badge(self, chat_activity):
+        try:
+            back_button = chat_activity.actionBar.backButtonImageView
+            if back_button is None:
+                return
+            
+            back_button_id = id(back_button)
+            if back_button_id not in self.plugin.counter_views:
+                return
+            
+            counter_view = self.plugin.counter_views[back_button_id]
+            
+            messages_storage = chat_activity.getMessagesStorage()
+            if messages_storage:
+                unread_count = messages_storage.getMainUnreadCount()
                 
-            back_button_class = back_button.getClass()
-            on_draw_method = back_button_class.getDeclaredMethod("onDraw", jclass("android.graphics.Canvas"))
-            on_draw_method.setAccessible(True)
+                ViewClass = find_class("android.view.View")
+                if unread_count > 0:
+                    counter_view.setVisibility(ViewClass.VISIBLE)
+                    counter_view.setCount(unread_count, True)
+                else:
+                    counter_view.setVisibility(ViewClass.GONE)
             
-            draw_hook = BackButtonDrawHook(self.plugin, action_bar)
-            self.plugin.hook_back_button_draw_ref = self.plugin.hook_method(on_draw_method, draw_hook)
-            
-        except Exception as e:
+        except Exception:
             pass
 
 
-class BackButtonDrawHook:
-    def __init__(self, plugin: UiTweaksPlugin, action_bar):
+class FragmentDestroyHook(MethodHook):
+    def __init__(self, plugin):
         self.plugin = plugin
-        self.action_bar = action_bar
-        self.rect = jclass("android.graphics.RectF")()
-        self._action_mode_cached = False
-        self._last_action_mode_check = 0
-        
+    
     def after_hooked_method(self, param):
         try:
-            current_view = param.thisObject
-            if current_view != self.plugin.current_back_button:
+            chat_activity = param.thisObject
+            if chat_activity is None:
                 return
-                
-            canvas = param.args[0]
-            if canvas is None or self.plugin.unread_count <= 0:
+            
+            action_bar = chat_activity.actionBar
+            if action_bar is None:
                 return
-                
-            current_time = int(jclass("java.lang.System").currentTimeMillis() / 1000)
-            if current_time - self._last_action_mode_check > 1:
-                try:
-                    parent_view = current_view.getParent()
-                    while parent_view is not None:
-                        if parent_view.getClass().getSimpleName() == "ActionBar":
-                            self._action_mode_cached = parent_view.isActionModeShowed()
-                            break
-                        parent_view = parent_view.getParent()
-                    self._last_action_mode_check = current_time
-                except:
-                    self._action_mode_cached = False
-                    
-            if self._action_mode_cached:
+            
+            back_button = action_bar.backButtonImageView
+            if back_button is None:
                 return
+            
+            back_button_id = id(back_button)
+            observer_id = back_button_id + 1000000
+            
+            if observer_id in self.plugin.counter_views:
+                observer = self.plugin.counter_views[observer_id]
+                notification_center = chat_activity.getNotificationCenter()
                 
-            paint = jclass("org.telegram.ui.ActionBar.Theme").dialogs_countPaint
-            text_paint = jclass("org.telegram.ui.ActionBar.Theme").dialogs_countTextPaint
-            
-            count_text = "99+" if self.plugin.unread_count > 99 else str(self.plugin.unread_count)
-            
-            text_width = int(text_paint.measureText(count_text))
-            badge_width = max(jclass("org.telegram.messenger.AndroidUtilities").dp(20), text_width + jclass("org.telegram.messenger.AndroidUtilities").dp(12))
-            badge_height = jclass("org.telegram.messenger.AndroidUtilities").dp(20)
-            
-            badge_left = current_view.getMeasuredWidth() - badge_width - jclass("org.telegram.messenger.AndroidUtilities").dp(8)
-            badge_top = jclass("org.telegram.messenger.AndroidUtilities").dp(8)
-            
-            self.rect.set(badge_left, badge_top, badge_left + badge_width, badge_top + badge_height)
-            canvas.drawRoundRect(self.rect, jclass("org.telegram.messenger.AndroidUtilities").dp(10), jclass("org.telegram.messenger.AndroidUtilities").dp(10), paint)
-            
-            text_x = badge_left + (badge_width - text_width) / 2
-            text_y = badge_top + jclass("org.telegram.messenger.AndroidUtilities").dp(14)
-            canvas.drawText(count_text, text_x, text_y, text_paint)
+                NotificationCenter = jclass("org.telegram.messenger.NotificationCenter")
+                notification_center.removeObserver(observer, NotificationCenter.dialogsUnreadCounterChanged)
                 
-        except Exception as e:
+                del self.plugin.counter_views[observer_id]
+            
+            if back_button_id in self.plugin.counter_views:
+                del self.plugin.counter_views[back_button_id]
+            
+        except Exception:
             pass
 
 
