@@ -3410,10 +3410,7 @@ class UiTweaksPlugin(BasePlugin):
             
             def on_forward_long_click(view):
                 try:
-                    view.performHapticFeedback(
-                        HapticFeedbackConstants.LONG_PRESS,
-                        HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
-                    )
+                    plugin_ref._perform_haptic(layout)
                     plugin_ref._show_mode_selector_dialog(view, layout)
                     return True
                 except Exception as e:
