@@ -1919,6 +1919,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("prevent_swipe_while_typing", get_string("prevent_swipe_while_typing", "Prevent swipe back while typing"), True, lambda v: self._apply_hooks(), link_alias="prevent_swipe_while_typing"),
             self.Quanta_switch("disable_article_viewer_swipe", get_string("disable_article_viewer_swipe", "Disable ArticleViewer swipe to close"), False, lambda v: self._apply_hooks(), link_alias="disable_article_viewer_swipe"),
             self.Quanta_switch("prevent_webapp_swipe_down", get_string("prevent_webapp_swipe_down", "Prevent swipe down in webapp bots"), False, lambda v: self._apply_hooks(), link_alias="prevent_webapp_swipe_down"),
+            self.Quanta_switch("disable_topics_swipe", get_string("disable_topics_swipe", "Disable Topics Swipe to Hide"), False, lambda v: self._apply_hooks(), link_alias="disable_topics_swipe"),
             Divider(text=get_string("navigation_controls_info", "This will prevent the Telegram navigation gestures to work from these scenarios.")),      
             self.Quanta_switch("fab_settings_shortcut", get_string("fab_settings_shortcut", "FAB Shortcut"), False, lambda v: self._apply_hooks(), link_alias="fab_settings_shortcut"),
             self.Quanta_selector("fab_action_selector", get_string("fab_action_selector", "Action"), [get_string("fab_action_uitweaks_settings", "UiTweaks Settings"), get_string("fab_action_archived_chats", "Archived Chats")], 0, lambda v: self._apply_hooks(), link_alias="fab_action_selector") if self.get_setting("fab_settings_shortcut", False) else None,
@@ -1928,6 +1929,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("enable_select_all_media", get_string("enable_select_all_media", "Select All Media Button"), True, lambda v: self._apply_hooks(), link_alias="enable_select_all_media"),
             self.Quanta_switch("enable_music_speed_control", get_string("enable_music_speed_control", "Music Speed Control"), False, lambda v: self._apply_hooks(), link_alias="enable_music_speed_control"),
             Divider(text=get_string("music_speed_control_info", "Enable playback speed control for all music files regardless of duration.")) if self.get_setting("enable_music_speed_control", False) else None,
+            self.Quanta_switch("disable_emoji_suggestions", get_string("disable_emoji_suggestions", "Disable Emoji Suggestions"), False, lambda v: self._apply_hooks(), link_alias="disable_emoji_suggestions"),
 
         ]
 
@@ -1938,7 +1940,6 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("enable_sender_select_enhancement", get_string("sender_select_improvements", "Send message as menu improvements"), False, lambda v: self._apply_hooks(), link_alias="enable_sender_select_enhancement"),
             Divider(text=get_string("sender_select_subtext", "Show personal account in \"send message as\" menu where you are the owner of the group")),
             self.Quanta_switch("enable_select_all_dialogs", get_string("select_all_dialogs_menu", "Select All Chats"), False, lambda v: self._apply_hooks(), link_alias="enable_select_all_dialogs"),
-            self.Quanta_switch("enable_gif_spoiler", get_string("gif_spoiler_caption", "GIF Spoiler & Caption"), False, lambda v: self._apply_hooks(), link_alias="enable_gif_spoiler"),
             self.Quanta_switch("enable_swipe_disable", get_string("disable_swipe_gestures", "Swipe gesture menu improvements"), False, lambda v: self._apply_hooks(), link_alias="enable_swipe_disable"),
             Divider(text=get_string("disable_swipe_subtext", "Add disable option in Telegrams \"Chat list swipe gesture\" menu")),
             self.Quanta_switch("enable_share_sheet_folders", get_string("add_folders_to_share_sheet", "Folders in direct share sheet"), False, lambda v: self._apply_hooks(), link_alias="enable_share_sheet_folders"),
@@ -1963,6 +1964,9 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("hide_bot_open", get_string("hide_bot_open", "Bot 'Open' button in chat list"), False, lambda v: self._apply_hooks(), link_alias="hide_bot_open"),
             self.Quanta_switch("hide_hd_icon", get_string("hide_hd_icon", "HD icon in media picker"), False, lambda v: self._apply_hooks(), link_alias="hide_hd_icon"),
             Divider(text=get_string("hide_hd_icon_info", "This will only remove the HD icon from the media picker. It will not affect the quality of the media.")),
+            self.Quanta_switch("hide_archived_chats", get_string("hide_archived_chats", "Hide Archived Chats"), False, lambda v: self._apply_hooks(), link_alias="hide_archived_chats"),
+            self.Quanta_switch("hide_archived_from_drawer", get_string("hide_archived_from_drawer", "Hide from drawer"), False, lambda v: self._apply_hooks(), link_alias="hide_archived_from_drawer") if self.get_setting("hide_archived_chats", False) else None,
+            Divider(text=get_string("hide_archived_chats_info", "This will remove archived chats cell from the chat list by filtering them out of the dialogs query.")),
         ])
         
         settings.extend([
@@ -2009,9 +2013,6 @@ class UiTweaksPlugin(BasePlugin):
         ])
         
         settings.extend([
-            self.Quanta_switch("hide_archived_chats", get_string("hide_archived_chats", "Hide Archived Chats"), False, lambda v: self._apply_hooks(), link_alias="hide_archived_chats"),
-            self.Quanta_switch("hide_archived_from_drawer", get_string("hide_archived_from_drawer", "Hide from drawer"), False, lambda v: self._apply_hooks(), link_alias="hide_archived_from_drawer") if self.get_setting("hide_archived_chats", False) else None,
-            Divider(text=get_string("hide_archived_chats_info", "This will remove archived chats cell from the chat list by filtering them out of the dialogs query.")),
             self.Quanta_switch("hide_star_reaction", get_string("hide_star_reaction", "Hide Star Reaction"), False, lambda v: self._apply_hooks(), link_alias="hide_star_reaction"),
             self.Quanta_text(
                 text=get_string("star_reaction_hide_location", "Select from where"),
@@ -2052,11 +2053,11 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("enable_delete_with_duration", get_string("enable_delete_with_duration", "Delete with Duration Selection"), False, lambda v: self._apply_delete_with_duration_hooks(), link_alias="enable_delete_with_duration"),
             Divider(text=get_string("delete_with_duration_info", "Adds duration selection when banning/restricting users after deleting their messages.")) if self.get_setting("enable_delete_with_duration", False) else None,
             self.Quanta_switch("send_comments_after_forward", get_string("send_comments_after_forward", "Send Comments After Forward"), False, lambda v: self._apply_hooks(), link_alias="send_comments_after_forward"),
+            self.Quanta_switch("enable_gif_spoiler", get_string("gif_spoiler_caption", "GIF Spoiler & Caption"), False, lambda v: self._apply_hooks(), link_alias="enable_gif_spoiler"),
             self.Quanta_switch("enable_no_quote_forward", get_string("enable_no_quote_forward", "Enable No-Quote Forward"), True, lambda v: self._update_no_quote_forward_menu_item(), link_alias="enable_no_quote_forward"),
             Divider(text=get_string("context_menu_info", "These will add items to the context menu that appears when you tap on any message.")),
             self.Quanta_switch("typing_instead_sticker", get_string("typing_instead_sticker", "Typing Instead of Choosing Sticker"), False, lambda v: self._apply_hooks(), link_alias="typing_instead_sticker"),
             self.Quanta_switch("always_visible_schedule_button", get_string("always_visible_schedule_button", "Always Visible Schedule Button"), False, lambda v: self._apply_hooks(), link_alias="always_visible_schedule_button"),
-            self.Quanta_switch("disable_emoji_suggestions", get_string("disable_emoji_suggestions", "Disable Emoji Suggestions"), False, lambda v: self._apply_hooks(), link_alias="disable_emoji_suggestions"),
         ])
         
         settings.extend([
@@ -2064,7 +2065,6 @@ class UiTweaksPlugin(BasePlugin):
         ])
         
         settings.extend([
-            self.Quanta_switch("disable_topics_swipe", get_string("disable_topics_swipe", "Disable Topics Swipe to Hide"), False, lambda v: self._apply_hooks(), link_alias="disable_topics_swipe"),
             self.Quanta_switch("enable_adaptive_audio_length", get_string("enable_adaptive_audio_length", "Adaptive Audio Message Length"), False, lambda v: self._apply_hooks(), link_alias="enable_adaptive_audio_length"),
             Divider(text=get_string("adaptive_audio_length_info", "The audio message bubble length will depend on the recording duration and automatically adjust to the screen width.")) if self.get_setting("enable_adaptive_audio_length", False) else None,
         ])
