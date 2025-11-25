@@ -5492,7 +5492,7 @@ class UiTweaksPlugin(BasePlugin):
             context = edit_text.getContext()
             
             mention_edit_text = EditTextBoldCursor(context)
-            mention_edit_text.setHint(get_string("mention_id_hint", "ID"))
+            mention_edit_text.setHint(get_string("id_hint", "ID"))
             mention_edit_text.setInputType(InputType.TYPE_CLASS_TEXT)
             mention_edit_text.setMaxLines(1)
             mention_edit_text.setSingleLine(True)
