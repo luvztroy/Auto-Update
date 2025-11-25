@@ -5350,17 +5350,31 @@ class UiTweaksPlugin(BasePlugin):
                 return
             
             boolean_type = find_class("java.lang.Boolean").TYPE
-            fillActionModeMenu_method = ChatActivity.getClass().getDeclaredMethod("fillActionModeMenu", 
-                find_class("android.view.Menu"), 
-                jclass("org.telegram.tgnet.TLRPC$EncryptedChat"), 
-                boolean_type)
-            fillActionModeMenu_method.setAccessible(True)
+            fillActionModeMenu_method = None
+            
+            try:
+                fillActionModeMenu_method = ChatActivity.getClass().getDeclaredMethod("fillActionModeMenu", 
+                    find_class("android.view.Menu"), 
+                    jclass("org.telegram.tgnet.TLRPC$EncryptedChat"), 
+                    boolean_type,
+                    boolean_type)
+            except Exception:
+                try:
+                    fillActionModeMenu_method = ChatActivity.getClass().getDeclaredMethod("fillActionModeMenu", 
+                        find_class("android.view.Menu"), 
+                        jclass("org.telegram.tgnet.TLRPC$EncryptedChat"), 
+                        boolean_type)
+                except Exception:
+                    pass
+
+            if fillActionModeMenu_method:
+                fillActionModeMenu_method.setAccessible(True)
+                self.hook_fill_action_mode_menu_ref = self.hook_method(fillActionModeMenu_method, FillActionModeMenuHook(self))
             
             performMenuAction_method = EditTextCaption.getClass().getDeclaredMethod("performMenuAction", 
                 find_class("java.lang.Integer").TYPE)
             performMenuAction_method.setAccessible(True)
             
-            self.hook_fill_action_mode_menu_ref = self.hook_method(fillActionModeMenu_method, FillActionModeMenuHook(self))
             self.hook_perform_menu_action_ref = self.hook_method(performMenuAction_method, PerformMenuActionHook(self))
             
         except Exception as e:
