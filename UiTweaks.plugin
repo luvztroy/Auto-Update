@@ -8434,20 +8434,62 @@ class GifSpoilerHook:
             input_field.setInputType(InputType.TYPE_CLASS_TEXT)
             input_field.setMaxLines(1)
             input_field.setSingleLine(True)
-            input_field.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16)
-            input_field.setTextColor(Theme.getColor(Theme.key_dialogTextBlack))
-            input_field.setHintTextColor(Theme.getColor(Theme.key_dialogTextHint))
-            input_field.setBackground(None)
-            input_field.setCursorColor(Theme.getColor(Theme.key_dialogTextLink))
+            input_field.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18)
+            input_field.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText))
+            input_field.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteHintText))
+            input_field.setBackground(Theme.createEditTextDrawable(activity, True))
+            input_field.setCursorColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader))
+            input_field.setCursorSize(AndroidUtilities.dp(20))
             input_field.setCursorWidth(1.5)
-            input_field.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(12), AndroidUtilities.dp(12), AndroidUtilities.dp(12))
-
+            input_field.setPadding(0, 0, 0, 0)
+            input_field.setFocusable(True)
+            
+            def on_send_click(dialog, which):
+                try:
+                    AndroidUtilities.hideKeyboard(input_field)
+                    caption = input_field.getText().toString()
+                    self.send_gif_with_caption(viewer, document, delegate, caption)
+                except Exception:
+                    pass
+                dialog.dismiss()
+            
+            def on_cancel_click(dialog, which):
+                try:
+                    AndroidUtilities.hideKeyboard(input_field)
+                except Exception:
+                    pass
+                dialog.dismiss()
+            
             builder = AlertDialogBuilder(activity)
             builder.set_title(get_string("add_caption_to_gif", "Add Caption to GIF"))
             builder.set_view(input_field)
-            builder.set_positive_button(get_string("send", "Send"), lambda b, w: (self.send_gif_with_caption(viewer, document, delegate, input_field.getText().toString()), b.dismiss()))
-            builder.set_negative_button(get_string("cancel", "Cancel"), lambda b, w: b.dismiss())
-            builder.show()
+            builder.set_negative_button(get_string("cancel", "Cancel"), on_cancel_click)
+            builder.set_positive_button(get_string("send", "Send"), on_send_click)
+            
+            dialog = builder.show()
+            
+            def apply_layout_params():
+                try:
+                    layout_params = input_field.getLayoutParams()
+                    if layout_params is not None:
+                        if isinstance(layout_params, FrameLayout.LayoutParams):
+                            layout_params.gravity = Gravity.CENTER_HORIZONTAL
+                        
+                        if hasattr(layout_params, 'rightMargin'):
+                            layout_params.rightMargin = AndroidUtilities.dp(24)
+                            layout_params.leftMargin = AndroidUtilities.dp(24)
+                            layout_params.height = AndroidUtilities.dp(36)
+                            layout_params.bottomMargin = AndroidUtilities.dp(15)
+                        input_field.setLayoutParams(layout_params)
+                    
+                    input_field.requestFocus()
+                    text_length = input_field.getText().length() if input_field.getText() else 0
+                    input_field.setSelection(0, text_length)
+                    AndroidUtilities.showKeyboard(input_field)
+                except Exception:
+                    pass
+            
+            run_on_ui_thread(apply_layout_params, delay=100)
         except:
             pass
 
