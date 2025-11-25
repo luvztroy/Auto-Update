@@ -8430,7 +8430,7 @@ class GifSpoilerHook:
                 return
 
             input_field = EditTextBoldCursor(activity)
-            input_field.setHint(get_string("enter_caption", "Enter caption..."))
+            input_field.setHint(get_string("enter_caption", "Message"))
             input_field.setInputType(InputType.TYPE_CLASS_TEXT)
             input_field.setMaxLines(1)
             input_field.setSingleLine(True)
@@ -8461,7 +8461,7 @@ class GifSpoilerHook:
                 dialog.dismiss()
             
             builder = AlertDialogBuilder(activity)
-            builder.set_title(get_string("add_caption_to_gif", "Add Caption to GIF"))
+            builder.set_title(get_string("add_caption_to_gif", "Caption"))
             builder.set_view(input_field)
             builder.set_negative_button(get_string("cancel", "Cancel"), on_cancel_click)
             builder.set_positive_button(get_string("send", "Send"), on_send_click)
