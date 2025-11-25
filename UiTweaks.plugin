@@ -1296,7 +1296,8 @@ class UiTweaksPlugin(BasePlugin):
         self.hidden_folders_data = {}
         self.hide_all_chats_folder = {}
         self.hook_folder_visibility_ref = None
-        
+        self.hook_reply_in_another_chat_layout_ref = None
+        self.hook_reply_in_another_chat_dialogs_ref = None
         self.hook_gift_drawer_reset_ref = None
         self.hook_gift_drawer_click_ref = None
         self.hook_gift_drawer_cell_ref = None
@@ -1617,6 +1618,9 @@ class UiTweaksPlugin(BasePlugin):
         
         if self.get_setting("enable_goto_message", False):
             self._hook_goto_message()
+        
+        if self.get_setting("enable_reply_in_another_chat_shortcut", False):
+            self._hook_reply_in_another_chat()
         
         if self.get_setting("enable_reply_private_chat", False):
             self._add_reply_private_chat_menu_item()
@@ -2041,6 +2045,7 @@ class UiTweaksPlugin(BasePlugin):
             Divider(text=get_string("progress_timestamp_info", "Shows the current playback time and total duration on voice and video messages for better media control.")) if self.get_setting("progress_timestamp_enabled", True) else None,
             self.Quanta_switch("enable_goto_message", get_string("enable_goto_message", "Search by Message ID"), False, lambda v: self._apply_hooks(), link_alias="enable_goto_message"),
             self.Quanta_switch("enable_reply_private_chat", get_string("enable_reply_private_chat", "Enable Reply in Private Chat"), False, lambda v: self._update_reply_private_chat_menu_item(), link_alias="enable_reply_private_chat"),
+            self.Quanta_switch("enable_reply_in_another_chat_shortcut", get_string("enable_reply_in_another_chat_shortcut", "Reply in another chat shortcut"), False, lambda v: self._apply_hooks(), link_alias="enable_reply_in_another_chat_shortcut"),
             self.Quanta_switch("enable_delete_with_duration", get_string("enable_delete_with_duration", "Delete with Duration Selection"), False, lambda v: self._apply_delete_with_duration_hooks(), link_alias="enable_delete_with_duration"),
             Divider(text=get_string("delete_with_duration_info", "Adds duration selection when banning/restricting users after deleting their messages.")) if self.get_setting("enable_delete_with_duration", False) else None,
             self.Quanta_switch("send_comments_after_forward", get_string("send_comments_after_forward", "Send Comments After Forward"), False, lambda v: self._apply_hooks(), link_alias="send_comments_after_forward"),
@@ -2772,6 +2777,8 @@ class UiTweaksPlugin(BasePlugin):
             "hook_disable_emoji_suggestions_ref",
             "create_view_hook_ref",
             "destroy_hook_ref",
+            "hook_reply_in_another_chat_layout_ref",
+            "hook_reply_in_another_chat_dialogs_ref",
         ):
             ref = getattr(self, ref_attr, None)
             if ref:
@@ -3160,6 +3167,128 @@ class UiTweaksPlugin(BasePlugin):
             except Exception:
                 pass
         except Exception:
+            pass
+    
+    def _hook_reply_in_another_chat(self):
+        try:
+            LayoutClass = find_class("org.telegram.ui.Components.chat.layouts.ChatActivityActionsButtonsLayout")
+            if LayoutClass is None:
+                return
+            
+            ContextClass = find_class("android.content.Context")
+            ResourcesProviderClass = find_class("org.telegram.ui.ActionBar.Theme$ResourcesProvider")
+            ColorProviderClass = find_class("org.telegram.ui.Components.blur3.drawable.color.BlurredBackgroundColorProvider")
+            BlurredBackgroundDrawableViewFactoryClass = find_class("org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory")
+            
+            constructor = LayoutClass.getClass().getDeclaredConstructor(
+                ContextClass,
+                ResourcesProviderClass,
+                ColorProviderClass,
+                BlurredBackgroundDrawableViewFactoryClass
+            )
+            constructor.setAccessible(True)
+            self.hook_reply_in_another_chat_layout_ref = self.hook_method(constructor, ReplyInAnotherChatLayoutHook(self))
+            
+            ChatActivity = find_class("org.telegram.ui.ChatActivity")
+            DialogsActivity = find_class("org.telegram.ui.DialogsActivity")
+            ArrayList = find_class("java.util.ArrayList")
+            CharSequence = find_class("java.lang.CharSequence")
+            TopicsFragment = find_class("org.telegram.ui.TopicsFragment")
+            
+            boolean_type = jclass("java.lang.Boolean").TYPE
+            int_type = jclass("java.lang.Integer").TYPE
+            
+            method = ChatActivity.getClass().getDeclaredMethod(
+                "didSelectDialogs",
+                DialogsActivity,
+                ArrayList,
+                CharSequence,
+                boolean_type,
+                boolean_type,
+                int_type,
+                TopicsFragment
+            )
+            method.setAccessible(True)
+            self.hook_reply_in_another_chat_dialogs_ref = self.hook_method(method, ReplyInAnotherChatDialogsHook())
+        except Exception as e:
+            pass
+    
+    def _setup_reply_button(self, layout):
+        try:
+            try:
+                replyButton_field = layout.getClass().getDeclaredField("replyButton")
+                replyButton_field.setAccessible(True)
+                button_holder = replyButton_field.get(layout)
+            except Exception as e:
+                return
+            
+            if button_holder is None:
+                return
+            
+            try:
+                button_field = button_holder.getClass().getDeclaredField("button")
+                button_field.setAccessible(True)
+                reply_button_view = button_field.get(button_holder)
+            except Exception as e:
+                return
+            
+            if reply_button_view is None:
+                return
+            
+            def on_long_click(view):
+                try:
+                    self._perform_haptic()
+                    LaunchActivity = find_class("org.telegram.ui.LaunchActivity")
+                    ChatActivity = find_class("org.telegram.ui.ChatActivity")
+                    last_fragment = LaunchActivity.getLastFragment()
+                    if last_fragment and isinstance(last_fragment, ChatActivity):
+                        self._launch_reply_in_another_chat(last_fragment)
+                        return True
+                    else:
+                        return False
+                except Exception as e:
+                    return False
+            
+            reply_button_view.setOnLongClickListener(OnLongClickListener(on_long_click))
+        except Exception as e:
+            pass
+    
+    def _launch_reply_in_another_chat(self, chat_activity):
+        try:
+            try:
+                f_selectedMessagesIds = chat_activity.getClass().getDeclaredField("selectedMessagesIds")
+                f_selectedMessagesIds.setAccessible(True)
+                selectedMessagesIds = f_selectedMessagesIds.get(chat_activity)
+                sparse_array = selectedMessagesIds[0]
+                count = sparse_array.size()
+                
+                if count == 0:
+                    try:
+                        f_selectedObject = chat_activity.getClass().getDeclaredField("selectedObject")
+                        f_selectedObject.setAccessible(True)
+                        selectedObject = f_selectedObject.get(chat_activity)
+                        if selectedObject:
+                            sparse_array.put(selectedObject.getId(), selectedObject)
+                        else:
+                            return
+                    except Exception as e:
+                        return
+            except Exception as e:
+                return
+            
+            Bundle = jclass("android.os.Bundle")
+            args = Bundle()
+            args.putBoolean("onlySelect", True)
+            args.putBoolean("reply_in_another_chat_plugin", True)
+            DialogsActivity = find_class("org.telegram.ui.DialogsActivity")
+            dialogs_type = 3
+            args.putInt("dialogsType", dialogs_type)
+            args.putBoolean("quote", True)
+            args.putBoolean("reply_to", True)
+            fragment = DialogsActivity(args)
+            fragment.setDelegate(chat_activity)
+            chat_activity.presentFragment(fragment)
+        except Exception as e:
             pass
     
     def _add_no_quote_forward_menu_item(self):
@@ -10191,4 +10320,73 @@ class DisableEmojiSuggestionsHook:
 class DisableFireUpdateHook:
     def before_hooked_method(self, param):
         param.setResult(None)
+
+
+class ReplyInAnotherChatLayoutHook:
+    def __init__(self, plugin_instance):
+        self.plugin = plugin_instance
+    
+    def after_hooked_method(self, param):
+        try:
+            layout = param.thisObject
+            self.plugin._setup_reply_button(layout)
+        except Exception as e:
+            pass
+
+
+class ReplyInAnotherChatDialogsHook:
+    def __init__(self):
+        self.saved_reply_object = None
+        self.is_plugin_action = False
+
+    def before_hooked_method(self, param):
+        try:
+            fragment = param.args[0]
+            if fragment is None:
+                return
+            args = fragment.getArguments()
+            if args is None or not args.getBoolean("reply_in_another_chat_plugin", False):
+                self.is_plugin_action = False
+                return
+            self.is_plugin_action = True
+            chat_activity = param.thisObject
+            try:
+                f_replyingMessageObject = chat_activity.getClass().getDeclaredField("replyingMessageObject")
+                f_replyingMessageObject.setAccessible(True)
+                self.saved_reply_object = f_replyingMessageObject.get(chat_activity)
+            except Exception as e:
+                self.saved_reply_object = None
+            selected_message_object = None
+            try:
+                f_selectedMessagesIds = chat_activity.getClass().getDeclaredField("selectedMessagesIds")
+                f_selectedMessagesIds.setAccessible(True)
+                selectedMessagesIds = f_selectedMessagesIds.get(chat_activity)
+                sparse_array = selectedMessagesIds[0]
+                if sparse_array.size() > 0:
+                    selected_message_object = sparse_array.get(sparse_array.keyAt(0))
+            except Exception as e:
+                pass
+            if selected_message_object:
+                try:
+                    f_replyingMessageObject.set(chat_activity, selected_message_object)
+                except Exception as e:
+                    pass
+        except Exception as e:
+            pass
+
+    def after_hooked_method(self, param):
+        if not self.is_plugin_action:
+            return
+        try:
+            chat_activity = param.thisObject
+            try:
+                f_replyingMessageObject = chat_activity.getClass().getDeclaredField("replyingMessageObject")
+                f_replyingMessageObject.setAccessible(True)
+                f_replyingMessageObject.set(chat_activity, self.saved_reply_object)
+            except Exception as e:
+                pass
+            self.saved_reply_object = None
+            self.is_plugin_action = False
+        except Exception as e:
+            pass
 
