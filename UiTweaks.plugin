@@ -1298,6 +1298,7 @@ class UiTweaksPlugin(BasePlugin):
         self.hook_folder_visibility_ref = None
         self.hook_reply_in_another_chat_layout_ref = None
         self.hook_reply_in_another_chat_dialogs_ref = None
+        self.allow_reply_button_hook_ref = None
         self.hook_gift_drawer_reset_ref = None
         self.hook_gift_drawer_click_ref = None
         self.hook_gift_drawer_cell_ref = None
@@ -1621,6 +1622,7 @@ class UiTweaksPlugin(BasePlugin):
         
         if self.get_setting("enable_reply_in_another_chat_shortcut", False):
             self._hook_reply_in_another_chat()
+            self._hook_allow_reply_button()
         
         if self.get_setting("enable_reply_private_chat", False):
             self._add_reply_private_chat_menu_item()
@@ -2780,6 +2782,7 @@ class UiTweaksPlugin(BasePlugin):
             "destroy_hook_ref",
             "hook_reply_in_another_chat_layout_ref",
             "hook_reply_in_another_chat_dialogs_ref",
+            "allow_reply_button_hook_ref",
         ):
             ref = getattr(self, ref_attr, None)
             if ref:
@@ -3211,6 +3214,21 @@ class UiTweaksPlugin(BasePlugin):
             )
             method.setAccessible(True)
             self.hook_reply_in_another_chat_dialogs_ref = self.hook_method(method, ReplyInAnotherChatDialogsHook())
+        except Exception as e:
+            pass
+    
+    def _hook_allow_reply_button(self):
+        try:
+            ChatActivity = find_class("org.telegram.ui.ChatActivity")
+            methods = ChatActivity.getClass().getDeclaredMethods()
+            
+            for method in methods:
+                if method.getName() == "addToSelectedMessages":
+                    try:
+                        method.setAccessible(True)
+                        self.allow_reply_button_hook_ref = self.hook_method(method, AllowReplyButtonHook(self))
+                    except Exception as e:
+                        pass
         except Exception as e:
             pass
     
@@ -10390,4 +10408,90 @@ class ReplyInAnotherChatDialogsHook:
             self.is_plugin_action = False
         except Exception as e:
             pass
+
+
+class AllowReplyButtonHook:
+    def __init__(self, plugin_instance):
+        self.plugin = plugin_instance
+    
+    def after_hooked_method(self, param):
+        try:
+            chat_activity = param.thisObject
+            
+            try:
+                f_currentChat = chat_activity.getClass().getDeclaredField("currentChat")
+                f_currentChat.setAccessible(True)
+                current_chat = f_currentChat.get(chat_activity)
+                
+                ChatObject = find_class("org.telegram.tgnet.TLRPC$Chat")
+                is_channel = current_chat is not None and self._is_channel(current_chat)
+                can_post = current_chat is not None and self._can_post(current_chat)
+                is_megagroup = current_chat is not None and self._is_megagroup(current_chat)
+                
+                should_use_plugin = is_channel and not can_post and not is_megagroup
+                
+                f_actionsButtonsLayout = chat_activity.getClass().getDeclaredField("actionsButtonsLayout")
+                f_actionsButtonsLayout.setAccessible(True)
+                actions_layout = f_actionsButtonsLayout.get(chat_activity)
+                
+                if actions_layout is not None:
+                    show_reply_method = actions_layout.getClass().getDeclaredMethod("showReplyButton", jclass("java.lang.Boolean").TYPE, jclass("java.lang.Boolean").TYPE)
+                    show_reply_method.setAccessible(True)
+                    show_reply_method.invoke(actions_layout, True, True)
+                    
+                    if should_use_plugin:
+                        try:
+                            f_replyButton = actions_layout.getClass().getDeclaredField("replyButton")
+                            f_replyButton.setAccessible(True)
+                            button_holder = f_replyButton.get(actions_layout)
+                            
+                            if button_holder is not None:
+                                f_button = button_holder.getClass().getDeclaredField("button")
+                                f_button.setAccessible(True)
+                                reply_button_view = f_button.get(button_holder)
+                                
+                                if reply_button_view is not None:
+                                    listener = self._create_click_listener(chat_activity)
+                                    reply_button_view.setOnClickListener(listener)
+                                    reply_button_view.setOnLongClickListener(None)
+                        except Exception as e:
+                            pass
+            except Exception as e:
+                pass
+        except Exception as e:
+            pass
+    
+    def _is_channel(self, chat):
+        try:
+            class_name = chat.getClass().getSimpleName()
+            return "channel" in class_name.lower()
+        except Exception as e:
+            return False
+    
+    def _can_post(self, chat):
+        try:
+            ChatObject = find_class("org.telegram.messenger.ChatObject")
+            Chat = find_class("org.telegram.tgnet.TLRPC$Chat")
+            canPost_method = ChatObject.getClass().getMethod("canPost", Chat)
+            can_post = canPost_method.invoke(None, chat)
+            return can_post
+        except Exception as e:
+            return True
+    
+    def _is_megagroup(self, chat):
+        try:
+            class_name = chat.getClass().getSimpleName()
+            is_megagroup = "megagroup" in class_name.lower() or "supergroup" in class_name.lower()
+            return is_megagroup
+        except Exception as e:
+            return False
+    
+    def _create_click_listener(self, chat_activity):
+        def on_click(view):
+            try:
+                self.plugin._launch_reply_in_another_chat(chat_activity)
+            except Exception as e:
+                pass
+        
+        return OnClickListener(on_click)
 
