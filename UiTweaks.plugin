@@ -5382,13 +5382,15 @@ class UiTweaksPlugin(BasePlugin):
             language_edit_text.setInputType(InputType.TYPE_CLASS_TEXT)
             language_edit_text.setMaxLines(1)
             language_edit_text.setSingleLine(True)
-            language_edit_text.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16)
-            language_edit_text.setTextColor(Theme.getColor(Theme.key_dialogTextBlack))
-            language_edit_text.setHintTextColor(Theme.getColor(Theme.key_dialogTextHint))
-            language_edit_text.setBackground(None)
-            language_edit_text.setCursorColor(Theme.getColor(Theme.key_dialogTextLink))
+            language_edit_text.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18)
+            language_edit_text.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText))
+            language_edit_text.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteHintText))
+            language_edit_text.setBackground(Theme.createEditTextDrawable(context, True))
+            language_edit_text.setCursorColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader))
+            language_edit_text.setCursorSize(AndroidUtilities.dp(20))
             language_edit_text.setCursorWidth(1.5)
-            language_edit_text.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(12), AndroidUtilities.dp(12), AndroidUtilities.dp(12))
+            language_edit_text.setPadding(0, 0, 0, 0)
+            language_edit_text.setFocusable(True)
             
             try:
                 text = edit_text.getText()
@@ -5403,16 +5405,51 @@ class UiTweaksPlugin(BasePlugin):
                 pass
             
             def on_ok_click(dialog, which):
-                language = language_edit_text.getText().toString()
-                self._apply_code_formatting(edit_text, start, end, language)
+                try:
+                    AndroidUtilities.hideKeyboard(language_edit_text)
+                    language = language_edit_text.getText().toString()
+                    self._apply_code_formatting(edit_text, start, end, language)
+                except Exception:
+                    pass
+                dialog.dismiss()
+            
+            def on_cancel_click(dialog, which):
+                try:
+                    AndroidUtilities.hideKeyboard(language_edit_text)
+                except Exception:
+                    pass
                 dialog.dismiss()
             
             builder = AlertDialogBuilder(context)
             builder.set_title(get_string("create_code_dialog_title", "Create Code"))
             builder.set_view(language_edit_text)
+            builder.set_negative_button(get_string("cancel", "Cancel"), on_cancel_click)
             builder.set_positive_button(get_string("ok", "OK"), on_ok_click)
-            builder.set_negative_button(get_string("cancel", "Cancel"), lambda d, w: d.dismiss())
-            builder.show()
+            
+            dialog = builder.show()
+            
+            def apply_layout_params():
+                try:
+                    layout_params = language_edit_text.getLayoutParams()
+                    if layout_params is not None:
+                        if isinstance(layout_params, FrameLayout.LayoutParams):
+                            layout_params.gravity = Gravity.CENTER_HORIZONTAL
+                        
+                        if hasattr(layout_params, 'rightMargin'):
+                            layout_params.rightMargin = AndroidUtilities.dp(24)
+                            layout_params.leftMargin = AndroidUtilities.dp(24)
+                            layout_params.height = AndroidUtilities.dp(36)
+                            layout_params.bottomMargin = AndroidUtilities.dp(15)
+                        language_edit_text.setLayoutParams(layout_params)
+                    
+                    language_edit_text.requestFocus()
+                    text_length = language_edit_text.getText().length() if language_edit_text.getText() else 0
+                    language_edit_text.setSelection(0, text_length)
+                    AndroidUtilities.showKeyboard(language_edit_text)
+                except Exception:
+                    pass
+            
+            run_on_ui_thread(apply_layout_params, delay=100)
             
         except Exception as e:
             traceback.print_exc()
