@@ -5497,12 +5497,14 @@ class UiTweaksPlugin(BasePlugin):
             mention_edit_text.setMaxLines(1)
             mention_edit_text.setSingleLine(True)
             mention_edit_text.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18)
-            mention_edit_text.setTextColor(Theme.getColor(Theme.key_dialogTextBlack))
-            mention_edit_text.setHintTextColor(Theme.getColor(Theme.key_dialogTextHint))
-            mention_edit_text.setBackground(None)
-            mention_edit_text.setCursorColor(Theme.getColor(Theme.key_dialogTextLink))
+            mention_edit_text.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText))
+            mention_edit_text.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteHintText))
+            mention_edit_text.setBackground(Theme.createEditTextDrawable(context, True))
+            mention_edit_text.setCursorColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader))
+            mention_edit_text.setCursorSize(AndroidUtilities.dp(20))
             mention_edit_text.setCursorWidth(1.5)
-            mention_edit_text.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(12), AndroidUtilities.dp(12), AndroidUtilities.dp(12))
+            mention_edit_text.setPadding(0, 0, 0, 0)
+            mention_edit_text.setFocusable(True)
             
             try:
                 text = edit_text.getText()
@@ -5516,34 +5518,52 @@ class UiTweaksPlugin(BasePlugin):
             except:
                 pass
             
-            class DialogOkClick:
-                def __init__(self, plugin, edit_text_ref, start, end, mention_edit_text):
-                    self.plugin_ref = weakref.ref(plugin)
-                    self.edit_text_ref = weakref.ref(edit_text)
-                    self.start = start
-                    self.end = end
-                    self.mention_edit_text = mention_edit_text
-
-                def __call__(self, dialog, which):
-                    plugin = self.plugin_ref()
-                    edit_text = self.edit_text_ref()
-
-                    if plugin is None or edit_text is None:
-                        dialog.dismiss()
-                        return
-
-                    mention_id = self.mention_edit_text.getText().toString()
-                    plugin._apply_mention_formatting(edit_text, self.start, self.end, mention_id)
-                    dialog.dismiss()
-
-            on_ok_click_listener = DialogOkClick(self, edit_text, start, end, mention_edit_text)
+            def on_ok_click(dialog, which):
+                try:
+                    AndroidUtilities.hideKeyboard(mention_edit_text)
+                    mention_id = mention_edit_text.getText().toString()
+                    self._apply_mention_formatting(edit_text, start, end, mention_id)
+                except Exception:
+                    pass
+                dialog.dismiss()
+            
+            def on_cancel_click(dialog, which):
+                try:
+                    AndroidUtilities.hideKeyboard(mention_edit_text)
+                except Exception:
+                    pass
+                dialog.dismiss()
             
             builder = AlertDialogBuilder(context)
             builder.set_title(get_string("create_mention_dialog_title", "Create Mention"))
             builder.set_view(mention_edit_text)
-            builder.set_positive_button(get_string("ok", "OK"), on_ok_click_listener)
-            builder.set_negative_button(get_string("cancel", "Cancel"), lambda d, w: d.dismiss())
-            builder.show()
+            builder.set_negative_button(get_string("cancel", "Cancel"), on_cancel_click)
+            builder.set_positive_button(get_string("ok", "OK"), on_ok_click)
+            
+            dialog = builder.show()
+            
+            def apply_layout_params():
+                try:
+                    layout_params = mention_edit_text.getLayoutParams()
+                    if layout_params is not None:
+                        if isinstance(layout_params, FrameLayout.LayoutParams):
+                            layout_params.gravity = Gravity.CENTER_HORIZONTAL
+                        
+                        if hasattr(layout_params, 'rightMargin'):
+                            layout_params.rightMargin = AndroidUtilities.dp(24)
+                            layout_params.leftMargin = AndroidUtilities.dp(24)
+                            layout_params.height = AndroidUtilities.dp(36)
+                            layout_params.bottomMargin = AndroidUtilities.dp(15)
+                        mention_edit_text.setLayoutParams(layout_params)
+                    
+                    mention_edit_text.requestFocus()
+                    text_length = mention_edit_text.getText().length() if mention_edit_text.getText() else 0
+                    mention_edit_text.setSelection(0, text_length)
+                    AndroidUtilities.showKeyboard(mention_edit_text)
+                except Exception:
+                    pass
+            
+            run_on_ui_thread(apply_layout_params, delay=100)
             
         except Exception as e:
             traceback.print_exc()
