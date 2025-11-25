@@ -5808,18 +5808,21 @@ class UiTweaksPlugin(BasePlugin):
                 return
             
             current_activity = chat_activity
+            
             message_id_edit_text = EditTextBoldCursor(activity)
-            message_id_edit_text.setHint(get_string("message_id_hint", "Message ID"))
+            message_id_edit_text.setHint(get_string("id_hint", "ID"))
             message_id_edit_text.setInputType(InputType.TYPE_CLASS_NUMBER)
             message_id_edit_text.setMaxLines(1)
             message_id_edit_text.setSingleLine(True)
-            message_id_edit_text.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16)
-            message_id_edit_text.setTextColor(Theme.getColor(Theme.key_dialogTextBlack))
-            message_id_edit_text.setHintTextColor(Theme.getColor(Theme.key_dialogTextHint))
-            message_id_edit_text.setBackground(None)
-            message_id_edit_text.setCursorColor(Theme.getColor(Theme.key_dialogTextLink))
+            message_id_edit_text.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18)
+            message_id_edit_text.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText))
+            message_id_edit_text.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteHintText))
+            message_id_edit_text.setBackground(Theme.createEditTextDrawable(activity, True))
+            message_id_edit_text.setCursorColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader))
+            message_id_edit_text.setCursorSize(AndroidUtilities.dp(20))
             message_id_edit_text.setCursorWidth(1.5)
-            message_id_edit_text.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(12), AndroidUtilities.dp(12), AndroidUtilities.dp(12))
+            message_id_edit_text.setPadding(0, 0, 0, 0)
+            message_id_edit_text.setFocusable(True)
             
             def close_dialog_and_menu(dialog, message_id=None):
                 try:
@@ -5839,35 +5842,60 @@ class UiTweaksPlugin(BasePlugin):
                     if target_fragment:
                         run_on_ui_thread(lambda: self.scroll_to_message(target_fragment, message_id))
             
-            def on_ok_click(dialog, which):
+            def on_search_click(dialog, which):
                 try:
-                    message_id_text = message_id_edit_text.getText().toString()
-                    message_id = self._validate_message_id(message_id_text)
-                    if message_id:
-                        close_dialog_and_menu(dialog, message_id)
-                        return
+                    AndroidUtilities.hideKeyboard(message_id_edit_text)
+                    
+                    editable = message_id_edit_text.getText()
+                    if editable is not None:
+                        message_id_text = editable.toString().strip()
+                        numeric_only = ''.join(c for c in message_id_text if c.isdigit())
+                        if numeric_only:
+                            message_id = self._validate_message_id(numeric_only)
+                            if message_id:
+                                close_dialog_and_menu(dialog, message_id)
+                                return
                 except Exception as e:
-                    uitweaks_log(f"Error in on_ok_click: {e}")
+                    uitweaks_log(f"Error in on_search_click: {e}")
                 close_dialog_and_menu(dialog)
             
             def on_cancel_click(dialog, which):
+                try:
+                    AndroidUtilities.hideKeyboard(message_id_edit_text)
+                except Exception:
+                    pass
                 close_dialog_and_menu(dialog)
             
             builder = AlertDialogBuilder(activity)
-            builder.set_title(get_string("enter_message_id", "Enter Message ID"))
+            builder.set_title(get_string("search_messages", "Search Messages"))
             builder.set_view(message_id_edit_text)
-            builder.set_positive_button(get_string("ok", "OK"), on_ok_click)
             builder.set_negative_button(get_string("cancel", "Cancel"), on_cancel_click)
+            builder.set_positive_button(get_string("search", "Search"), on_search_click)
             
             dialog = builder.show()
-            def focus_input():
-                try:
-                    message_id_edit_text.requestFocus()
-                    AndroidUtilities.showKeyboard(message_id_edit_text)
-                except Exception:
-                    pass
             
-            run_on_ui_thread(focus_input, delay=100)
+            def apply_layout_params():
+                try:
+                    layout_params = message_id_edit_text.getLayoutParams()
+                    if layout_params is not None:
+                        if isinstance(layout_params, FrameLayout.LayoutParams):
+                            layout_params.gravity = Gravity.CENTER_HORIZONTAL
+                        
+                        if hasattr(layout_params, 'rightMargin'):
+                            layout_params.rightMargin = AndroidUtilities.dp(24)
+                            layout_params.leftMargin = AndroidUtilities.dp(24)
+                            layout_params.height = AndroidUtilities.dp(36)
+                            layout_params.bottomMargin = AndroidUtilities.dp(15)
+                        message_id_edit_text.setLayoutParams(layout_params)
+                    
+                    message_id_edit_text.requestFocus()
+                    text_length = message_id_edit_text.getText().length() if message_id_edit_text.getText() else 0
+                    message_id_edit_text.setSelection(0, text_length)
+                    AndroidUtilities.showKeyboard(message_id_edit_text)
+                except Exception as e:
+                    uitweaks_log(f"Error applying layout params: {e}")
+            
+            run_on_ui_thread(apply_layout_params, delay=100)
             
         except Exception as e:
             uitweaks_log(f"Error in show_goto_message_dialog: {e}")
