@@ -1152,7 +1152,7 @@ class ContactStatusListAdapterBindViewHolderHook:
     def __init__(self, plugin):
         self.plugin = plugin
 
-    def before_hooked_method(self, param):
+    def after_hooked_method(self, param):
         position_arg = param.args[1]
         try:
             position = int(position_arg)
@@ -1174,7 +1174,6 @@ class ContactStatusListAdapterBindViewHolderHook:
                     get_string("both_saved_as_contacts", "Both saved as contacts"),
                     True
                 )
-            param.setResult(None)
         except Exception:
             pass
 
