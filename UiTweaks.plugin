@@ -4367,6 +4367,14 @@ class UiTweaksPlugin(BasePlugin):
             )
             update_schedule_button_method.setAccessible(True)
             self.hook_always_visible_schedule_button_ref = self.hook_method(update_schedule_button_method, AlwaysVisibleScheduleButtonHook(self))
+            
+            check_send_button_method = ChatActivityEnterViewClass.getClass().getDeclaredMethod(
+                "checkSendButton",
+                find_class("java.lang.Boolean").TYPE
+            )
+            check_send_button_method.setAccessible(True)
+            self.hook_check_send_button_ref = self.hook_method(check_send_button_method, CheckSendButtonHook(self))
+            
         except Exception as e:
             self.log(f"Error hooking always visible schedule button: {e}")
     
@@ -10120,6 +10128,18 @@ class SendCommentsAfterForwardHook:
         return None
 
 
+class CheckSendButtonHook:
+    def __init__(self, plugin):
+        self.plugin = plugin
+
+    def after_hooked_method(self, param):
+        try:
+            enter_view = param.thisObject
+            enter_view.updateScheduleButton(True)
+        except Exception:
+            pass
+
+
 class AlwaysVisibleScheduleButtonHook:
     def __init__(self, plugin):
         self.plugin = plugin
@@ -10131,7 +10151,10 @@ class AlwaysVisibleScheduleButtonHook:
             
             schedule_button_hidden = get_private_field(enter_view, "scheduleButtonHidden")
             recording_audio_video = get_private_field(enter_view, "recordingAudioVideo")
-            visible = (not schedule_button_hidden) and (not recording_audio_video)
+            
+            has_text = enter_view.hasText()
+            
+            visible = (not schedule_button_hidden) and (not recording_audio_video) and (not has_text)
             scheduled_button = get_private_field(enter_view, "scheduledButton")
             
             if visible and not scheduled_button:
@@ -10144,12 +10167,16 @@ class AlwaysVisibleScheduleButtonHook:
                 except Exception:
                     pass
             
-            if scheduled_button and visible:
-                scheduled_button.setVisibility(0)
-                scheduled_button.setAlpha(1.0)
-                scheduled_button.setScaleX(1.0)
-                scheduled_button.setScaleY(1.0)
-                scheduled_button.setTag(1)
+            if scheduled_button:
+                if visible:
+                    scheduled_button.setVisibility(0)
+                    scheduled_button.setAlpha(1.0)
+                    scheduled_button.setScaleX(1.0)
+                    scheduled_button.setScaleY(1.0)
+                    scheduled_button.setTag(1)
+                else:
+                    scheduled_button.setVisibility(8)
+                    
         except Exception:
             pass
         
