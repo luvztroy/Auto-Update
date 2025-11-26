@@ -3316,7 +3316,7 @@ class UiTweaksPlugin(BasePlugin):
                 text=get_string("no_quote_forward", "NoQuote forward"),
                 option_id=9999,
                 icon_res=R_tg.drawable.media_share,
-                condition_predicate=lambda m: m is not None and not self._is_service_message(m) and not self._is_failed_message(m),
+                condition_predicate=lambda m: m is not None and not self._is_service_message(m) and not self._is_failed_message(m) and not self._is_scheduled_message(m),
                 on_click=self._on_no_quote_forward_click,
                 insert_at_top=True
             )
@@ -3338,6 +3338,12 @@ class UiTweaksPlugin(BasePlugin):
             message_owner = message.messageOwner
             return (hasattr(message_owner, 'send_state') and message_owner.send_state == 2) or \
                    (hasattr(message_owner, 'id') and message_owner.id < 0)
+        except Exception:
+            return False
+    
+    def _is_scheduled_message(self, message):
+        try:
+            return message and hasattr(message, 'scheduled') and message.scheduled
         except Exception:
             return False
 
