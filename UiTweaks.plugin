@@ -8922,7 +8922,12 @@ class CreateViewHook(MethodHook):
                                         def update():
                                             try:
                                                 ViewClass = find_class("android.view.View")
-                                                if count > 0:
+                                                try:
+                                                    in_preview = self.chat_activity.inPreviewMode
+                                                except:
+                                                    in_preview = False
+                                                
+                                                if count > 0 and not in_preview:
                                                     counter.setVisibility(ViewClass.VISIBLE)
                                                     counter.setCount(count, True)
                                                 else:
@@ -8964,7 +8969,12 @@ class CreateViewHook(MethodHook):
                 unread_count = messages_storage.getMainUnreadCount()
                 
                 ViewClass = find_class("android.view.View")
-                if unread_count > 0:
+                try:
+                    in_preview = chat_activity.inPreviewMode
+                except:
+                    in_preview = False
+                
+                if unread_count > 0 and not in_preview:
                     counter_view.setVisibility(ViewClass.VISIBLE)
                     counter_view.setCount(unread_count, True)
                 else:
