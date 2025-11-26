@@ -1498,6 +1498,7 @@ class UiTweaksPlugin(BasePlugin):
         self.checking_update = False
         
         self.hook_always_visible_schedule_button_ref = None
+        self.hook_remove_greeting_sticker_ref = None
         
         try:
             locale_controller = LocaleController.getInstance()
@@ -1930,6 +1931,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("enable_music_speed_control", get_string("enable_music_speed_control", "Music Speed Control"), False, lambda v: self._apply_hooks(), link_alias="enable_music_speed_control"),
             Divider(text=get_string("music_speed_control_info", "Enable playback speed control for all music files regardless of duration.")) if self.get_setting("enable_music_speed_control", False) else None,
             self.Quanta_switch("disable_emoji_suggestions", get_string("disable_emoji_suggestions", "Disable Emoji Suggestions"), False, lambda v: self._apply_hooks(), link_alias="disable_emoji_suggestions"),
+            self.Quanta_switch("remove_greeting_sticker", get_string("remove_greeting_sticker", "Remove Greeting Sticker"), False, lambda v: self._apply_hooks(), link_alias="remove_greeting_sticker"),
 
         ]
 
@@ -2773,6 +2775,7 @@ class UiTweaksPlugin(BasePlugin):
             "hook_ai_role_limit_settext_ref",
             "hook_select_all_media_ref",
             "hook_always_visible_schedule_button_ref",
+            "hook_remove_greeting_sticker_ref",
             "hook_sleep_timer_ref",
             "hook_adaptive_audio_ref",
             "hook_music_speed_control_ref",
@@ -3104,6 +3107,9 @@ class UiTweaksPlugin(BasePlugin):
             
             if self.get_setting("disable_emoji_suggestions", False):
                 self._hook_disable_emoji_suggestions()
+            
+            if self.get_setting("remove_greeting_sticker", False):
+                self._hook_remove_greeting_sticker()
 
         except Exception as e:
             pass
@@ -4319,6 +4325,23 @@ class UiTweaksPlugin(BasePlugin):
             
             searchAnimated_method = JavaClass.getDeclaredMethod("searchAnimated", StringClass)
             self.hook_method(searchAnimated_method, DisableEmojiSuggestionsHook())
+        except Exception as e:
+            pass
+    
+    def _hook_remove_greeting_sticker(self):
+        try:
+            ChatActivityClass = find_class("org.telegram.ui.ChatActivity")
+            if not ChatActivityClass:
+                return
+            
+            BooleanTYPE = find_class("java.lang.Boolean").TYPE
+            create_empty_view_method = ChatActivityClass.getClass().getDeclaredMethod(
+                "createEmptyView",
+                BooleanTYPE
+            )
+            create_empty_view_method.setAccessible(True)
+            
+            self.hook_remove_greeting_sticker_ref = self.hook_method(create_empty_view_method, RemoveGreetingStickerHook())
         except Exception as e:
             pass
     
@@ -10528,3 +10551,22 @@ class AllowReplyButtonHook:
         
         return OnClickListener(on_click)
 
+
+class RemoveGreetingStickerHook(MethodReplacement):
+    def replace_hooked_method(self, param):
+        result = self.invoke_original_method(param)
+        
+        try:
+            chat_activity = param.thisObject
+            greetings_container = get_private_field(chat_activity, "greetingsViewContainer")
+            
+            if greetings_container is not None:
+                parent = greetings_container.getParent()
+                if parent is not None:
+                    parent.removeView(greetings_container)
+                set_private_field(chat_activity, "greetingsViewContainer", None)
+                
+        except Exception:
+            pass
+        
+        return result
