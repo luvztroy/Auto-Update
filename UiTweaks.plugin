@@ -1628,7 +1628,7 @@ class UiTweaksPlugin(BasePlugin):
         if self.get_setting("enable_reply_private_chat", False):
             self._add_reply_private_chat_menu_item()
         
-        if self.get_setting("enable_no_quote_forward", True):
+        if self.get_setting("enable_no_quote_forward", False):
             self._add_no_quote_forward_menu_item()
 
         if self.get_setting("enable_select_all_dialogs", False):
@@ -1907,8 +1907,8 @@ class UiTweaksPlugin(BasePlugin):
     def _create_general_settings(self):
         return [
             Header(text=get_string("security_and_privacy", "Security & Privacy")),
-            self.Quanta_switch("confirm_deeplinks", get_string("confirm_deeplinks", "Confirm Telegram Deep Links"), True, lambda v: self._apply_hooks(), link_alias="confirm_deeplinks"),
-            self.Quanta_switch("confirm_ayugram_deeplinks", get_string("confirm_ayugram_deeplinks", "Confirm AyuGram Deep Links"), True, lambda v: self._apply_hooks(), link_alias="confirm_ayugram_deeplinks"),
+            self.Quanta_switch("confirm_deeplinks", get_string("confirm_deeplinks", "Confirm Telegram Deep Links"), False, lambda v: self._apply_hooks(), link_alias="confirm_deeplinks"),
+            self.Quanta_switch("confirm_ayugram_deeplinks", get_string("confirm_ayugram_deeplinks", "Confirm AyuGram Deep Links"), False, lambda v: self._apply_hooks(), link_alias="confirm_ayugram_deeplinks"),
             self.Quanta_switch("disable_auto_web_login", get_string("disable_auto_web_login", "Disable Auto Web Login"), False, lambda v: self._apply_hooks(), link_alias="disable_auto_web_login"),
             self.Quanta_switch("do_not_share_phone_number", get_string("do_not_share_phone_number", "Do Not Share My Phone Number"), False, lambda v: self._apply_hooks(), link_alias="do_not_share_phone_number"),
             self.Quanta_switch("hide_phone_number", get_string("hide_phone_number", "Hide Phone Number in Profiles"), False, lambda v: self._apply_hooks(), link_alias="hide_phone_number"),
@@ -1921,8 +1921,8 @@ class UiTweaksPlugin(BasePlugin):
             
             
             Header(text=get_string("navigation_controls", "Navigation Controls")),
-            self.Quanta_switch("prevent_swipe_while_editing", get_string("prevent_swipe_while_editing", "Prevent swipe back while editing"), True, lambda v: self._apply_hooks(), link_alias="prevent_swipe_while_editing"),
-            self.Quanta_switch("prevent_swipe_while_typing", get_string("prevent_swipe_while_typing", "Prevent swipe back while typing"), True, lambda v: self._apply_hooks(), link_alias="prevent_swipe_while_typing"),
+            self.Quanta_switch("prevent_swipe_while_editing", get_string("prevent_swipe_while_editing", "Prevent swipe back while editing"), False, lambda v: self._apply_hooks(), link_alias="prevent_swipe_while_editing"),
+            self.Quanta_switch("prevent_swipe_while_typing", get_string("prevent_swipe_while_typing", "Prevent swipe back while typing"), False, lambda v: self._apply_hooks(), link_alias="prevent_swipe_while_typing"),
             self.Quanta_switch("disable_article_viewer_swipe", get_string("disable_article_viewer_swipe", "Disable ArticleViewer swipe to close"), False, lambda v: self._apply_hooks(), link_alias="disable_article_viewer_swipe"),
             self.Quanta_switch("prevent_webapp_swipe_down", get_string("prevent_webapp_swipe_down", "Prevent swipe down in webapp bots"), False, lambda v: self._apply_hooks(), link_alias="prevent_webapp_swipe_down"),
             self.Quanta_switch("disable_topics_swipe", get_string("disable_topics_swipe", "Disable Topics Swipe to Hide"), False, lambda v: self._apply_hooks(), link_alias="disable_topics_swipe"),
@@ -1934,7 +1934,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("quick_access_gift_market", get_string("quick_access_gift_market", "Quick Access to Gift Market"), False, lambda v: self._apply_hooks(), link_alias="quick_access_gift_market"),
             
             Header(text=get_string("general", "General")),
-            self.Quanta_switch("enable_select_all_media", get_string("enable_select_all_media", "Select All Media Button"), True, lambda v: self._apply_hooks(), link_alias="enable_select_all_media"),
+            self.Quanta_switch("enable_select_all_media", get_string("enable_select_all_media", "Select All Media Button"), False, lambda v: self._apply_hooks(), link_alias="enable_select_all_media"),
             self.Quanta_switch("enable_sleep_timer", get_string("sleep_timer", "Music Sleep Timer"), False, lambda v: self._apply_hooks(), link_alias="enable_sleep_timer"),
             self.Quanta_switch("disable_emoji_suggestions", get_string("disable_emoji_suggestions", "Disable Emoji Suggestions"), False, lambda v: self._apply_hooks(), link_alias="disable_emoji_suggestions"),
             self.Quanta_switch("remove_greeting_sticker", get_string("remove_greeting_sticker", "Remove Greeting Sticker"), False, lambda v: self._apply_hooks(), link_alias="remove_greeting_sticker"),
@@ -1994,7 +1994,7 @@ class UiTweaksPlugin(BasePlugin):
         settings.extend([
             Header(text=get_string("Indicators", "Indicators")),
             self.Quanta_switch("unread_badge_on_back_button", get_string("unread_badge_on_back_button", "Unread Badge on Back Button"), False, lambda v: self._apply_hooks(), link_alias="unread_badge_on_back_button"),
-            self.Quanta_switch("enable_recent_chats_menu", get_string("enable_recent_chats_menu", "Enable Recent Chats Menu"), True, lambda v: self._apply_hooks(), link_alias="enable_recent_chats_menu"),
+            self.Quanta_switch("enable_recent_chats_menu", get_string("enable_recent_chats_menu", "Enable Recent Chats Menu"), False, lambda v: self._apply_hooks(), link_alias="enable_recent_chats_menu"),
             Divider(text=get_string("recent_chats_menu_info", "Shows recent chats when long-pressing the drawer icon in chat list. Stores up to 20 chats.")),
         ])
         
@@ -2039,17 +2039,17 @@ class UiTweaksPlugin(BasePlugin):
         
         settings.extend([
             Header(text=get_string("message_actions", "Message Actions")),
-            self.Quanta_switch("enable_confirmation_settings", get_string("enable_confirmation_settings", "Enable Confirmation Settings"), True, lambda v: self._apply_hooks(), link_alias="enable_confirmation_settings"),
+            self.Quanta_switch("enable_confirmation_settings", get_string("enable_confirmation_settings", "Enable Confirmation Settings"), False, lambda v: self._apply_hooks(), link_alias="enable_confirmation_settings"),
             self.Quanta_text(
                 text=get_string("confirmation_settings", "Choose actions"),
                 on_click=lambda v: show_confirmation_selector(),
                 link_alias="confirmation_settings"
-            ) if self.get_setting("enable_confirmation_settings", True) else None,
+            ) if self.get_setting("enable_confirmation_settings", False) else None,
             self.Quanta_switch("enable_reply_private_chat", get_string("enable_reply_private_chat", "Enable Reply in Private Chat"), False, lambda v: self._update_reply_private_chat_menu_item(), link_alias="enable_reply_private_chat"),
             self.Quanta_switch("enable_reply_in_another_chat_shortcut", get_string("enable_reply_in_another_chat_shortcut", "Reply in Another Chat Shortcut"), False, lambda v: self._apply_hooks(), link_alias="enable_reply_in_another_chat_shortcut"),
             Divider(text=get_string("reply_in_another_chat_shortcut_info", "Long-press the Reply button to quickly reply to a message in another chat.")) if self.get_setting("enable_reply_in_another_chat_shortcut", False) else None,
             self.Quanta_switch("send_comments_after_forward", get_string("send_comments_after_forward", "Send Comments After Forward"), False, lambda v: self._apply_hooks(), link_alias="send_comments_after_forward"),
-            self.Quanta_switch("enable_no_quote_forward", get_string("enable_no_quote_forward", "Enable No-Quote Forward"), True, lambda v: self._update_no_quote_forward_menu_item(), link_alias="enable_no_quote_forward"),
+            self.Quanta_switch("enable_no_quote_forward", get_string("enable_no_quote_forward", "Enable No-Quote Forward"), False, lambda v: self._update_no_quote_forward_menu_item(), link_alias="enable_no_quote_forward"),
             self.Quanta_switch("enable_delete_with_duration", get_string("enable_delete_with_duration", "Delete with Duration Selection"), False, lambda v: self._apply_delete_with_duration_hooks(), link_alias="enable_delete_with_duration"),
             Divider(text=get_string("delete_with_duration_info", "Adds duration selection when banning/restricting users after deleting their messages.")) if self.get_setting("enable_delete_with_duration", False) else None,
         ])
@@ -2063,13 +2063,13 @@ class UiTweaksPlugin(BasePlugin):
                 link_alias="dont_auto_play_types"
             ) if self.get_setting("dont_auto_play_enabled", False) else None,
             Divider(text=get_string("dont_auto_play_info", "Prevents automatic playback of the next voice or video message in a chat, giving you control over when media plays.")) if self.get_setting("dont_auto_play_enabled", False) else None,
-            self.Quanta_switch("progress_timestamp_enabled", get_string("progress_timestamp_enabled", "Progress Timestamp"), True, lambda v: self._apply_hooks(), link_alias="progress_timestamp_enabled"),
+            self.Quanta_switch("progress_timestamp_enabled", get_string("progress_timestamp_enabled", "Progress Timestamp"), False, lambda v: self._apply_hooks(), link_alias="progress_timestamp_enabled"),
             self.Quanta_text(
                 text=get_string("progress_timestamp_types", "Message Types"),
                 on_click=lambda v: self._show_progress_timestamp_selector(),
                 link_alias="progress_timestamp_types"
-            ) if self.get_setting("progress_timestamp_enabled", True) else None,
-            Divider(text=get_string("progress_timestamp_info", "Shows the current playback time and total duration on voice and video messages for better media control.")) if self.get_setting("progress_timestamp_enabled", True) else None,
+            ) if self.get_setting("progress_timestamp_enabled", False) else None,
+            Divider(text=get_string("progress_timestamp_info", "Shows the current playback time and total duration on voice and video messages for better media control.")) if self.get_setting("progress_timestamp_enabled", False) else None,
             self.Quanta_switch("enable_adaptive_audio_length", get_string("enable_adaptive_audio_length", "Adaptive Audio Message Length"), False, lambda v: self._apply_hooks(), link_alias="enable_adaptive_audio_length"),
             Divider(text=get_string("adaptive_audio_length_info", "The audio message bubble length will depend on the recording duration and automatically adjust to the screen width.")) if self.get_setting("enable_adaptive_audio_length", False) else None,
         ])
@@ -2971,14 +2971,14 @@ class UiTweaksPlugin(BasePlugin):
         self.on_plugin_unload()
         try:
             if (self.get_setting("hide_bot_open", False) or 
-                self.get_setting("enable_recent_chats_menu", True) or
+                self.get_setting("enable_recent_chats_menu", False) or
                 self.get_setting("fab_settings_shortcut", False)):
                 self._hook_dialogs_activity()
                 if self.get_setting("hide_bot_open", False):
                     self._hook_dialog_cell()
             if self.get_setting("hide_hd_icon", False):
                 self._hook_photo_cell()
-            if self.get_setting("prevent_swipe_while_editing", True) or self.get_setting("prevent_swipe_while_typing", True):
+            if self.get_setting("prevent_swipe_while_editing", False) or self.get_setting("prevent_swipe_while_typing", False):
                 self._hook_swipe_prevention()
             if self.get_setting("disable_article_viewer_swipe", False):
                 self._hook_article_viewer()
@@ -3021,7 +3021,7 @@ class UiTweaksPlugin(BasePlugin):
                     self._hook_voice_message_control()
                 if self.get_setting("dont_auto_play_next_video", False):
                     self._hook_video_message_control()
-            if self.get_setting("progress_timestamp_enabled", True):
+            if self.get_setting("progress_timestamp_enabled", False):
                self._hook_voice_message_time_display()
             if self.get_setting("unread_badge_on_back_button", False):
                 self._hook_unread_badge()
@@ -3031,11 +3031,11 @@ class UiTweaksPlugin(BasePlugin):
                 self._hook_forward_confirmation()
             if self.get_setting("confirm_join_chat", False):
                 self._hook_join_confirmation()
-            if self.get_setting("enable_no_quote_forward", True):
+            if self.get_setting("enable_no_quote_forward", False):
                 self._hook_actions_buttons_layout()
             if self.get_setting("typing_instead_sticker", False):
                 self._hook_send_typing_method()
-            if self.get_setting("enable_recent_chats_menu", True):
+            if self.get_setting("enable_recent_chats_menu", False):
                 self._hook_recent_chats_activities()
             if self.get_setting("hide_birthday_alert", False):
                 self._hook_birthday_alert()
@@ -3050,7 +3050,7 @@ class UiTweaksPlugin(BasePlugin):
             if self.get_setting("enable_gif_spoiler", False):
                 self._hook_gif_spoiler()
             
-            if self.get_setting("enable_confirmation_settings", True) and self.get_setting("confirm_external_links", False):
+            if self.get_setting("enable_confirmation_settings", False) and self.get_setting("confirm_external_links", False):
                 self._hook_process_external_url()
             
             if self.get_setting("enable_message_preview_enhancement", False):
@@ -3098,7 +3098,7 @@ class UiTweaksPlugin(BasePlugin):
             if self.get_setting("enable_ai_role_limit", False):
                 self._hook_ai_role_limit()
             
-            if self.get_setting("enable_select_all_media", True):
+            if self.get_setting("enable_select_all_media", False):
                 self._hook_select_all_media()
             
             if self.get_setting("always_visible_schedule_button", False):
@@ -3373,7 +3373,7 @@ class UiTweaksPlugin(BasePlugin):
             pass
 
     def _update_no_quote_forward_menu_item(self):
-        if self.get_setting("enable_no_quote_forward", True):
+        if self.get_setting("enable_no_quote_forward", False):
             if not hasattr(self, 'no_quote_forward_menu_handle') or not self.no_quote_forward_menu_handle:
                 self._add_no_quote_forward_menu_item()
         else:
@@ -4970,7 +4970,7 @@ class UiTweaksPlugin(BasePlugin):
 
     def _setup_deeplink_hooks(self):
         try:
-            if self.get_setting("confirm_deeplinks", True) or self.get_setting("confirm_ayugram_deeplinks", True):
+            if self.get_setting("confirm_deeplinks", False) or self.get_setting("confirm_ayugram_deeplinks", False):
                 launch_activity_cls = find_class("org.telegram.ui.LaunchActivity")
                 
                 method = launch_activity_cls.getClass().getDeclaredMethod("handleIntent", 
@@ -7266,7 +7266,7 @@ class ConfirmationHook:
             should_confirm = False
             message_type = ""
 
-            if not self.plugin.get_setting("enable_confirmation_settings", True):
+            if not self.plugin.get_setting("enable_confirmation_settings", False):
                 should_confirm = False
             elif is_command and self.plugin.get_setting("confirm_commands", False):
                 if self.plugin.command_from_message_click:
@@ -7446,7 +7446,7 @@ class DialogsActivityHook:
                     except Exception as e:
                         pass
             
-            if self.plugin.get_setting("enable_recent_chats_menu", True):
+            if self.plugin.get_setting("enable_recent_chats_menu", False):
                 try:
                     self.plugin._setup_recent_chats_back_button_listener(dialogs_activity)
                 except Exception as e:
@@ -7586,8 +7586,8 @@ class SwipePreventionHook(MethodReplacement):
 
     def replace_hooked_method(self, param):
         try:
-            prevent_editing = self.plugin.get_setting("prevent_swipe_while_editing", True)
-            prevent_typing = self.plugin.get_setting("prevent_swipe_while_typing", True)
+            prevent_editing = self.plugin.get_setting("prevent_swipe_while_editing", False)
+            prevent_typing = self.plugin.get_setting("prevent_swipe_while_typing", False)
             
             if not prevent_editing and not prevent_typing:
                 return True
@@ -7648,7 +7648,7 @@ class DeepLinkHook:
 
     def before_hooked_method(self, param):
         try:
-            if not self.plugin.get_setting("confirm_deeplinks", True) and not self.plugin.get_setting("confirm_ayugram_deeplinks", True):
+            if not self.plugin.get_setting("confirm_deeplinks", False) and not self.plugin.get_setting("confirm_ayugram_deeplinks", False):
                 return
 
             if self.is_processing:
@@ -7677,7 +7677,7 @@ class DeepLinkHook:
             if url.startswith("tg://Quanta") or url.startswith("tg://quanta") or url == "tg://refresh":
                 return
             elif url.startswith("tg://ayu/"):
-                if not self.plugin.get_setting("confirm_ayugram_deeplinks", True):
+                if not self.plugin.get_setting("confirm_ayugram_deeplinks", False):
                     return
                 
                 excluded_links = ["tg://ayu/prefs", "tg://ayu/db_export", "tg://ayu/db_import"]
@@ -7694,7 +7694,7 @@ class DeepLinkHook:
                 run_on_ui_thread(lambda: self.show_ayugram_warning_dialog(url))
                 return
             elif url.startswith("tg://"):
-                if not self.plugin.get_setting("confirm_deeplinks", True):
+                if not self.plugin.get_setting("confirm_deeplinks", False):
                     return
                     
                 self.pending_intent = intent
@@ -8293,7 +8293,7 @@ class VoiceMessageTimeDisplayHook:
         
     def after_hooked_method(self, param):
         try:
-            if not self.plugin.get_setting("progress_timestamp_enabled", True):
+            if not self.plugin.get_setting("progress_timestamp_enabled", False):
                 return
                 
             cell = param.thisObject
@@ -9035,7 +9035,7 @@ class ForwardConfirmationHook:
             if self._suppress_next:
                 self._suppress_next = False
                 return
-            if not self.plugin.get_setting("enable_confirmation_settings", True) or not self.plugin.get_setting("confirm_forward", True):
+            if not self.plugin.get_setting("enable_confirmation_settings", False) or not self.plugin.get_setting("confirm_forward", True):
                 return
             args = list(param.args) if param.args else []
             def on_confirm():
@@ -9089,7 +9089,7 @@ class JoinConfirmationClickListener(dynamic_proxy(find_class("android.view.View$
     def onClick(self, view):
         plugin_instance = uitweaks_plugin_instance
         if (not plugin_instance or 
-            not plugin_instance.get_setting("enable_confirmation_settings", True) or 
+            not plugin_instance.get_setting("enable_confirmation_settings", False) or 
             not plugin_instance.get_setting("confirm_join_chat", False) or 
             not self._is_join_action()):
             self.original_listener.onClick(view)
