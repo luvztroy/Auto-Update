@@ -2039,12 +2039,7 @@ class UiTweaksPlugin(BasePlugin):
         
         settings.extend([
             Header(text=get_string("message_actions", "Message Actions")),
-            self.Quanta_switch("enable_confirmation_settings", get_string("enable_confirmation_settings", "Enable Confirmation Settings"), False, lambda v: self._apply_hooks(), link_alias="enable_confirmation_settings"),
-            self.Quanta_text(
-                text=get_string("confirmation_settings", "Choose actions"),
-                on_click=lambda v: show_confirmation_selector(),
-                link_alias="confirmation_settings"
-            ) if self.get_setting("enable_confirmation_settings", False) else None,
+            self.Quanta_switch("enable_confirmation_settings", get_string("enable_confirmation_settings", "Enable Confirmation Settings"), False, lambda v: self._apply_hooks(), on_long_click=lambda v: self._handle_long_click_with_enable("enable_confirmation_settings", show_confirmation_selector), subtext=get_string("confirmation_settings_subtext", "Long-press to configure actions")),
             self.Quanta_switch("enable_reply_private_chat", get_string("enable_reply_private_chat", "Enable Reply in Private Chat"), False, lambda v: self._update_reply_private_chat_menu_item(), link_alias="enable_reply_private_chat"),
             self.Quanta_switch("enable_reply_in_another_chat_shortcut", get_string("enable_reply_in_another_chat_shortcut", "Reply in Another Chat Shortcut"), False, lambda v: self._apply_hooks(), link_alias="enable_reply_in_another_chat_shortcut"),
             Divider(text=get_string("reply_in_another_chat_shortcut_info", "Long-press the Reply button to quickly reply to a message in another chat.")) if self.get_setting("enable_reply_in_another_chat_shortcut", False) else None,
@@ -2056,19 +2051,9 @@ class UiTweaksPlugin(BasePlugin):
         
         settings.extend([
             Header(text=get_string("media_playback", "Media Playback")),
-            self.Quanta_switch("dont_auto_play_enabled", get_string("dont_auto_play_enabled", "Don't Auto Play Next"), False, lambda v: self._apply_hooks(), link_alias="dont_auto_play_enabled"),
-            self.Quanta_text(
-                text=get_string("dont_auto_play_types", "Message Types"),
-                on_click=lambda v: self._show_dont_auto_play_selector(),
-                link_alias="dont_auto_play_types"
-            ) if self.get_setting("dont_auto_play_enabled", False) else None,
+            self.Quanta_switch("dont_auto_play_enabled", get_string("dont_auto_play_enabled", "Don't Auto Play Next"), False, lambda v: self._apply_hooks(), on_long_click=lambda v: self._handle_long_click_with_enable("dont_auto_play_enabled", self._show_dont_auto_play_selector), subtext=get_string("dont_auto_play_subtext", "Long-press to select message types")),
             Divider(text=get_string("dont_auto_play_info", "Prevents automatic playback of the next voice or video message in a chat, giving you control over when media plays.")) if self.get_setting("dont_auto_play_enabled", False) else None,
-            self.Quanta_switch("progress_timestamp_enabled", get_string("progress_timestamp_enabled", "Progress Timestamp"), False, lambda v: self._apply_hooks(), link_alias="progress_timestamp_enabled"),
-            self.Quanta_text(
-                text=get_string("progress_timestamp_types", "Message Types"),
-                on_click=lambda v: self._show_progress_timestamp_selector(),
-                link_alias="progress_timestamp_types"
-            ) if self.get_setting("progress_timestamp_enabled", False) else None,
+            self.Quanta_switch("progress_timestamp_enabled", get_string("progress_timestamp_enabled", "Progress Timestamp"), False, lambda v: self._apply_hooks(), on_long_click=lambda v: self._handle_long_click_with_enable("progress_timestamp_enabled", self._show_progress_timestamp_selector), subtext=get_string("progress_timestamp_subtext", "Long-press to select message types")),
             Divider(text=get_string("progress_timestamp_info", "Shows the current playback time and total duration on voice and video messages for better media control.")) if self.get_setting("progress_timestamp_enabled", False) else None,
             self.Quanta_switch("enable_adaptive_audio_length", get_string("enable_adaptive_audio_length", "Adaptive Audio Message Length"), False, lambda v: self._apply_hooks(), link_alias="enable_adaptive_audio_length"),
             Divider(text=get_string("adaptive_audio_length_info", "The audio message bubble length will depend on the recording duration and automatically adjust to the screen width.")) if self.get_setting("enable_adaptive_audio_length", False) else None,
@@ -2134,9 +2119,9 @@ class UiTweaksPlugin(BasePlugin):
         
         return settings
 
-    def Quanta_switch(self, key, text, default=True, on_change=None, subtext=None, link_alias=None):
+    def Quanta_switch(self, key, text, default=True, on_change=None, subtext=None, link_alias=None, on_long_click=None):
         try:
-            return Switch(key=key, text=text, link_alias=link_alias, default=default, on_change=on_change, subtext=subtext) if link_alias else Switch(key=key, text=text, default=default, on_change=on_change, subtext=subtext)
+            return Switch(key=key, text=text, link_alias=link_alias, default=default, on_change=on_change, subtext=subtext, on_long_click=on_long_click) if link_alias else Switch(key=key, text=text, default=default, on_change=on_change, subtext=subtext, on_long_click=on_long_click)
         except Exception:
             return Switch(key=key, text=text, default=default, on_change=on_change, subtext=subtext) if subtext else Switch(key=key, text=text, default=default)
 
@@ -4919,6 +4904,11 @@ class UiTweaksPlugin(BasePlugin):
             plugin_instance=self,
             action_text=get_string("apply", "Apply")
         )
+
+    def _handle_long_click_with_enable(self, setting_key, selector_callback):
+        if not self.get_setting(setting_key, False):
+            self.set_setting(setting_key, True, reload_settings=True)
+        selector_callback()
 
     def _show_dont_auto_play_selector(self):
         dont_auto_play_items = [
