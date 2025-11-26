@@ -1906,63 +1906,76 @@ class UiTweaksPlugin(BasePlugin):
 
     def _create_general_settings(self):
         return [
+            Header(text=get_string("security_and_privacy", "Security & Privacy")),
             self.Quanta_switch("confirm_deeplinks", get_string("confirm_deeplinks", "Confirm Telegram Deep Links"), True, lambda v: self._apply_hooks(), link_alias="confirm_deeplinks"),
             self.Quanta_switch("confirm_ayugram_deeplinks", get_string("confirm_ayugram_deeplinks", "Confirm AyuGram Deep Links"), True, lambda v: self._apply_hooks(), link_alias="confirm_ayugram_deeplinks"),
-            Divider(text=get_string("deeplink_confirmation_info", "These toggles add confirmation dialogs before opening deep links to prevent accidental navigation to external content.")),
             self.Quanta_switch("disable_auto_web_login", get_string("disable_auto_web_login", "Disable Auto Web Login"), False, lambda v: self._apply_hooks(), link_alias="disable_auto_web_login"),
             self.Quanta_switch("do_not_share_phone_number", get_string("do_not_share_phone_number", "Do Not Share My Phone Number"), False, lambda v: self._apply_hooks(), link_alias="do_not_share_phone_number"),
-            self.Quanta_switch("prefer_common_groups_tab", get_string("prefer_common_groups_tab", "Prefer Common Groups Tab"), False, lambda v: self._apply_hooks(), link_alias="prefer_common_groups_tab"),
-            Divider(text=get_string("prefer_common_groups_tab_info", "Automatically selects the Groups tab instead of Gifts tab in user profiles when both are available.")),
             self.Quanta_switch("hide_phone_number", get_string("hide_phone_number", "Hide Phone Number in Profiles"), False, lambda v: self._apply_hooks(), link_alias="hide_phone_number"),
             Divider(text=get_string("hide_phone_number_info", "This will hide the recipient's phone number from their profile.")),
-            Header(text=get_string("navigation_controls", "Navigation controls")),
+            
+            Header(text=get_string("profile_and_chats", "Profile & Chats")),
+            self.Quanta_switch("hide_birthday_alert", get_string("hide_birthday_alert", "Hide Birthday Alert"), False, lambda v: self._apply_hooks(), link_alias="hide_birthday_alert"),
+            self.Quanta_switch("prefer_common_groups_tab", get_string("prefer_common_groups_tab", "Prefer Common Groups Tab"), False, lambda v: self._apply_hooks(), link_alias="prefer_common_groups_tab"),
+            Divider(text=get_string("prefer_common_groups_tab_info", "Automatically selects the Groups tab instead of Gifts tab in user profiles when both are available.")),
+            
+            
+            Header(text=get_string("navigation_controls", "Navigation Controls")),
             self.Quanta_switch("prevent_swipe_while_editing", get_string("prevent_swipe_while_editing", "Prevent swipe back while editing"), True, lambda v: self._apply_hooks(), link_alias="prevent_swipe_while_editing"),
             self.Quanta_switch("prevent_swipe_while_typing", get_string("prevent_swipe_while_typing", "Prevent swipe back while typing"), True, lambda v: self._apply_hooks(), link_alias="prevent_swipe_while_typing"),
             self.Quanta_switch("disable_article_viewer_swipe", get_string("disable_article_viewer_swipe", "Disable ArticleViewer swipe to close"), False, lambda v: self._apply_hooks(), link_alias="disable_article_viewer_swipe"),
             self.Quanta_switch("prevent_webapp_swipe_down", get_string("prevent_webapp_swipe_down", "Prevent swipe down in webapp bots"), False, lambda v: self._apply_hooks(), link_alias="prevent_webapp_swipe_down"),
             self.Quanta_switch("disable_topics_swipe", get_string("disable_topics_swipe", "Disable Topics Swipe to Hide"), False, lambda v: self._apply_hooks(), link_alias="disable_topics_swipe"),
-            Divider(text=get_string("navigation_controls_info", "This will prevent the Telegram navigation gestures to work from these scenarios.")),      
+            Divider(text=get_string("navigation_controls_info", "This will prevent the Telegram navigation gestures to work from these scenarios.")),
+            
+            Header(text=get_string("quick_access", "Quick Access")),
             self.Quanta_switch("fab_settings_shortcut", get_string("fab_settings_shortcut", "FAB Shortcut"), False, lambda v: self._apply_hooks(), link_alias="fab_settings_shortcut"),
             self.Quanta_selector("fab_action_selector", get_string("fab_action_selector", "Action"), [get_string("fab_action_uitweaks_settings", "UiTweaks Settings"), get_string("fab_action_archived_chats", "Archived Chats")], 0, lambda v: self._apply_hooks(), link_alias="fab_action_selector") if self.get_setting("fab_settings_shortcut", False) else None,
-            Divider(),
-            self.Quanta_switch("hide_birthday_alert", get_string("hide_birthday_alert", "Hide Birthday Alert"), False, lambda v: self._apply_hooks(), link_alias="hide_birthday_alert"),
-            Divider(text=get_string("hide_birthday_alert_info", "Hides the birthday setup suggestion that appears in the chat list.")),
+            self.Quanta_switch("quick_access_gift_market", get_string("quick_access_gift_market", "Quick Access to Gift Market"), False, lambda v: self._apply_hooks(), link_alias="quick_access_gift_market"),
+            
+            Header(text=get_string("general", "General")),
             self.Quanta_switch("enable_select_all_media", get_string("enable_select_all_media", "Select All Media Button"), True, lambda v: self._apply_hooks(), link_alias="enable_select_all_media"),
-            self.Quanta_switch("enable_music_speed_control", get_string("enable_music_speed_control", "Music Speed Control"), False, lambda v: self._apply_hooks(), link_alias="enable_music_speed_control"),
-            Divider(text=get_string("music_speed_control_info", "Enable playback speed control for all music files regardless of duration.")) if self.get_setting("enable_music_speed_control", False) else None,
+            self.Quanta_switch("enable_sleep_timer", get_string("sleep_timer", "Music Sleep Timer"), False, lambda v: self._apply_hooks(), link_alias="enable_sleep_timer"),
             self.Quanta_switch("disable_emoji_suggestions", get_string("disable_emoji_suggestions", "Disable Emoji Suggestions"), False, lambda v: self._apply_hooks(), link_alias="disable_emoji_suggestions"),
             self.Quanta_switch("remove_greeting_sticker", get_string("remove_greeting_sticker", "Remove Greeting Sticker"), False, lambda v: self._apply_hooks(), link_alias="remove_greeting_sticker"),
+            self.Quanta_switch("enable_music_speed_control", get_string("enable_music_speed_control", "Music Speed Control"), False, lambda v: self._apply_hooks(), link_alias="enable_music_speed_control"),
+            Divider(text=get_string("music_speed_control_info", "Enable playback speed control for all music files regardless of duration.")) if self.get_setting("enable_music_speed_control", False) else None,
 
         ]
 
     def _create_miscellaneous_settings(self):
         return [ 
+            Header(text=get_string("chats", "Chats")),
             self.Quanta_switch("enable_message_preview_enhancement", get_string("message_preview_send_button", "Share media from link preview"), False, lambda v: self._apply_hooks(), link_alias="enable_message_preview_enhancement"),
             self.Quanta_switch("enable_code_formatting", get_string("code_formatting_menu", "Code & Mention Formatting"), False, lambda v: self._apply_hooks(), link_alias="enable_code_formatting"),
+            self.Quanta_switch("enable_share_sheet_folders", get_string("add_folders_to_share_sheet", "Folders in direct share sheet"), False, lambda v: self._apply_hooks(), link_alias="enable_share_sheet_folders"),
             self.Quanta_switch("enable_sender_select_enhancement", get_string("sender_select_improvements", "Send message as menu improvements"), False, lambda v: self._apply_hooks(), link_alias="enable_sender_select_enhancement"),
             Divider(text=get_string("sender_select_subtext", "Show personal account in \"send message as\" menu where you are the owner of the group")),
+
+            Header(text=get_string("chat_list", "Chat List")),
             self.Quanta_switch("enable_select_all_dialogs", get_string("select_all_dialogs_menu", "Select All Chats"), False, lambda v: self._apply_hooks(), link_alias="enable_select_all_dialogs"),
+            self.Quanta_switch("enable_add_to_folder_all_tabs", get_string("add_to_folder_all_tabs", "Add to Folder in All Tabs"), False, lambda v: self._apply_hooks(), link_alias="enable_add_to_folder_all_tabs"),
             self.Quanta_switch("enable_swipe_disable", get_string("disable_swipe_gestures", "Swipe gesture menu improvements"), False, lambda v: self._apply_hooks(), link_alias="enable_swipe_disable"),
             Divider(text=get_string("disable_swipe_subtext", "Add disable option in Telegrams \"Chat list swipe gesture\" menu")),
-            self.Quanta_switch("enable_share_sheet_folders", get_string("add_folders_to_share_sheet", "Folders in direct share sheet"), False, lambda v: self._apply_hooks(), link_alias="enable_share_sheet_folders"),
+            
+            Header(text=get_string("account_and_display", "Account & Display")),
+            self.Quanta_switch("enable_non_clickable_preview", get_string("non_clickable_preview", "Non-Clickable Chat Preview"), False, lambda v: self._apply_hooks(), link_alias="enable_non_clickable_preview"),
+            self.Quanta_switch("enable_contact_status_in_profile", get_string("contact_status_in_profile", "Mutual Contact in Profile"), False, lambda v: self._apply_hooks(), link_alias="enable_contact_status_in_profile"),
             self.Quanta_switch("enable_account_visibility", get_string("account_visibility", "Account Visibility"), False, lambda v: self._apply_hooks(), link_alias="enable_account_visibility"),
             Divider(text=get_string("account_visibility_subtext", "Hide/show accounts by long-pressing theme button")),
-            self.Quanta_switch("enable_non_clickable_preview", get_string("non_clickable_preview", "Non-Clickable Chat Preview"), False, lambda v: self._apply_hooks(), link_alias="enable_non_clickable_preview"),
-            self.Quanta_switch("enable_add_to_folder_all_tabs", get_string("add_to_folder_all_tabs", "Add to Folder in All Tabs"), False, lambda v: self._apply_hooks(), link_alias="enable_add_to_folder_all_tabs"),
-            Divider(text=get_string("add_to_folder_all_tabs_subtext", "Enables 'Add to folder' option in all folder tabs, not just the All chats tab")),
-            self.Quanta_switch("enable_contact_status_in_profile", get_string("contact_status_in_profile", "Mutual Contact in Profile"), False, lambda v: self._apply_hooks(), link_alias="enable_contact_status_in_profile"),
+            
+            Header(text=get_string("advanced", "Advanced")),
+            self.Quanta_switch("enable_ai_role_limit", get_string("ai_role_limit", "AI Role Limit Increaser"), False, lambda v: self._apply_hooks(), link_alias="enable_ai_role_limit"),
+            self.Quanta_switch("enable_search_by_user_id", get_string("search_by_user_id", "Search by User ID"), False, lambda v: self._apply_hooks(), link_alias="enable_search_by_user_id"),
             self.Quanta_switch("enable_safe_mode", get_string("safe_mode", "Safe Mode"), False, lambda v: self._apply_hooks(), link_alias="enable_safe_mode"),
             Divider(text=get_string("safe_mode_subtext", "Press volume down 5 times quickly to enable plugin safe mode ~ In Safe Mode, all plugins are inactive. This allows you to safely find and disable a problematic plugin.")),
-            self.Quanta_switch("enable_search_by_user_id", get_string("search_by_user_id", "Search by User ID"), False, lambda v: self._apply_hooks(), link_alias="enable_search_by_user_id"),
-            self.Quanta_switch("enable_ai_role_limit", get_string("ai_role_limit", "AI Role Limit Increaser"), False, lambda v: self._apply_hooks(), link_alias="enable_ai_role_limit"),
-            self.Quanta_switch("enable_sleep_timer", get_string("sleep_timer", "Music Sleep Timer"), False, lambda v: self._apply_hooks(), link_alias="enable_sleep_timer"),
         ]
 
     def _create_appearance_settings(self):
         settings = []
         
         settings.extend([
-            Header(text=get_string("hide_elements", "Hide elements")),
+            Header(text=get_string("hide_elements", "Hide Elements")),
             self.Quanta_switch("hide_bot_open", get_string("hide_bot_open", "Bot 'Open' button in chat list"), False, lambda v: self._apply_hooks(), link_alias="hide_bot_open"),
             self.Quanta_switch("hide_hd_icon", get_string("hide_hd_icon", "HD icon in media picker"), False, lambda v: self._apply_hooks(), link_alias="hide_hd_icon"),
             Divider(text=get_string("hide_hd_icon_info", "This will only remove the HD icon from the media picker. It will not affect the quality of the media.")),
@@ -1972,19 +1985,17 @@ class UiTweaksPlugin(BasePlugin):
         ])
         
         settings.extend([
+            Header(text=get_string("action_bar", "Action Bar")),
             self.Quanta_switch("always_show_download_manager", get_string("always_show_download_manager", "Always Show Download Manager"), False, lambda v: self._apply_hooks(), link_alias="always_show_download_manager"),
             self.Quanta_switch("always_show_proxy_button", get_string("always_show_proxy_button", "Always Show Proxy Button"), False, lambda v: self._apply_hooks(), link_alias="always_show_proxy_button"),
             Divider(text=get_string("menu_visibility_info", "This will force the buttons to always show in the action bar.")),
         ])
         
         settings.extend([
+            Header(text=get_string("Indicators", "Indicators")),
             self.Quanta_switch("unread_badge_on_back_button", get_string("unread_badge_on_back_button", "Unread Badge on Back Button"), False, lambda v: self._apply_hooks(), link_alias="unread_badge_on_back_button"),
-        ])
-        
-        settings.extend([
             self.Quanta_switch("enable_recent_chats_menu", get_string("enable_recent_chats_menu", "Enable Recent Chats Menu"), True, lambda v: self._apply_hooks(), link_alias="enable_recent_chats_menu"),
             Divider(text=get_string("recent_chats_menu_info", "Shows recent chats when long-pressing the drawer icon in chat list. Stores up to 20 chats.")),
-            self.Quanta_switch("quick_access_gift_market", get_string("quick_access_gift_market", "Quick Access to Gift Market"), False, lambda v: self._apply_hooks(), link_alias="quick_access_gift_market"),
         ])
         
         settings.extend([
@@ -2010,11 +2021,14 @@ class UiTweaksPlugin(BasePlugin):
         settings = []
         
         settings.extend([
-            Header(text=get_string("hide_chat_controls", "Hide Chat Controls")),
+            Header(text=get_string("input_field", "Input Field")),
             self.Quanta_switch("hide_bot_button", get_string("hide_bot_button", "Hide Bot Button in Input Field"), False, lambda v: self._apply_hooks(), link_alias="hide_bot_button"),
+            self.Quanta_switch("typing_instead_sticker", get_string("typing_instead_sticker", "Typing Instead of Choosing Sticker"), False, lambda v: self._apply_hooks(), link_alias="typing_instead_sticker"),
+            self.Quanta_switch("always_visible_schedule_button", get_string("always_visible_schedule_button", "Always Visible Schedule Button"), False, lambda v: self._apply_hooks(), link_alias="always_visible_schedule_button"),
         ])
         
         settings.extend([
+            Header(text=get_string("message_reactions", "Message Reactions")),
             self.Quanta_switch("hide_star_reaction", get_string("hide_star_reaction", "Hide Star Reaction"), False, lambda v: self._apply_hooks(), link_alias="hide_star_reaction"),
             self.Quanta_text(
                 text=get_string("star_reaction_hide_location", "Select from where"),
@@ -2024,16 +2038,24 @@ class UiTweaksPlugin(BasePlugin):
         ])
         
         settings.extend([
+            Header(text=get_string("message_actions", "Message Actions")),
             self.Quanta_switch("enable_confirmation_settings", get_string("enable_confirmation_settings", "Enable Confirmation Settings"), True, lambda v: self._apply_hooks(), link_alias="enable_confirmation_settings"),
             self.Quanta_text(
                 text=get_string("confirmation_settings", "Choose actions"),
                 on_click=lambda v: show_confirmation_selector(),
                 link_alias="confirmation_settings"
             ) if self.get_setting("enable_confirmation_settings", True) else None,
+            self.Quanta_switch("enable_reply_private_chat", get_string("enable_reply_private_chat", "Enable Reply in Private Chat"), False, lambda v: self._update_reply_private_chat_menu_item(), link_alias="enable_reply_private_chat"),
+            self.Quanta_switch("enable_reply_in_another_chat_shortcut", get_string("enable_reply_in_another_chat_shortcut", "Reply in Another Chat Shortcut"), False, lambda v: self._apply_hooks(), link_alias="enable_reply_in_another_chat_shortcut"),
+            Divider(text=get_string("reply_in_another_chat_shortcut_info", "Long-press the Reply button to quickly reply to a message in another chat.")) if self.get_setting("enable_reply_in_another_chat_shortcut", False) else None,
+            self.Quanta_switch("send_comments_after_forward", get_string("send_comments_after_forward", "Send Comments After Forward"), False, lambda v: self._apply_hooks(), link_alias="send_comments_after_forward"),
+            self.Quanta_switch("enable_no_quote_forward", get_string("enable_no_quote_forward", "Enable No-Quote Forward"), True, lambda v: self._update_no_quote_forward_menu_item(), link_alias="enable_no_quote_forward"),
+            self.Quanta_switch("enable_delete_with_duration", get_string("enable_delete_with_duration", "Delete with Duration Selection"), False, lambda v: self._apply_delete_with_duration_hooks(), link_alias="enable_delete_with_duration"),
+            Divider(text=get_string("delete_with_duration_info", "Adds duration selection when banning/restricting users after deleting their messages.")) if self.get_setting("enable_delete_with_duration", False) else None,
         ])
         
         settings.extend([
-            Header(text=get_string("chat_features", "Chat Features")),
+            Header(text=get_string("media_playback", "Media Playback")),
             self.Quanta_switch("dont_auto_play_enabled", get_string("dont_auto_play_enabled", "Don't Auto Play Next"), False, lambda v: self._apply_hooks(), link_alias="dont_auto_play_enabled"),
             self.Quanta_text(
                 text=get_string("dont_auto_play_types", "Message Types"),
@@ -2048,30 +2070,19 @@ class UiTweaksPlugin(BasePlugin):
                 link_alias="progress_timestamp_types"
             ) if self.get_setting("progress_timestamp_enabled", True) else None,
             Divider(text=get_string("progress_timestamp_info", "Shows the current playback time and total duration on voice and video messages for better media control.")) if self.get_setting("progress_timestamp_enabled", True) else None,
-            self.Quanta_switch("enable_goto_message", get_string("enable_goto_message", "Search by Message ID"), False, lambda v: self._apply_hooks(), link_alias="enable_goto_message"),
-            self.Quanta_switch("enable_reply_private_chat", get_string("enable_reply_private_chat", "Enable Reply in Private Chat"), False, lambda v: self._update_reply_private_chat_menu_item(), link_alias="enable_reply_private_chat"),
-            self.Quanta_switch("enable_reply_in_another_chat_shortcut", get_string("enable_reply_in_another_chat_shortcut", "Reply in Another Chat Shortcut"), False, lambda v: self._apply_hooks(), link_alias="enable_reply_in_another_chat_shortcut"),
-            Divider(text=get_string("reply_in_another_chat_shortcut_info", "Long-press the Reply button to quickly reply to a message in another chat.")) if self.get_setting("enable_reply_in_another_chat_shortcut", False) else None,
-            self.Quanta_switch("enable_delete_with_duration", get_string("enable_delete_with_duration", "Delete with Duration Selection"), False, lambda v: self._apply_delete_with_duration_hooks(), link_alias="enable_delete_with_duration"),
-            Divider(text=get_string("delete_with_duration_info", "Adds duration selection when banning/restricting users after deleting their messages.")) if self.get_setting("enable_delete_with_duration", False) else None,
-            self.Quanta_switch("send_comments_after_forward", get_string("send_comments_after_forward", "Send Comments After Forward"), False, lambda v: self._apply_hooks(), link_alias="send_comments_after_forward"),
-            self.Quanta_switch("enable_gif_spoiler", get_string("gif_spoiler_caption", "GIF Spoiler & Caption"), False, lambda v: self._apply_hooks(), link_alias="enable_gif_spoiler"),
-            self.Quanta_switch("enable_no_quote_forward", get_string("enable_no_quote_forward", "Enable No-Quote Forward"), True, lambda v: self._update_no_quote_forward_menu_item(), link_alias="enable_no_quote_forward"),
-            Divider(text=get_string("context_menu_info", "These will add items to the context menu that appears when you tap on any message.")),
-            self.Quanta_switch("typing_instead_sticker", get_string("typing_instead_sticker", "Typing Instead of Choosing Sticker"), False, lambda v: self._apply_hooks(), link_alias="typing_instead_sticker"),
-            self.Quanta_switch("always_visible_schedule_button", get_string("always_visible_schedule_button", "Always Visible Schedule Button"), False, lambda v: self._apply_hooks(), link_alias="always_visible_schedule_button"),
-        ])
-        
-        settings.extend([
-            self.Quanta_switch("enable_ai_summarize", get_string("enable_ai_summarize", "Summarize Chat"), False, lambda v: self._apply_hooks(), link_alias="enable_ai_summarize"),
-        ])
-        
-        settings.extend([
             self.Quanta_switch("enable_adaptive_audio_length", get_string("enable_adaptive_audio_length", "Adaptive Audio Message Length"), False, lambda v: self._apply_hooks(), link_alias="enable_adaptive_audio_length"),
             Divider(text=get_string("adaptive_audio_length_info", "The audio message bubble length will depend on the recording duration and automatically adjust to the screen width.")) if self.get_setting("enable_adaptive_audio_length", False) else None,
         ])
         
         settings.extend([
+            Header(text=get_string("content_features", "Content Features")),
+            self.Quanta_switch("enable_goto_message", get_string("enable_goto_message", "Search by Message ID"), False, lambda v: self._apply_hooks(), link_alias="enable_goto_message"),
+            self.Quanta_switch("enable_gif_spoiler", get_string("gif_spoiler_caption", "GIF Spoiler & Caption"), False, lambda v: self._apply_hooks(), link_alias="enable_gif_spoiler"),
+            self.Quanta_switch("enable_ai_summarize", get_string("enable_ai_summarize", "Summarize Chat"), False, lambda v: self._apply_hooks(), link_alias="enable_ai_summarize"),
+        ])
+        
+        settings.extend([
+            Header(text=get_string("saved_messages", "Saved Messages")),
             self.Quanta_switch("enable_custom_saved_messages", get_string("enable_custom_saved_messages", "Custom Saved Messages"), False, lambda v: self._apply_hooks(), link_alias="enable_custom_saved_messages"),
         ])
         
