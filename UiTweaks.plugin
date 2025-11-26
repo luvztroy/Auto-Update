@@ -3655,9 +3655,9 @@ class UiTweaksPlugin(BasePlugin):
                     return
                 
                 if self.current_mode == "no_quote":
-                    text_view.setText("No Quote")
+                    text_view.setText(get_string("no_quote_option", "No Quote"))
                 else:
-                    text_view.setText("Forward")
+                    text_view.setText(get_string("forward_option", "Forward"))
                 
             except Exception as e:
                 pass
