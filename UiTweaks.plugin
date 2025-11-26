@@ -10318,6 +10318,7 @@ class AlwaysVisibleScheduleButtonHook:
                     create_method.setAccessible(True)
                     create_method.invoke(enter_view)
                     scheduled_button = get_private_field(enter_view, "scheduledButton")
+                    self._update_schedule_button_icon(scheduled_button, enter_view)
                 except Exception:
                     pass
             
@@ -10335,6 +10336,27 @@ class AlwaysVisibleScheduleButtonHook:
             pass
         
         return None
+    
+    def _update_schedule_button_icon(self, scheduled_button, enter_view):
+        try:
+            if not scheduled_button:
+                return
+            
+            Theme = find_class("org.telegram.ui.ActionBar.Theme")
+            R_tg = find_class("org.telegram.messenger.R")
+            PorterDuff = find_class("android.graphics.PorterDuff")
+            PorterDuffColorFilter = find_class("android.graphics.PorterDuffColorFilter")
+            
+            context = scheduled_button.getContext()
+            
+            key_color = getattr(Theme, 'key_chat_messagePanelIcons')
+            color = Theme.getColor(key_color)
+            
+            drawable = context.getResources().getDrawable(R_tg.drawable.msg_calendar2).mutate()
+            drawable.setColorFilter(PorterDuffColorFilter(color, PorterDuff.Mode.MULTIPLY))
+            scheduled_button.setImageDrawable(drawable)
+        except Exception:
+            pass
 
 
 class DisableEmojiSuggestionsHook:
