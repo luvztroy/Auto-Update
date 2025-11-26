@@ -10305,10 +10305,11 @@ class AlwaysVisibleScheduleButtonHook:
             
             schedule_button_hidden = get_private_field(enter_view, "scheduleButtonHidden")
             recording_audio_video = get_private_field(enter_view, "recordingAudioVideo")
+            is_in_schedule_mode = enter_view.isInScheduleMode()
             
             has_text = enter_view.hasText()
             
-            visible = (not schedule_button_hidden) and (not recording_audio_video) and (not has_text)
+            visible = (not schedule_button_hidden) and (not recording_audio_video) and (not has_text) and (not is_in_schedule_mode)
             scheduled_button = get_private_field(enter_view, "scheduledButton")
             
             if visible and not scheduled_button:
