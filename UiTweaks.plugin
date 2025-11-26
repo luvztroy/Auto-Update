@@ -10423,12 +10423,17 @@ class AllowReplyButtonHook:
                 f_currentChat.setAccessible(True)
                 current_chat = f_currentChat.get(chat_activity)
                 
+                f_selectedMessagesIds = chat_activity.getClass().getDeclaredField("selectedMessagesIds")
+                f_selectedMessagesIds.setAccessible(True)
+                selectedMessagesIds = f_selectedMessagesIds.get(chat_activity)
+                selected_count = selectedMessagesIds[0].size() + selectedMessagesIds[1].size()
+                
                 ChatObject = find_class("org.telegram.tgnet.TLRPC$Chat")
                 is_channel = current_chat is not None and self._is_channel(current_chat)
                 can_post = current_chat is not None and self._can_post(current_chat)
                 is_megagroup = current_chat is not None and self._is_megagroup(current_chat)
                 
-                should_use_plugin = is_channel and not can_post and not is_megagroup
+                should_use_plugin = is_channel and not can_post and not is_megagroup and selected_count <= 1
                 
                 f_actionsButtonsLayout = chat_activity.getClass().getDeclaredField("actionsButtonsLayout")
                 f_actionsButtonsLayout.setAccessible(True)
@@ -10437,7 +10442,11 @@ class AllowReplyButtonHook:
                 if actions_layout is not None:
                     show_reply_method = actions_layout.getClass().getDeclaredMethod("showReplyButton", jclass("java.lang.Boolean").TYPE, jclass("java.lang.Boolean").TYPE)
                     show_reply_method.setAccessible(True)
-                    show_reply_method.invoke(actions_layout, True, True)
+                    
+                    if should_use_plugin:
+                        show_reply_method.invoke(actions_layout, True, True)
+                    else:
+                        show_reply_method.invoke(actions_layout, False, True)
                     
                     if should_use_plugin:
                         try:
