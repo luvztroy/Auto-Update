@@ -6708,11 +6708,11 @@ class UiTweaksPlugin(BasePlugin):
             for i in range(total_tabs):
                 if i < folder_count:
                     folder = folders.get(i)
-                    tab_text = "All Chats" if folder.isDefault() else (folder.name if hasattr(folder, 'name') else f"Folder {i}")
+                    tab_text = get_string("all_chats", "All Chats") if folder.isDefault() else (folder.name if hasattr(folder, 'name') else f"Folder {i}")
                     folder_obj = folder
                     is_archived = False
                 else:
-                    tab_text = "Archived"
+                    tab_text = get_string("archived", "Archived")
                     folder_obj = None
                     is_archived = True
 
