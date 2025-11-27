@@ -4340,6 +4340,17 @@ class UiTweaksPlugin(BasePlugin):
             handler_instance = SwipeReplyHook(self)
             self.hook_message_swipe_action_ref = self.hook_method(show_reply_method, handler_instance, priority=10)
             
+            try:
+                MotionEventClass = find_class("android.view.MotionEvent")
+                ViewClass = find_class("android.view.View")
+                dispatch_touch_method = ViewClass.getClass().getDeclaredMethod("dispatchTouchEvent", MotionEventClass)
+                dispatch_touch_method.setAccessible(True)
+                
+                motion_handler = MotionEventSwipeHook(self)
+                self.hook_method(dispatch_touch_method, motion_handler, priority=10)
+            except Exception as e:
+                pass
+            
         except Exception as e:
             pass
     
@@ -10725,6 +10736,51 @@ class RemoveGreetingStickerHook(MethodReplacement):
             pass
         
         return result
+
+
+class MotionEventSwipeHook(MethodHook):
+    def __init__(self, plugin):
+        self.plugin = plugin
+        self.last_x = 0
+        self.last_y = 0
+        self.swipe_threshold = 100
+    
+    def before_hooked_method(self, param):
+        try:
+            motion_event = param.args[0] if len(param.args) > 0 else None
+            if not motion_event:
+                return
+            
+            action = motion_event.getAction()
+            x = motion_event.getX()
+            y = motion_event.getY()
+            
+            if action == 0:
+                self.last_x = x
+                self.last_y = y
+            
+            elif action == 1:
+                dx = x - self.last_x
+                dy = y - self.last_y
+                
+                if abs(dx) > self.swipe_threshold and abs(dy) < 50:
+                    swipe_action = self.plugin.get_setting("swipe_action", 0)
+                    if swipe_action != 0:
+                        chat_activity = param.thisObject
+                        try:
+                            current_message = get_private_field(chat_activity, "selectedObject")
+                            if current_message:
+                                if swipe_action == 1:
+                                    run_on_ui_thread(lambda: self.plugin._save_to_saved_messages(chat_activity, current_message))
+                                elif swipe_action == 2:
+                                    run_on_ui_thread(lambda: self.plugin._show_translate_alert(chat_activity, current_message))
+                                elif swipe_action == 3:
+                                    run_on_ui_thread(lambda: self.plugin._show_share_alert(chat_activity, current_message))
+                        except Exception as e:
+                            pass
+        
+        except Exception as e:
+            pass
 
 
 class SwipeReplyHook(MethodHook):
