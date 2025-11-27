@@ -6759,21 +6759,67 @@ class UiTweaksPlugin(BasePlugin):
             
             set_private_field(filter_tabs_view, '_tab_containers', tab_containers)
             
-            search_field.addView(
+            frame_layout = get_private_field(share_alert, "frameLayout")
+            search_view = get_private_field(share_alert, "searchView")
+            shadows = get_private_field(share_alert, "shadow")
+            
+            if not frame_layout or not search_view:
+                return
+
+            from android.widget import FrameLayout
+            
+            frame_layout_params = frame_layout.getLayoutParams()
+            if frame_layout_params:
+                frame_layout_params.height = AndroidUtilities.dp(106)
+                frame_layout.setLayoutParams(frame_layout_params)
+            
+            search_params = search_view.getLayoutParams()
+            if isinstance(search_params, FrameLayout.LayoutParams):
+                search_params.height = ViewGroup.LayoutParams.MATCH_PARENT
+                search_params.gravity = Gravity.TOP | Gravity.LEFT
+                search_view.setLayoutParams(search_params)
+            
+            search_view.addView(
                 filter_tabs_view,
-                ViewGroup.LayoutParams(
+                FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, 
-                    self._get_folders_padding()
+                    AndroidUtilities.dp(48),
+                    Gravity.BOTTOM
                 )
             )
             
-            set_private_field(search_field, '_folders_added', True)
+            if shadows and len(shadows) > 0 and shadows[0]:
+                shadow_params = shadows[0].getLayoutParams()
+                if isinstance(shadow_params, FrameLayout.LayoutParams):
+                    shadow_params.topMargin = AndroidUtilities.dp(106)
+                    shadows[0].setLayoutParams(shadow_params)
+
+            grid_view = get_private_field(share_alert, "gridView")
+            if grid_view:
+                 grid_params = grid_view.getLayoutParams()
+                 if isinstance(grid_params, FrameLayout.LayoutParams):
+                     grid_params.topMargin = AndroidUtilities.dp(50)
+                     grid_view.setLayoutParams(grid_params)
+
+            search_grid_view = get_private_field(share_alert, "searchGridView")
+            if search_grid_view:
+                 search_grid_params = search_grid_view.getLayoutParams()
+                 if isinstance(search_grid_params, FrameLayout.LayoutParams):
+                     search_grid_params.topMargin = AndroidUtilities.dp(50)
+                     search_grid_view.setLayoutParams(search_grid_params)
+
+            frame_layout.requestLayout()
+            search_view.requestLayout()
+            if grid_view:
+                grid_view.requestLayout()
+
+            set_private_field(search_view, '_folders_added', True)
             
         except:
             pass
     
     def _get_folders_padding(self):
-        return AndroidUtilities.dp(50)
+        return AndroidUtilities.dp(96)
     
     def _update_tab_styles(self, tabs_container, selected_index):
         try:
