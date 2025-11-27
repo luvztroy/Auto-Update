@@ -1220,7 +1220,7 @@ class QuantaHut(BasePlugin):
             scroll_view.setClipToPadding(False)
             pills_layout = LinearLayout(context)
             pills_layout.setOrientation(LinearLayout.HORIZONTAL)
-            pills_layout.setPadding(int(AndroidUtilities.dp(12)), int(AndroidUtilities.dp(8)), int(AndroidUtilities.dp(12)), int(AndroidUtilities.dp(8)))
+            pills_layout.setPadding(int(AndroidUtilities.dp(12)), int(AndroidUtilities.dp(15)), int(AndroidUtilities.dp(12)), int(AndroidUtilities.dp(8)))
             filters = [
                 (get_string("filter_all", "All"), 0),
                 (get_string("filter_recently_updated", "Recently Updated"), 3),
