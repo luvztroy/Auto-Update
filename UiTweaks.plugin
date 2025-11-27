@@ -1327,6 +1327,7 @@ class UiTweaksPlugin(BasePlugin):
         self.custom_saved_chat_id = None
         
         self.hook_disable_emoji_suggestions_ref = None
+        self.hook_message_swipe_action_ref = None
 
     def log(self, message: str):
         if self.get_setting("show_logs", False):
@@ -2045,6 +2046,7 @@ class UiTweaksPlugin(BasePlugin):
             Divider(text=get_string("reply_in_another_chat_shortcut_info", "Long-press the Reply button to quickly reply to a message in another chat.")) if self.get_setting("enable_reply_in_another_chat_shortcut", False) else None,
             self.Quanta_switch("send_comments_after_forward", get_string("send_comments_after_forward", "Send Comments After Forward"), False, lambda v: self._apply_hooks(), link_alias="send_comments_after_forward"),
             self.Quanta_switch("enable_no_quote_forward", get_string("enable_no_quote_forward", "Enable No-Quote Forward"), False, lambda v: self._update_no_quote_forward_menu_item(), link_alias="enable_no_quote_forward"),
+            Selector(key="swipe_action", text=get_string("swipe_action", "Message Swipe Action"), default=0, items=[get_string("swipe_reply", "Reply"), get_string("swipe_save", "Save"), get_string("swipe_translate", "Translate"), get_string("swipe_direct_share", "Direct Share")]),
             self.Quanta_switch("enable_delete_with_duration", get_string("enable_delete_with_duration", "Delete with Duration Selection"), False, lambda v: self._apply_delete_with_duration_hooks(), link_alias="enable_delete_with_duration"),
             Divider(text=get_string("delete_with_duration_info", "Adds duration selection when banning/restricting users after deleting their messages.")) if self.get_setting("enable_delete_with_duration", False) else None,
         ])
@@ -2777,6 +2779,7 @@ class UiTweaksPlugin(BasePlugin):
             "hook_music_speed_control_ref",
             "hook_custom_saved_messages_ref",
             "hook_disable_emoji_suggestions_ref",
+            "hook_message_swipe_action_ref",
             "create_view_hook_ref",
             "destroy_hook_ref",
             "hook_reply_in_another_chat_layout_ref",
@@ -3103,6 +3106,8 @@ class UiTweaksPlugin(BasePlugin):
             
             if self.get_setting("disable_emoji_suggestions", False):
                 self._hook_disable_emoji_suggestions()
+            
+            self._hook_message_swipe_action()
             
             if self.get_setting("remove_greeting_sticker", False):
                 self._hook_remove_greeting_sticker()
@@ -4321,6 +4326,99 @@ class UiTweaksPlugin(BasePlugin):
             
             searchAnimated_method = JavaClass.getDeclaredMethod("searchAnimated", StringClass)
             self.hook_method(searchAnimated_method, DisableEmojiSuggestionsHook())
+        except Exception as e:
+            pass
+    
+    def _hook_message_swipe_action(self):
+        try:
+            ChatActivityClass = find_class("org.telegram.ui.ChatActivity")
+            MessageObjectClass = find_class("org.telegram.messenger.MessageObject")
+            
+            show_reply_method = ChatActivityClass.getClass().getDeclaredMethod("showFieldPanelForReply", MessageObjectClass)
+            show_reply_method.setAccessible(True)
+            
+            handler_instance = SwipeReplyHook(self)
+            self.hook_message_swipe_action_ref = self.hook_method(show_reply_method, handler_instance, priority=10)
+            
+        except Exception as e:
+            pass
+    
+    def _save_to_saved_messages(self, chat_activity, message_object):
+        try:
+            current_account = UserConfig.selectedAccount
+            saved_messages_id = UserConfig.getInstance(current_account).getClientUserId()
+            
+            messages_list = jclass("java.util.ArrayList")()
+            messages_list.add(message_object)
+            
+            send_helper = get_send_messages_helper()
+            send_helper.sendMessage(messages_list, saved_messages_id, False, False, True, 0, 0)
+            
+            try:
+                BulletinHelper.show_simple(
+                    LocaleController.getString("FwdMessageToSavedMessages", R_tg.string.FwdMessageToSavedMessages),
+                    R_tg.raw.saved_messages,
+                    chat_activity
+                )
+            except Exception as bulletin_error:
+                pass
+            
+        except Exception as e:
+            pass
+    
+    def _show_translate_alert(self, chat_activity, message_object):
+        try:
+            message_text = message_object.messageOwner.message
+            if not message_text:
+                return
+            
+            current_account = UserConfig.selectedAccount
+            from_lang = "auto"
+            TranslateAlert2 = jclass("org.telegram.ui.Components.TranslateAlert2")
+            to_lang = TranslateAlert2.getToLanguage()
+            
+            entities_list = jclass("java.util.ArrayList")()
+            
+            alert = TranslateAlert2.showAlert(
+                chat_activity.getParentActivity(),
+                chat_activity,
+                current_account,
+                from_lang,
+                to_lang,
+                message_text,
+                entities_list,
+                False,
+                None,
+                None
+            )
+            
+        except Exception as e:
+            pass
+    
+    def _show_share_alert(self, chat_activity, message_object):
+        try:
+            current_chat = get_private_field(chat_activity, "currentChat")
+            is_channel = ChatObject.isChannel(current_chat) if current_chat else False
+            class_guid = get_private_field(chat_activity, "classGuid")
+            
+            messages_list = jclass("java.util.ArrayList")()
+            messages_list.add(message_object)
+            
+            ShareAlert = jclass("org.telegram.ui.Components.ShareAlert")
+            share_alert = ShareAlert(
+                chat_activity.getParentActivity(),
+                messages_list,
+                None,
+                is_channel,
+                None,
+                False
+            )
+            
+            chat_activity.showDialog(share_alert)
+            
+            AndroidUtilities.setAdjustResizeToNothing(chat_activity.getParentActivity(), class_guid)
+            chat_activity.getFragmentView().requestLayout()
+            
         except Exception as e:
             pass
     
@@ -10581,3 +10679,48 @@ class RemoveGreetingStickerHook(MethodReplacement):
             pass
         
         return result
+
+
+class SwipeReplyHook(MethodHook):
+    def __init__(self, plugin):
+        self.plugin = plugin
+    
+    def before_hooked_method(self, param):
+        try:
+            chat_activity = param.thisObject
+            message_object = param.args[0] if len(param.args) > 0 else None
+            
+            if not message_object:
+                return
+            
+            Thread = jclass("java.lang.Thread")
+            stack_trace = Thread.currentThread().getStackTrace()
+            
+            is_from_swipe = False
+            for element in stack_trace:
+                method_name = str(element.getMethodName())
+                if method_name == "processTouchEvent":
+                    is_from_swipe = True
+                    break
+            
+            if not is_from_swipe:
+                return
+            
+            action = self.plugin.get_setting("swipe_action", 0)
+            
+            if action == 0:
+                return
+            
+            param.setResult(None)
+            
+            if action == 1:
+                run_on_ui_thread(lambda: self.plugin._save_to_saved_messages(chat_activity, message_object))
+            
+            elif action == 2:
+                run_on_ui_thread(lambda: self.plugin._show_translate_alert(chat_activity, message_object))
+            
+            elif action == 3:
+                run_on_ui_thread(lambda: self.plugin._show_share_alert(chat_activity, message_object))
+        
+        except Exception as e:
+            pass
