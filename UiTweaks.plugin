@@ -19,7 +19,7 @@ from ui.settings import Header, Switch, Divider, Selector, Text
 from ui.bulletin import BulletinHelper
 from ui.alert import AlertDialogBuilder
 
-from client_utils import get_last_fragment, get_send_messages_helper, get_messages_storage, run_on_queue, PLUGINS_QUEUE, get_messages_controller
+from client_utils import get_last_fragment, get_send_messages_helper, get_messages_storage, run_on_queue, PLUGINS_QUEUE, get_messages_controller, get_account_instance
 from android_utils import run_on_ui_thread, log, OnLongClickListener, OnClickListener
 
 from android.view import View, ViewGroup, Gravity, HapticFeedbackConstants
@@ -40,7 +40,7 @@ from com.exteragram.messenger.plugins.ui import PluginsActivity, PluginSettingsA
 
 from org.telegram.messenger import R as R_tg
 from org.telegram.messenger import MessagesController, UserConfig, ApplicationLoader, LocaleController, AndroidUtilities, MessagesStorage
-from org.telegram.messenger import UserObject, ChatObject, ImageLocation, MessageObject, DialogObject, NotificationCenter, BotWebViewVibrationEffect, SendMessagesHelper, CodeHighlighting
+from org.telegram.messenger import UserObject, ChatObject, ImageLocation, MessageObject, DialogObject, NotificationCenter, BotWebViewVibrationEffect, SendMessagesHelper, CodeHighlighting, AccountInstance
 from org.telegram.ui.Components import EditTextBoldCursor, URLSpanUserMention
 from org.telegram.tgnet import TLRPC
 from org.telegram.ui.ActionBar import ActionBarPopupWindow, Theme, ActionBarMenuItem
@@ -1276,6 +1276,7 @@ class UiTweaksPlugin(BasePlugin):
         self.safe_mode_is_holding = False
         
         self.no_quote_forward_menu_handle = None
+        self.repeat_menu_handle = None
         
         self.hook_search_by_user_id_ref = None
         self.added_send_media_buttons = set()
@@ -2046,6 +2047,7 @@ class UiTweaksPlugin(BasePlugin):
             Divider(text=get_string("reply_in_another_chat_shortcut_info", "Long-press the Reply button to quickly reply to a message in another chat.")) if self.get_setting("enable_reply_in_another_chat_shortcut", False) else None,
             self.Quanta_switch("send_comments_after_forward", get_string("send_comments_after_forward", "Send Comments After Forward"), False, lambda v: self._apply_hooks(), link_alias="send_comments_after_forward"),
             self.Quanta_switch("enable_no_quote_forward", get_string("enable_no_quote_forward", "Enable No-Quote Forward"), False, lambda v: self._update_no_quote_forward_menu_item(), link_alias="enable_no_quote_forward"),
+            self.Quanta_switch("enable_message_repeat", get_string("enable_message_repeat", "Enable Message Repeat"), False, lambda v: self._update_message_repeat_menu_item(), link_alias="enable_message_repeat"),
             Selector(key="swipe_action", text=get_string("swipe_action", "Message Swipe Action"), default=0, items=[get_string("swipe_reply", "Reply"), get_string("swipe_save", "Save"), get_string("swipe_translate", "Translate"), get_string("swipe_direct_share", "Direct Share")]),
             self.Quanta_switch("enable_delete_with_duration", get_string("enable_delete_with_duration", "Delete with Duration Selection"), False, lambda v: self._apply_delete_with_duration_hooks(), link_alias="enable_delete_with_duration"),
             Divider(text=get_string("delete_with_duration_info", "Adds duration selection when banning/restricting users after deleting their messages.")) if self.get_setting("enable_delete_with_duration", False) else None,
@@ -2785,6 +2787,7 @@ class UiTweaksPlugin(BasePlugin):
             "hook_reply_in_another_chat_layout_ref",
             "hook_reply_in_another_chat_dialogs_ref",
             "allow_reply_button_hook_ref",
+            "repeat_menu_handle",
         ):
             ref = getattr(self, ref_attr, None)
             if ref:
@@ -2799,12 +2802,6 @@ class UiTweaksPlugin(BasePlugin):
         self.current_chat_activity = None
         self.current_back_button = None
         self.counter_views.clear()
-
-        for ref_attr in ("hook_open_link_internally_ref",):
-            ref = getattr(self, ref_attr, None)
-            if ref:
-                self.unhook_method(ref)
-                setattr(self, ref_attr, None)
         
         if self.unhook_send_message:
             self.unhook_method(self.unhook_send_message)
@@ -2821,6 +2818,7 @@ class UiTweaksPlugin(BasePlugin):
         
         self._remove_reply_private_chat_menu_item()
         self._remove_no_quote_forward_menu_item()
+        self._remove_message_repeat_menu_item()
         self._no_quote_buttons_created.clear()
         
         if hasattr(self, '_goto_plugin_menu_id') and self._goto_plugin_menu_id:
@@ -3106,6 +3104,9 @@ class UiTweaksPlugin(BasePlugin):
             
             if self.get_setting("disable_emoji_suggestions", False):
                 self._hook_disable_emoji_suggestions()
+            
+            if self.get_setting("enable_message_repeat", False):
+                self._update_message_repeat_menu_item()
             
             self._hook_message_swipe_action()
             
@@ -3520,6 +3521,90 @@ class UiTweaksPlugin(BasePlugin):
         except Exception:
             return None
 
+    def _add_message_repeat_menu_item(self):
+        try:
+            self.repeat_menu_handle = quantahut.utilities.register_message_menu_item(
+                text=get_string("message_repeat", "Repeat"),
+                option_id=2035,
+                icon_res=R_tg.drawable.msg_addbot_solar,
+                condition_predicate=lambda m: m is not None and not self._is_service_message(m) and not self._is_failed_message(m) and not self._is_scheduled_message(m),
+                on_click=self._on_message_repeat_click,
+                insert_at_top=False
+            )
+        except Exception:
+            pass
+
+    def _remove_message_repeat_menu_item(self):
+        try:
+            if hasattr(self, 'repeat_menu_handle') and self.repeat_menu_handle:
+                quantahut.utilities.unregister_message_menu_item(self.repeat_menu_handle)
+                self.repeat_menu_handle = None
+        except Exception:
+            pass
+
+    def _update_message_repeat_menu_item(self):
+        if self.get_setting("enable_message_repeat", False):
+            if not hasattr(self, 'repeat_menu_handle') or not self.repeat_menu_handle:
+                self._add_message_repeat_menu_item()
+        else:
+            self._remove_message_repeat_menu_item()
+
+    def _on_message_repeat_click(self, chat_activity, message, grouped_messages=None):
+        try:
+            if not message or not chat_activity:
+                return
+            
+            current_account = get_account_instance().getCurrentAccount()
+            send_helper = SendMessagesHelper.getInstance(current_account)
+            account_instance = AccountInstance.getInstance(current_account)
+            
+            try:
+                dialog_id = chat_activity.getDialogId()
+            except Exception:
+                return
+            
+            topic_id = 0
+            try:
+                current_fragment = get_last_fragment()
+                if current_fragment and hasattr(current_fragment, 'getTopicId'):
+                    topic_id = current_fragment.getTopicId()
+            except Exception:
+                pass
+            
+            reply_to_msg = None
+            if topic_id != 0:
+                try:
+                    topic = account_instance.getMessagesController().getTopicsController().findTopic(-dialog_id, topic_id)
+                    if topic and topic.topicStartMessage:
+                        reply_to_msg = MessageObject(current_account, topic.topicStartMessage, False, False)
+                        reply_to_msg.isTopicMainMessage = True
+                except Exception:
+                    pass
+            
+            from java.util import ArrayList
+            messages_to_forward = ArrayList()
+            
+            if grouped_messages and not grouped_messages.isDocuments:
+                for msg in grouped_messages.messages:
+                    messages_to_forward.add(msg)
+            else:
+                messages_to_forward.add(message)
+            
+            send_helper.sendMessage(
+                messages_to_forward,
+                dialog_id,
+                False,
+                False,
+                True,
+                0,
+                reply_to_msg,
+                topic_id,
+                0,
+                0,
+                None
+            )
+        except Exception:
+            pass
 
     
     def _hook_actions_buttons_layout(self):
