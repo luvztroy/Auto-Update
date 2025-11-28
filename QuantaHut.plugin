@@ -3367,9 +3367,25 @@ class _QHFillMenuHook:
                         options.add(0, Integer(entry['option_id']))
                         items.add(0, entry['text'])
                     else:
-                        icons.add(Integer(entry['icon_res']))
-                        options.add(Integer(entry['option_id']))
-                        items.add(entry['text'])
+                        details_index = -1
+                        try:
+                            from org.telegram.messenger import LocaleController, R as R_extera
+                            details_string = LocaleController.getString(R_extera.string.Details)
+                            for i in range(items.size()):
+                                if str(items.get(i)) == details_string:
+                                    details_index = i
+                                    break
+                        except Exception:
+                            pass
+                        
+                        if details_index >= 0:
+                            icons.add(details_index, Integer(entry['icon_res']))
+                            options.add(details_index, Integer(entry['option_id']))
+                            items.add(details_index, entry['text'])
+                        else:
+                            icons.add(Integer(entry['icon_res']))
+                            options.add(Integer(entry['option_id']))
+                            items.add(entry['text'])
                 except Exception:
                     continue
         except Exception:
