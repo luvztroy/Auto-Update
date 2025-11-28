@@ -2790,7 +2790,6 @@ class UiTweaksPlugin(BasePlugin):
             "hook_reply_in_another_chat_layout_ref",
             "hook_reply_in_another_chat_dialogs_ref",
             "allow_reply_button_hook_ref",
-            "repeat_menu_handle",
         ):
             ref = getattr(self, ref_attr, None)
             if ref:
