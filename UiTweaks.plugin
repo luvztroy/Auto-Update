@@ -1501,6 +1501,7 @@ class UiTweaksPlugin(BasePlugin):
         
         self.hook_always_visible_schedule_button_ref = None
         self.hook_remove_greeting_sticker_ref = None
+        self.hook_remove_https_from_links_ref = None
         
         try:
             locale_controller = LocaleController.getInstance()
@@ -1940,6 +1941,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("enable_sleep_timer", get_string("sleep_timer", "Music Sleep Timer"), False, lambda v: self._apply_hooks(), link_alias="enable_sleep_timer"),
             self.Quanta_switch("disable_emoji_suggestions", get_string("disable_emoji_suggestions", "Disable Emoji Suggestions"), False, lambda v: self._apply_hooks(), link_alias="disable_emoji_suggestions"),
             self.Quanta_switch("remove_greeting_sticker", get_string("remove_greeting_sticker", "Remove Greeting Sticker"), False, lambda v: self._apply_hooks(), link_alias="remove_greeting_sticker"),
+            self.Quanta_switch("remove_https_from_links", get_string("remove_https_from_links", "Remove HTTPS From Links"), False, lambda v: self._apply_hooks(), link_alias="remove_https_from_links"),
             self.Quanta_switch("enable_music_speed_control", get_string("enable_music_speed_control", "Music Speed Control"), False, lambda v: self._apply_hooks(), link_alias="enable_music_speed_control"),
             Divider(text=get_string("music_speed_control_info", "Enable playback speed control for all music files regardless of duration.")) if self.get_setting("enable_music_speed_control", False) else None,
 
@@ -2776,6 +2778,7 @@ class UiTweaksPlugin(BasePlugin):
             "hook_select_all_media_ref",
             "hook_always_visible_schedule_button_ref",
             "hook_remove_greeting_sticker_ref",
+            "hook_remove_https_from_links_ref",
             "hook_sleep_timer_ref",
             "hook_adaptive_audio_ref",
             "hook_music_speed_control_ref",
@@ -3112,6 +3115,9 @@ class UiTweaksPlugin(BasePlugin):
             
             if self.get_setting("remove_greeting_sticker", False):
                 self._hook_remove_greeting_sticker()
+            
+            if self.get_setting("remove_https_from_links", False):
+                self._hook_remove_https_from_links()
 
         except Exception as e:
             pass
@@ -4515,6 +4521,15 @@ class UiTweaksPlugin(BasePlugin):
             AndroidUtilities.setAdjustResizeToNothing(chat_activity.getParentActivity(), class_guid)
             chat_activity.getFragmentView().requestLayout()
             
+        except Exception as e:
+            pass
+    
+    def _hook_remove_https_from_links(self):
+        try:
+            ClipboardManagerClass = find_class("android.content.ClipboardManager")
+            ClipDataClass = find_class("android.content.ClipData")
+            set_primary_clip_method = ClipboardManagerClass.getClass().getDeclaredMethod("setPrimaryClip", ClipDataClass)
+            self.hook_remove_https_from_links_ref = self.hook_method(set_primary_clip_method, RemoveHttpsHook())
         except Exception as e:
             pass
     
@@ -10801,6 +10816,25 @@ class AllowReplyButtonHook:
                 pass
         
         return OnClickListener(on_click)
+
+
+class RemoveHttpsHook(MethodHook):
+    def before_hooked_method(self, param):
+        try:
+            clip_data = param.args[0]
+            if clip_data:
+                item = clip_data.getItemAt(0)
+                if item:
+                    text = item.getText()
+                    if text:
+                        text_str = str(text)
+                        if text_str.startswith("https://t.me/") or text_str.startswith("https://"):
+                            modified_text = text_str.replace("https://", "", 1)
+                            ClipDataClass = find_class("android.content.ClipData")
+                            new_clip = ClipDataClass.newPlainText("label", modified_text)
+                            param.args[0] = new_clip
+        except Exception as e:
+            pass
 
 
 class RemoveGreetingStickerHook(MethodReplacement):
