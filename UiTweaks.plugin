@@ -10749,8 +10749,9 @@ class AllowReplyButtonHook:
                 is_channel = current_chat is not None and self._is_channel(current_chat)
                 can_post = current_chat is not None and self._can_post(current_chat)
                 is_megagroup = current_chat is not None and self._is_megagroup(current_chat)
+                is_forum = current_chat is not None and self._is_forum(current_chat)
                 
-                should_use_plugin = is_channel and not can_post and not is_megagroup and selected_count <= 1
+                should_use_plugin = is_channel and not can_post and not is_megagroup and not is_forum and selected_count <= 1
                 
                 f_actionsButtonsLayout = chat_activity.getClass().getDeclaredField("actionsButtonsLayout")
                 f_actionsButtonsLayout.setAccessible(True)
@@ -10804,6 +10805,16 @@ class AllowReplyButtonHook:
             class_name = chat.getClass().getSimpleName()
             is_megagroup = "megagroup" in class_name.lower() or "supergroup" in class_name.lower()
             return is_megagroup
+        except Exception as e:
+            return False
+    
+    def _is_forum(self, chat):
+        try:
+            ChatObject = find_class("org.telegram.messenger.ChatObject")
+            Chat = find_class("org.telegram.tgnet.TLRPC$Chat")
+            isForum_method = ChatObject.getClass().getMethod("isForum", Chat)
+            is_forum = isForum_method.invoke(None, chat)
+            return is_forum
         except Exception as e:
             return False
     
