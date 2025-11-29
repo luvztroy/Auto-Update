@@ -3527,13 +3527,47 @@ class UiTweaksPlugin(BasePlugin):
         except Exception:
             return None
 
+
+    def _can_use_repeat(self, message):
+        try:
+            if not message or not message.messageOwner:
+                return True
+            
+            from client_utils import get_messages_controller
+            mc = get_messages_controller()
+            if not mc:
+                return True
+            
+            if mc.isChatNoForwards(message.getChatId()):
+                return False
+            
+            if message.messageOwner.noforwards:
+                return False
+            
+            chat_id = message.getChatId()
+            if chat_id != 0:
+                chat = mc.getChat(chat_id)
+                if chat:
+                    ChatObject = find_class("org.telegram.messenger.ChatObject")
+                    if ChatObject.isChannel(chat) and not ChatObject.isMegagroup(chat):
+                        return ChatObject.canPost(chat)
+            return True
+        except Exception:
+            return True
+
     def _add_message_repeat_menu_item(self):
         try:
             self.repeat_menu_handle = quantahut.utilities.register_message_menu_item(
                 text=get_string("message_repeat", "Repeat"),
                 option_id=2035,
                 icon_res=R_tg.drawable.msg_addbot_solar,
-                condition_predicate=lambda m: m is not None and not self._is_service_message(m) and not self._is_failed_message(m) and not self._is_scheduled_message(m),
+                condition_predicate=lambda m: (
+                    m is not None and 
+                    not self._is_service_message(m) and 
+                    not self._is_failed_message(m) and 
+                    not self._is_scheduled_message(m) and
+                    self._can_use_repeat(m)
+                ),
                 on_click=self._on_message_repeat_click,
                 insert_at_top=False
             )
