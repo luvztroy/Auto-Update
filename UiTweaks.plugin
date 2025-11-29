@@ -3317,6 +3317,7 @@ class UiTweaksPlugin(BasePlugin):
             args.putInt("dialogsType", dialogs_type)
             args.putBoolean("quote", True)
             args.putBoolean("reply_to", True)
+            args.putBoolean("canSelectTopics", True)
             fragment = DialogsActivity(args)
             fragment.setDelegate(chat_activity)
             chat_activity.presentFragment(fragment)
