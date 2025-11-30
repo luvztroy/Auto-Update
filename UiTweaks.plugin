@@ -51,8 +51,8 @@ from com.google.android.exoplayer2.util import Consumer
 
 try:
     import quantahut
-    if hasattr(quantahut, '__version__') and quantahut.__version__ < "1.4.7":
-        raise Exception(f"QuantaHut {quantahut.__version__} is too old. Need 1.4.7+")
+    if hasattr(quantahut, '__version__') and quantahut.__version__ < "1.4.8":
+        raise Exception(f"QuantaHut {quantahut.__version__} is too old. Need 1.4.8+")
     from quantahut import showmultiselector, showupdatebottomsheet, export_plugin_settings
 except ImportError:
     raise Exception("QuantaHut is required but not installed. Install it first. (Don't report this as a bug - it's your fault.)")
@@ -62,7 +62,7 @@ QuantaHut = quantahut
 __id__ = "ui_tweaks"
 __name__ = "UiTweaks"
 __description__ = "Well sometimes you just need to tweak things... (requires QuantaHut)"
-__version__ = "1.7.8.17-Beta"
+__version__ = "1.7.8"
 __author__ = "@luvztroy"
 __min_version__ = "12.1.1"
 __icon__ = "luvztroyIcons/13"
