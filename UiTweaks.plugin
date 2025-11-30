@@ -62,7 +62,7 @@ QuantaHut = quantahut
 __id__ = "ui_tweaks"
 __name__ = "UiTweaks"
 __description__ = "Well sometimes you just need to tweak things... (requires QuantaHut)"
-__version__ = "1.7.8"
+__version__ = "1.7.8.1"
 __author__ = "@luvztroy"
 __min_version__ = "12.1.1"
 __icon__ = "luvztroyIcons/13"
@@ -1492,6 +1492,7 @@ class UiTweaksPlugin(BasePlugin):
         self.add_hook("TL_messages_forwardMessages")
         
         self.current_mode = self.get_setting("forward_mode", "forward")
+        self.hook_no_quote_pause_ref = None
         
         self.update_available = False
         self.latest_version = None
@@ -2767,6 +2768,7 @@ class UiTweaksPlugin(BasePlugin):
             "hook_folder_visibility_ref",
             "hook_search_by_user_id_ref",
             "hook_gift_drawer_reset_ref",
+            "hook_no_quote_pause_ref",
             "hook_gift_drawer_click_ref",
             "hook_gift_drawer_cell_ref",
             "hook_ai_summarize_create_view_ref",
@@ -3021,6 +3023,7 @@ class UiTweaksPlugin(BasePlugin):
                 self._hook_join_confirmation()
             if self.get_setting("enable_no_quote_forward", False):
                 self._hook_actions_buttons_layout()
+                self._hook_no_quote_pause()
             if self.get_setting("typing_instead_sticker", False):
                 self._hook_send_typing_method()
             if self.get_setting("enable_recent_chats_menu", False):
@@ -3795,6 +3798,28 @@ class UiTweaksPlugin(BasePlugin):
                 pass
         
         run_on_ui_thread(update_text)
+    
+    def _hook_no_quote_pause(self):
+        try:
+            DialogsActivityClass = find_class("org.telegram.ui.DialogsActivity")
+            if not DialogsActivityClass:
+                return
+            
+            onPauseMethod = DialogsActivityClass.getClass().getDeclaredMethod("onPause")
+            onPauseMethod.setAccessible(True)
+            
+            class DialogsPauseHook:
+                def __init__(self, plugin_instance):
+                    self.plugin = plugin_instance
+                
+                def before_hooked_method(self, param):
+                    self.plugin.current_mode = "forward"
+                    self.plugin.log("Forward mode: Reset to 'forward' on DialogsActivity pause")
+            
+            pause_hook = DialogsPauseHook(self)
+            self.hook_no_quote_pause_ref = self.hook_method(onPauseMethod, pause_hook)
+        except Exception:
+            pass
     
     def _hook_add_to_folder_all_tabs(self):
         try:
@@ -4994,6 +5019,7 @@ class UiTweaksPlugin(BasePlugin):
     def pre_request_hook(self, request_name: str, account: int, request):
         if request_name == "TL_messages_forwardMessages" and self.current_mode == "no_quote" and hasattr(request, 'drop_author'):
             request.drop_author = True
+            self.current_mode = "forward"
             return HookResult(strategy=HookStrategy.MODIFY, request=request)
         
         if request_name == "TL_messages_forwardMessages" and self.get_setting("send_comments_after_forward", False):

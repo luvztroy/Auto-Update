@@ -1,7 +1,7 @@
 {
-  "version": "1.7.8",
-  "release_date": "2025-11-30",
-  "changelog_text": "**What's New in v1.7.8:**\n\n**Added:**\n• Disable emoji suggestions while typing\n• Quick reply in another chat by holding 'Reply' button in bottom bar\n• Allow reply button to show where user don't have canPost permission - On click reply in another chat\n• Option to remove greeting sticker\n• Long click actions for some switches\n• Option to customize message swipe action\n• Option to repeat the message in current chat\n• Remove HTTPS when copying internal links\n• Missing parameter for code & mention hook in the new app version\n\n**Changed:**\n• Adapted plugin to Telegram's redesigned bottom bar with long-press action selector for NoQuote\n• Changed schedule message icon to msg_calendar2\n• Refactored Unread Badge on back button\n• Refactored all input dialogues of plugin\n• Small tweaks in settings page\n• Adjusted padding for filter pills\n\n**Fixed:**\n• Tips and tricks showing android open with sheet instead of opening in the current app\n• Issue where sending a message with NoQuote to topics would always send it to the general thread\n• GIFs with spoiler and caption always being sent to the general thread\n• GIFs with spoiler and caption not replying to the quoted message and instead being left as a draft\n• Pills clipping on Plugins screen\n• Mutual Contact cell width with MD3 containers\n• Issue where schedule button is clickable while typing\n• Issue where 'NoQuote forward' is showing in scheduled messages\n• Issue where schedule button is showing in isInScheduleMode()\n• Folder pills overlapping search view",
+  "version": "1.7.8.1",
+  "release_date": "2025-12-01",
+  "changelog_text": "**What's New in v1.7.8.1:**\n\n**Hot fix:**\n• Reset forward mode when user cancels no-quote forward selection",
   "sticker_pack": "luvztroy",
   "sticker_index": 3,
   "sticker_circle": false,
