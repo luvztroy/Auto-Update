@@ -1329,6 +1329,7 @@ class UiTweaksPlugin(BasePlugin):
         
         self.hook_disable_emoji_suggestions_ref = None
         self.hook_message_swipe_action_ref = None
+        self.hook_join_request_direct_profile_ref = None
 
     def log(self, message: str):
         if self.get_setting("show_logs", False):
@@ -1956,6 +1957,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("enable_share_sheet_folders", get_string("add_folders_to_share_sheet", "Folders in direct share sheet"), False, lambda v: self._apply_hooks(), link_alias="enable_share_sheet_folders"),
             self.Quanta_switch("enable_sender_select_enhancement", get_string("sender_select_improvements", "Send message as menu improvements"), False, lambda v: self._apply_hooks(), link_alias="enable_sender_select_enhancement"),
             Divider(text=get_string("sender_select_subtext", "Show personal account in \"send message as\" menu where you are the owner of the group")),
+            self.Quanta_switch("enable_join_request_direct_profile", get_string("join_request_direct_profile", "Join Request Direct Profile"), False, lambda v: self._apply_hooks(), link_alias="enable_join_request_direct_profile"),
 
             Header(text=get_string("chat_list", "Chat List")),
             self.Quanta_switch("enable_select_all_dialogs", get_string("select_all_dialogs_menu", "Select All Chats"), False, lambda v: self._apply_hooks(), link_alias="enable_select_all_dialogs"),
@@ -2787,6 +2789,7 @@ class UiTweaksPlugin(BasePlugin):
             "hook_custom_saved_messages_ref",
             "hook_disable_emoji_suggestions_ref",
             "hook_message_swipe_action_ref",
+            "hook_join_request_direct_profile_ref",
             "create_view_hook_ref",
             "destroy_hook_ref",
             "hook_reply_in_another_chat_layout_ref",
@@ -3120,6 +3123,9 @@ class UiTweaksPlugin(BasePlugin):
             
             if self.get_setting("remove_https_from_links", False):
                 self._hook_remove_https_from_links()
+            
+            if self.get_setting("enable_join_request_direct_profile", False):
+                self._hook_join_request_direct_profile()
 
         except Exception as e:
             pass
@@ -4590,6 +4596,30 @@ class UiTweaksPlugin(BasePlugin):
             set_primary_clip_method = ClipboardManagerClass.getClass().getDeclaredMethod("setPrimaryClip", ClipDataClass)
             self.hook_remove_https_from_links_ref = self.hook_method(set_primary_clip_method, RemoveHttpsHook())
         except Exception as e:
+            pass
+    
+    def _hook_join_request_direct_profile(self):
+        try:
+            delegate_class = find_class("org.telegram.ui.Delegates.MemberRequestsDelegate")
+            
+            if not delegate_class:
+                return
+            
+            view_class = find_class("android.view.View")
+            int_type = jclass("java.lang.Integer").TYPE
+            
+            method = delegate_class.getClass().getDeclaredMethod(
+                "onItemClick",
+                view_class,
+                int_type
+            )
+            
+            if not method:
+                return
+                
+            self.hook_join_request_direct_profile_ref = self.hook_method(method, DirectProfileHook(self))
+            
+        except Exception:
             pass
     
     def _hook_remove_greeting_sticker(self):
@@ -10905,6 +10935,87 @@ class RemoveHttpsHook(MethodHook):
                             new_clip = ClipDataClass.newPlainText("label", modified_text)
                             param.args[0] = new_clip
         except Exception as e:
+            pass
+
+
+class DirectProfileHook:
+    
+    def __init__(self, plugin):
+        self.plugin = plugin
+    
+    def before_hooked_method(self, param):
+        try:
+            delegate = param.thisObject
+            if not delegate:
+                return
+            
+            if len(param.args) < 1:
+                return
+            
+            view = param.args[0]
+            
+            member_request_cell_class = find_class("org.telegram.ui.Cells.MemberRequestCell")
+            if not member_request_cell_class:
+                return
+                
+            if not isinstance(view, member_request_cell_class):
+                return
+            
+            is_search_expanded = get_private_field(delegate, "isSearchExpanded")
+            if is_search_expanded:
+                fragment = get_private_field(delegate, "fragment")
+                if fragment and fragment.getParentActivity():
+                    AndroidUtilities = jclass("org.telegram.messenger.AndroidUtilities")
+                    AndroidUtilities.hideKeyboard(fragment.getParentActivity().getCurrentFocus())
+            
+            cell = view
+            
+            def open_profile_directly():
+                try:
+                    importer = cell.getImporter()
+                    if not importer:
+                        return
+                    
+                    users = get_private_field(delegate, "users")
+                    if not users:
+                        return
+                    
+                    user = users.get(importer.user_id)
+                    if not user:
+                        return
+                    
+                    fragment = get_private_field(delegate, "fragment")
+                    if not fragment:
+                        return
+                    
+                    fragment.getMessagesController().putUser(user, False)
+                    
+                    set_private_field(delegate, "isNeedRestoreList", True)
+                    
+                    fragment.dismissCurrentDialog()
+                    
+                    Bundle = jclass("android.os.Bundle")
+                    args = Bundle()
+                    args.putLong("user_id", user.id)
+                    args.putBoolean("removeFragmentOnChatOpen", False)
+                    
+                    ProfileActivity = jclass("org.telegram.ui.ProfileActivity")
+                    profileActivity = ProfileActivity(args)
+                    
+                    fragment.presentFragment(profileActivity)
+                    
+                except Exception:
+                    pass
+            
+            from android_utils import R
+            
+            AndroidUtilities = jclass("org.telegram.messenger.AndroidUtilities")
+            delay = 100 if is_search_expanded else 0
+            AndroidUtilities.runOnUIThread(R(open_profile_directly), delay)
+            
+            param.setResult(None)
+            
+        except Exception:
             pass
 
 
