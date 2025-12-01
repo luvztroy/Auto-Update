@@ -10464,15 +10464,17 @@ class ChatActionBarMenuItemClickHook:
                     continue
                 
                 sender = "User"
-                is_channel_post = getattr(msg, 'post', False)
                 
-                if is_channel_post or (hasattr(msg, 'peer_id') and msg.peer_id and hasattr(msg.peer_id, 'channel_id') and (not hasattr(msg, 'from_id') or msg.from_id is None)):
+                if hasattr(msg, 'post_author') and msg.post_author:
                     if hasattr(msg, 'peer_id') and msg.peer_id and hasattr(msg.peer_id, 'channel_id'):
-                        chat = mc.getChat(msg.peer_id.channel_id)
-                        if chat and hasattr(chat, 'title'):
-                            sender = str(chat.title)
-                            if hasattr(msg, 'post_author') and msg.post_author:
-                                sender = f"{sender} ({msg.post_author})"
+                        if hasattr(msg, 'from_id') and msg.from_id and hasattr(msg.from_id, 'channel_id'):
+                            if msg.peer_id.channel_id == msg.from_id.channel_id:
+                                sender = str(msg.post_author).strip()
+                                chat = mc.getChat(msg.peer_id.channel_id)
+                                if chat and hasattr(chat, 'title'):
+                                    sender = f"{chat.title} ({sender})"
+                        else:
+                            sender = str(msg.post_author).strip()
                 elif hasattr(msg, 'from_id') and msg.from_id:
                     fid = msg.from_id
                     if hasattr(fid, 'user_id'):
