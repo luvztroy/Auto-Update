@@ -1424,6 +1424,7 @@ class UiTweaksPlugin(BasePlugin):
             builder.set_neutral_button(get_string("dump_memory", "Dump Memory"), on_dump_memory)
             builder.set_negative_button(get_string("cancel", "Cancel"), lambda d, w: d.dismiss())
             builder.show()
+            builder.set_canceled_on_touch_outside(False)
         except Exception as e:
             self.log(f"Error showing memory alert: {e}")
     
