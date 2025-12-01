@@ -6814,54 +6814,6 @@ class UiTweaksPlugin(BasePlugin):
         except Exception as e:
             self.log(f"Error hooking Chat Action Bar Items: {e}")
 
-    def _is_private_chat(self, chat_activity):
-        try:
-            return getattr(chat_activity, 'currentUser', None) is not None and getattr(chat_activity, 'currentChat', None) is None
-        except:
-            return False
-
-    def _get_available_accounts(self, force_refresh=False):
-        if force_refresh or not hasattr(self, '_cached_accounts') or self._cached_accounts is None:
-            accounts = []
-            for account_id in range(UserConfig.MAX_ACCOUNT_COUNT):
-                try:
-                    user_config = UserConfig.getInstance(account_id)
-                    if user_config.isClientActivated():
-                        user = user_config.getCurrentUser()
-                        if user:
-                            unread_main = 0
-                            unread_archive = 0
-                            try:
-                                unread_main = MessagesStorage.getInstance(account_id).getMainUnreadCount()
-                                unread_archive = MessagesStorage.getInstance(account_id).getArchiveUnreadCount()
-                            except:
-                                pass
-                            accounts.append({
-                                'id': account_id, 
-                                'user': user,
-                                'unread_main': unread_main,
-                                'unread_archive': unread_archive
-                            })
-                except:
-                    continue
-            self._cached_accounts = accounts
-        return self._cached_accounts
-    def _clear_account_cache(self):
-        if hasattr(self, '_cached_accounts'):
-            self._cached_accounts = None
-
-    def _dismiss_current_popup(self):
-        try:
-            if hasattr(self, 'current_popup') and self.current_popup:
-                if hasattr(self.current_popup, 'isShowing') and self.current_popup.isShowing():
-                    self.current_popup.dismiss()
-                    self.log("Account switcher: Dismissed current popup")
-        except:
-            pass
-        finally:
-            if hasattr(self, 'current_popup'):
-                self.current_popup = None
-
     def _hook_disable_auto_web_login(self):
         try:
             BrowserClass = find_class("org.telegram.messenger.browser.Browser")
