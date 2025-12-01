@@ -2073,7 +2073,7 @@ class UiTweaksPlugin(BasePlugin):
         ])
         
         settings.extend([
-            Header(text=get_string("content_features", "Content Features")),
+            Header(text=get_string("general", "General")),
             self.Quanta_switch("enable_goto_message", get_string("enable_goto_message", "Search by Message ID"), False, lambda v: self._apply_hooks(), link_alias="enable_goto_message"),
             self.Quanta_switch("enable_gif_spoiler", get_string("gif_spoiler_caption", "GIF Spoiler & Caption"), False, lambda v: self._apply_hooks(), link_alias="enable_gif_spoiler"),
             self.Quanta_switch("enable_ai_summarize", get_string("enable_ai_summarize", "Summarize Chat"), False, lambda v: self._apply_hooks(), link_alias="enable_ai_summarize"),
