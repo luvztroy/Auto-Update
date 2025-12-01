@@ -10256,8 +10256,9 @@ class ChatActionBarMenuItemClickHook:
             
             def fetch_and_summarize(self, chat_activity, count):
                 loading = AlertDialogBuilder(chat_activity.getParentActivity(), AlertDialogBuilder.ALERT_TYPE_SPINNER)
-                loading.set_cancelable(False)
                 loading.show()
+                loading.set_cancelable(False)
+                
                 
                 def process():
                     try:
