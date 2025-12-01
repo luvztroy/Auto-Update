@@ -2958,10 +2958,121 @@ class UiTweaksPlugin(BasePlugin):
             dialogs_activity.presentFragment(archived_dialogs_activity)
         except Exception as e:
             pass
-
+    def _unhook_all(self):
+        for ref_attr in (
+            "hook_dialogs_ref",
+            "hook_dialogs_destroy_ref",
+            "hook_dialog_cell_ref",
+            "hook_photo_cell_ref",
+            "hook_photo_cell_set_entry_ref",
+            "hook_swipe_prevention_ref",
+            "hook_star_reaction_menu_ref",
+            "hook_star_reaction_visible_list_ref",
+            "hook_star_reaction_gradient_ref",
+            "hook_star_reaction_layout_draw_ref",
+            "hook_link_confirmation_ref",
+            "hook_article_viewer_ref",
+            "hook_webapp_swipe_prevention_ref",
+            "hook_download_manager_ref",
+            "hook_proxy_button_ref",
+            "hook_phone_number_ref",
+            "hook_messages_controller_ref",
+            "hook_update_bot_button_ref",
+            "hook_voice_message_control_ref",
+            "hook_voice_message_time_display_ref",
+            "hook_video_message_control_ref",
+            "hook_forward_confirmation_ref",
+            "hook_join_confirmation_ref",
+            "hook_send_typing_refs",
+            "hook_gif_spoiler_ref",
+            "hook_gif_dismiss_ref",
+            "hook_process_external_url_ref",
+            "hook_fill_action_mode_menu_ref",
+            "hook_perform_menu_action_ref",
+            "hook_recent_chats_activity_ref",
+            "hook_recent_profile_activity_ref",
+            "hook_recent_topics_fragment_ref",
+            "hook_drawer_icon_ref",
+            "hook_call_buttons_ref",
+            "hook_group_voice_chat_icon_ref",
+            "hook_message_preview_view_ref",
+            "hook_browser_open_url_ref",
+            "hook_disable_auto_web_login_ref",
+            "hook_do_not_share_phone_number_ref",
+            "hook_prefer_common_groups_tab_ref",
+            "hook_non_clickable_dispatch_ref",
+            "hook_non_clickable_present_ref",
+            "hook_non_clickable_present_ref2",
+            "hook_birthday_alert_ref",
+            "hook_code_formatting_ref",
+            "hook_sender_select_popup_ref",
+            "hook_swipe_disable_ref",
+            "hook_share_sheet_folders_ref",
+            "hook_disable_topic_swipe_ref",
+            "hook_account_visibility_drawer_ref",
+            "hook_account_visibility_profile_ref",
+            "contact_status_update_rows_hook",
+            "contact_status_get_item_view_type_hook",
+            "contact_status_create_view_holder_hook",
+            "contact_status_bind_view_holder_hook",
+            "safe_mode_hook_ref",
+            "hook_folder_visibility_ref",
+            "hook_search_by_user_id_ref",
+            "hook_gift_drawer_reset_ref",
+            "hook_no_quote_pause_ref",
+            "hook_gift_drawer_click_ref",
+            "hook_gift_drawer_cell_ref",
+            "hook_ai_summarize_create_view_ref",
+            "hook_ai_summarize_item_click_ref",
+            "delete_with_duration_fillitems_ref",
+            "delete_with_duration_onclick_ref",
+            "hook_ai_role_limit_constructor_ref",
+            "hook_ai_role_limit_settext_ref",
+            "hook_select_all_media_ref",
+            "hook_always_visible_schedule_button_ref",
+            "hook_remove_greeting_sticker_ref",
+            "hook_remove_https_from_links_ref",
+            "hook_sleep_timer_ref",
+            "hook_adaptive_audio_ref",
+            "hook_music_speed_control_ref",
+            "hook_custom_saved_messages_ref",
+            "hook_disable_emoji_suggestions_ref",
+            "hook_message_swipe_action_ref",
+            "hook_join_request_direct_profile_ref",
+            "create_view_hook_ref",
+            "destroy_hook_ref",
+            "hook_reply_in_another_chat_layout_ref",
+            "hook_reply_in_another_chat_dialogs_ref",
+            "allow_reply_button_hook_ref",
+            "hook_check_send_button_ref",
+            "hook_unread_count_ref",
+            "hook_add_to_folder_all_tabs_ref",
+        ):
+            ref = getattr(self, ref_attr, None)
+            if ref:
+                if isinstance(ref, list):
+                    for r in ref:
+                        if r:
+                            self.unhook_method(r)
+                else:
+                    self.unhook_method(ref)
+                setattr(self, ref_attr, None)
+        
+        if self.unhook_send_message:
+            self.unhook_method(self.unhook_send_message)
+            self.unhook_send_message = None
+        if hasattr(self, 'unhook_deeplink') and self.unhook_deeplink:
+            self.unhook_method(self.unhook_deeplink)
+            self.unhook_deeplink = None
+        if hasattr(self, 'unhook_set_command') and self.unhook_set_command:
+            self.unhook_method(self.unhook_set_command)
+            self.unhook_set_command = None
+        if self._unhook_layout:
+            self.unhook_method(self._unhook_layout)
+            self._unhook_layout = None
 
     def _apply_hooks(self):
-        self.on_plugin_unload()
+        self._unhook_all()
         try:
             if (self.get_setting("hide_bot_open", False) or 
                 self.get_setting("enable_recent_chats_menu", False) or
@@ -3116,7 +3227,8 @@ class UiTweaksPlugin(BasePlugin):
             if self.get_setting("enable_message_repeat", False):
                 self._update_message_repeat_menu_item()
             
-            self._hook_message_swipe_action()
+            if self.get_setting("swipe_action", 0) != 0:
+                self._hook_message_swipe_action()
             
             if self.get_setting("remove_greeting_sticker", False):
                 self._hook_remove_greeting_sticker()
