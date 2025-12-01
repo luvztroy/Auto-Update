@@ -2959,6 +2959,7 @@ class UiTweaksPlugin(BasePlugin):
         except Exception as e:
             pass
     def _unhook_all(self):
+        self.log("Unhooking all methods")
         for ref_attr in (
             "hook_dialogs_ref",
             "hook_dialogs_destroy_ref",
