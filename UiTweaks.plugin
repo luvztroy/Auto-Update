@@ -1334,6 +1334,12 @@ class UiTweaksPlugin(BasePlugin):
         self.hook_search_filter_send_request_ref = None
         self.search_filter_current = 0
         self.search_filter_buttons = {}
+        
+        self.hook_play_sound_ref = None
+        self.hook_soundpool_load_ref = None
+        self.ios_sound_path = None
+        self.soundpool_instance = None
+        self.ios_sound_id = None
 
     def log(self, message: str):
         if self.get_setting("show_logs", False):
@@ -2094,6 +2100,12 @@ class UiTweaksPlugin(BasePlugin):
                     link_alias="select_custom_saved_chat"
                 )
             )
+        
+        settings.extend([
+            Header(text=get_string("notifications", "Notifications")),
+            self.Quanta_selector("notification_sound", get_string("notification_sound", "Sound Type"), [get_string("sound_disable", "Disable"), get_string("sound_default", "Default"), get_string("sound_ios", "iOS")], 1, lambda v: self._on_notification_sound_change(v), link_alias="notification_sound"),
+            self.Quanta_selector("in_chat_vibration", get_string("in_chat_vibration", "In-Chat Vibration"), [get_string("vibrate_disable", "Disable"), get_string("vibrate_click", "1"), get_string("vibrate_wave", "2"), get_string("vibrate_keyboard", "3"), get_string("vibrate_long", "4")], 0, lambda v: self._on_vibration_change(v), link_alias="in_chat_vibration"),
+        ])
         
         return settings
 
@@ -2950,6 +2962,8 @@ class UiTweaksPlugin(BasePlugin):
             "hook_check_send_button_ref",
             "hook_unread_count_ref",
             "hook_add_to_folder_all_tabs_ref",
+            "hook_play_sound_ref",
+            "hook_soundpool_load_ref",
         ):
             ref = getattr(self, ref_attr, None)
             if ref:
@@ -3144,6 +3158,12 @@ class UiTweaksPlugin(BasePlugin):
             
             if self.get_setting("enable_search_filter", False):
                 self._hook_search_filter()
+            
+            if self.get_setting("notification_sound", 1) != 1 or self.get_setting("in_chat_vibration", 0) != 0:
+                self._ensure_ios_sound()
+                self._hook_play_in_chat_sound()
+                if self.get_setting("notification_sound", 1) == 2:
+                    self._hook_soundpool_load()
 
         except Exception as e:
             pass
@@ -4638,6 +4658,125 @@ class UiTweaksPlugin(BasePlugin):
             self.hook_join_request_direct_profile_ref = self.hook_method(method, DirectProfileHook(self))
             
         except Exception:
+            pass
+    
+    def _on_notification_sound_change(self, value):
+        self._play_preview(value)
+        self._apply_hooks()
+    
+    def _on_vibration_change(self, value):
+        self._vibrate_preview(value)
+        self._apply_hooks()
+    
+    def _ensure_ios_sound(self):
+        try:
+            from file_utils import get_files_dir
+            files_dir = get_files_dir()
+            self.ios_sound_path = os.path.join(files_dir, "custom_received.mp3")
+            
+            if not os.path.exists(self.ios_sound_path):
+                IOS_SOUND_URL = "https://raw.githubusercontent.com/luvztroy/UiTweaks/Beta/Assets/Audio/Custom%20received.mp3"
+                urllib.request.urlretrieve(IOS_SOUND_URL, self.ios_sound_path)
+        except Exception as e:
+            pass
+    
+    def _hook_play_in_chat_sound(self):
+        try:
+            NotificationsController = find_class("org.telegram.messenger.NotificationsController")
+            if not NotificationsController:
+                return
+            
+            java_class = NotificationsController.getClass()
+            method = java_class.getDeclaredMethod("playInChatSound")
+            method.setAccessible(True)
+            
+            self.hook_play_sound_ref = self.hook_method(method, PlaySoundHook(self))
+        except Exception as e:
+            pass
+    
+    def _hook_soundpool_load(self):
+        try:
+            SoundPool = jclass("android.media.SoundPool")
+            java_class = SoundPool.getClass()
+            
+            Context = jclass("android.content.Context")
+            int_type = jclass("java.lang.Integer").TYPE
+            
+            method = java_class.getDeclaredMethod("load", Context, int_type, int_type)
+            method.setAccessible(True)
+            
+            self.hook_soundpool_load_ref = self.hook_method(method, SoundPoolLoadHook(self))
+        except Exception as e:
+            pass
+    
+    def _vibrate_preview(self, vibrate_type):
+        try:
+            if vibrate_type == 0:
+                return
+            
+            Vibrator = jclass("android.os.Vibrator")
+            ApplicationLoader = find_class("org.telegram.messenger.ApplicationLoader")
+            context = ApplicationLoader.applicationContext
+            vibrator = context.getSystemService("vibrator")
+            
+            if vibrate_type == 1:
+                vibrator.vibrate(30)
+            elif vibrate_type == 2:
+                vibrator.vibrate(50)
+            elif vibrate_type == 3:
+                pattern = [0, 50, 50, 50]
+                vibrator.vibrate(pattern, -1)
+            elif vibrate_type == 4:
+                vibrator.vibrate(200)
+        except Exception as e:
+            pass
+    
+    def _play_preview(self, sound_type):
+        try:
+            if sound_type == 0:
+                return
+            
+            from android.media import MediaPlayer
+            ApplicationLoader = find_class("org.telegram.messenger.ApplicationLoader")
+            context = ApplicationLoader.applicationContext
+            
+            mp = None
+            
+            if sound_type == 1:
+                R = find_class("org.telegram.messenger.R")
+                mp = MediaPlayer.create(context, R.raw.sound_in)
+            elif sound_type == 2:
+                if os.path.exists(self.ios_sound_path):
+                    mp = MediaPlayer()
+                    mp.setDataSource(self.ios_sound_path)
+                    mp.prepare()
+            
+            if mp:
+                mp.start()
+        except Exception as e:
+            pass
+    
+    def play_ios_sound(self, soundpool):
+        try:
+            if not os.path.exists(self.ios_sound_path):
+                return
+            
+            if self.soundpool_instance != soundpool or self.ios_sound_id is None:
+                self.soundpool_instance = soundpool
+                self.ios_sound_id = soundpool.load(self.ios_sound_path, 1)
+            
+            if self.ios_sound_id:
+                AudioManager = find_class("android.media.AudioManager")
+                ApplicationLoader = find_class("org.telegram.messenger.ApplicationLoader")
+                context = ApplicationLoader.applicationContext
+                audio_manager = context.getSystemService("audio")
+                
+                max_volume = audio_manager.getStreamMaxVolume(AudioManager.STREAM_NOTIFICATION)
+                current_volume = audio_manager.getStreamVolume(AudioManager.STREAM_NOTIFICATION)
+                volume_ratio = float(current_volume) / float(max_volume) if max_volume > 0 else 1.0
+                
+                soundpool.play(self.ios_sound_id, volume_ratio, volume_ratio, 1, 0, 1.0)
+        except Exception as e:
             pass
     
     def _hook_search_filter(self):
@@ -11365,6 +11504,83 @@ SEARCH_FILTER_GIFS = 7
 SEARCH_FILTER_GEO = 8
 SEARCH_FILTER_CONTACTS = 9
 SEARCH_FILTER_MENTIONS = 10
+
+
+class PlaySoundHook:
+    def __init__(self, plugin):
+        self.plugin = plugin
+    
+    def before_hooked_method(self, param):
+        setting = self.plugin.get_setting("notification_sound", 1)
+        vibrate_setting = self.plugin.get_setting("in_chat_vibration", 0)
+        
+        if vibrate_setting != 0:
+            try:
+                Vibrator = jclass("android.os.Vibrator")
+                ApplicationLoader = find_class("org.telegram.messenger.ApplicationLoader")
+                context = ApplicationLoader.applicationContext
+                vibrator = context.getSystemService("vibrator")
+                
+                if vibrate_setting == 1:
+                    vibrator.vibrate(30)
+                elif vibrate_setting == 2:
+                    vibrator.vibrate(50)
+                elif vibrate_setting == 3:
+                    pattern = [0, 50, 50, 50]
+                    vibrator.vibrate(pattern, -1)
+                elif vibrate_setting == 4:
+                    vibrator.vibrate(200)
+            except Exception as e:
+                pass
+        
+        if setting == 0:
+            param.setResult(None)
+        elif setting == 2:
+            try:
+                from android.media import MediaPlayer, AudioManager
+                
+                if os.path.exists(self.plugin.ios_sound_path):
+                    mp = MediaPlayer()
+                    mp.setAudioStreamType(AudioManager.STREAM_NOTIFICATION)
+                    mp.setDataSource(self.plugin.ios_sound_path)
+                    mp.prepare()
+                    mp.setVolume(1.0, 1.0)
+                    mp.start()
+                    
+                    def release_player():
+                        try:
+                            mp.release()
+                        except:
+                            pass
+                    
+                    import threading
+                    threading.Timer(3.0, release_player).start()
+                
+                param.setResult(None)
+            except Exception as e:
+                pass
+
+
+class SoundPoolLoadHook:
+    def __init__(self, plugin):
+        self.plugin = plugin
+    
+    def after_hooked_method(self, param):
+        try:
+            context = param.args[0]
+            res_id = param.args[1]
+            
+            R = find_class("org.telegram.messenger.R")
+            if R and res_id == R.raw.sound_in:
+                setting = self.plugin.get_setting("notification_sound", 1)
+                if setting == 2 and os.path.exists(self.plugin.ios_sound_path):
+                    soundpool = param.thisObject
+                    ios_id = soundpool.load(self.plugin.ios_sound_path, 1)
+                    self.plugin.soundpool_instance = soundpool
+                    self.plugin.ios_sound_id = ios_id
+                    param.setResult(ios_id)
+        except Exception as e:
+            pass
 
 
 class SearchFilterOpenSearchHook:
