@@ -2062,16 +2062,13 @@ class UiTweaksPlugin(BasePlugin):
             ) if self.get_setting("hide_star_reaction", False) else None,
             
             Header(text=get_string("pinned_reactions", "Pinned Reactions")),
+            self.Quanta_switch("use_pinned_reactions_chats", get_string("chats", "Chats"), False, lambda v: self._apply_hooks(), link_alias="use_pinned_reactions_chats"),
+            self.Quanta_switch("use_pinned_reactions_channels", get_string("channels", "Channels"), False, lambda v: self._apply_hooks(), link_alias="use_pinned_reactions_channels"),
             self.Quanta_text(
                 text=get_string("configure_pinned_reactions", "Configure Pinned Reactions"),
-                icon="msg_settings",
                 on_click=lambda v: self._open_pinned_reactions_settings_ui(),
                 link_alias="configure_pinned_reactions"
             ),
-            Divider(),
-            Header(text=get_string("enable_for", "Enable For")),
-            self.Quanta_switch("use_pinned_reactions_chats", get_string("chats", "Chats"), False, lambda v: self._apply_hooks(), link_alias="use_pinned_reactions_chats"),
-            self.Quanta_switch("use_pinned_reactions_channels", get_string("channels", "Channels"), False, lambda v: self._apply_hooks(), link_alias="use_pinned_reactions_channels"),
         ])
         
         settings.extend([
