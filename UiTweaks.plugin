@@ -21,6 +21,7 @@ from ui.alert import AlertDialogBuilder
 
 from client_utils import get_last_fragment, get_send_messages_helper, get_messages_storage, run_on_queue, PLUGINS_QUEUE, get_messages_controller, get_account_instance
 from android_utils import run_on_ui_thread, log, OnLongClickListener, OnClickListener
+from com.exteragram.messenger.plugins.ui.components.templates import UniversalFragment
 
 from android.view import View, ViewGroup, Gravity, HapticFeedbackConstants
 from android.widget import FrameLayout, TextView, ImageView, LinearLayout, HorizontalScrollView
@@ -1344,6 +1345,8 @@ class UiTweaksPlugin(BasePlugin):
         self.hook_search_links_ref = None
         self.hook_enter_view_constructor_ref = None
         self.hook_send_message_params_ref = None
+        
+        self.hook_reactions_container_ref = None
 
     def log(self, message: str):
         if self.get_setting("show_logs", False):
@@ -2057,6 +2060,18 @@ class UiTweaksPlugin(BasePlugin):
                 on_click=lambda v: self._show_star_reaction_selector(),
                 link_alias="star_reaction_hide_location"
             ) if self.get_setting("hide_star_reaction", False) else None,
+            
+            Header(text=get_string("pinned_reactions", "Pinned Reactions")),
+            self.Quanta_text(
+                text=get_string("configure_pinned_reactions", "Configure Pinned Reactions"),
+                icon="msg_settings",
+                on_click=lambda v: self._open_pinned_reactions_settings_ui(),
+                link_alias="configure_pinned_reactions"
+            ),
+            Divider(),
+            Header(text=get_string("enable_for", "Enable For")),
+            self.Quanta_switch("use_pinned_reactions_chats", get_string("chats", "Chats"), False, lambda v: self._apply_hooks(), link_alias="use_pinned_reactions_chats"),
+            self.Quanta_switch("use_pinned_reactions_channels", get_string("channels", "Channels"), False, lambda v: self._apply_hooks(), link_alias="use_pinned_reactions_channels"),
         ])
         
         settings.extend([
@@ -2972,6 +2987,7 @@ class UiTweaksPlugin(BasePlugin):
             "hook_search_links_ref",
             "hook_enter_view_constructor_ref",
             "hook_send_message_params_ref",
+            "hook_reactions_container_ref",
         ):
             ref = getattr(self, ref_attr, None)
             if ref:
@@ -3175,6 +3191,9 @@ class UiTweaksPlugin(BasePlugin):
             
             if self.get_setting("disable_link_preview", False):
                 self._hook_disable_link_preview()
+            
+            if self.get_setting("use_pinned_reactions_chats", False) or self.get_setting("use_pinned_reactions_channels", False):
+                self._hook_pinned_reactions()
 
         except Exception as e:
             pass
@@ -4789,6 +4808,107 @@ class UiTweaksPlugin(BasePlugin):
                 soundpool.play(self.ios_sound_id, volume_ratio, volume_ratio, 1, 0, 1.0)
         except Exception as e:
             pass
+    
+    def _open_pinned_reactions_settings_ui(self, view=None):
+        try:
+            from client_utils import get_last_fragment
+            from com.exteragram.messenger.plugins.ui.components.templates import UniversalFragment
+            
+            fragment = get_last_fragment()
+            if fragment is None:
+                return
+            
+            delegate = PinnedReactionsDelegate(self)
+            custom_fragment = UniversalFragment(delegate)
+            fragment.presentFragment(custom_fragment)
+            
+        except Exception:
+            pass
+    
+    def _normalize_emoji(self, emoji_str):
+        normalized = emoji_str.replace("\uFE0F", "")
+        
+        skin_tones = ["\U0001F3FB", "\U0001F3FC", "\U0001F3FD", "\U0001F3FE", "\U0001F3FF"]
+        for tone in skin_tones:
+            normalized = normalized.replace(tone, "")
+        
+        return normalized
+    
+    def _hook_pinned_reactions(self):
+        try:
+            ReactionsContainerLayoutClass = jclass("org.telegram.ui.Components.ReactionsContainerLayout")
+            
+            Boolean = jclass("java.lang.Boolean")
+            
+            setVisibleReactionsList = ReactionsContainerLayoutClass.getClass().getDeclaredMethod(
+                "setVisibleReactionsList",
+                jclass("java.util.List"),
+                Boolean.TYPE
+            )
+            setVisibleReactionsList.setAccessible(True)
+            
+            self.hook_reactions_container_ref = self.hook_method(setVisibleReactionsList, SetVisibleReactionsListHook(self))
+        except Exception:
+            pass
+    
+    def get_pinned_reactions(self, is_channel):
+        if is_channel:
+            if not self.get_setting("use_pinned_reactions_channels", False):
+                return []
+            reactions_json = self.get_setting("pinned_reactions_channels", "[]")
+        else:
+            if not self.get_setting("use_pinned_reactions_chats", False):
+                return []
+            reactions_json = self.get_setting("pinned_reactions_chats", "[]")
+        
+        try:
+            reactions_data = json.loads(reactions_json)
+            return self._json_to_visible_reactions(reactions_data)
+        except Exception:
+            return []
+    
+    def save_pinned_reactions(self, is_channel, reactions_list):
+        normalized_reactions = []
+        for reaction in reactions_list[:7]:
+            if "emoticon" in reaction:
+                normalized_reactions.append({
+                    "emoticon": self._normalize_emoji(reaction["emoticon"])
+                })
+            else:
+                normalized_reactions.append(reaction)
+        
+        reactions_json = json.dumps(normalized_reactions)
+        
+        if is_channel:
+            self.set_setting("pinned_reactions_channels", reactions_json)
+        else:
+            self.set_setting("pinned_reactions_chats", reactions_json)
+    
+    def _json_to_visible_reactions(self, reactions_data):
+        VisibleReaction = jclass("org.telegram.ui.Components.Reactions.ReactionsLayoutInBubble$VisibleReaction")
+        String = jclass("java.lang.String")
+        visible_reactions = []
+        
+        for reaction_dict in reactions_data:
+            try:
+                reaction = VisibleReaction()
+                
+                if "emoticon" in reaction_dict:
+                    normalized_emoji = self._normalize_emoji(reaction_dict["emoticon"])
+                    reaction.emojicon = normalized_emoji
+                    java_string = String(normalized_emoji)
+                    reaction.hash = java_string.hashCode()
+                elif "document_id" in reaction_dict:
+                    reaction.documentId = reaction_dict["document_id"]
+                    reaction.hash = reaction.documentId
+                else:
+                    continue
+                
+                visible_reactions.append(reaction)
+            except Exception:
+                continue
+        
+        return visible_reactions
     
     def _hook_disable_link_preview(self):
         try:
@@ -11668,6 +11788,83 @@ class SoundPoolLoadHook:
             pass
 
 
+class SetVisibleReactionsListHook(MethodHook):
+    
+    def __init__(self, plugin):
+        self.plugin = plugin
+        self.processed_count = 0
+    
+    def before_hooked_method(self, param):
+        try:
+            container = param.thisObject
+            
+            is_channel = self._is_channel_context(container)
+            
+            pinned_reactions = self.plugin.get_pinned_reactions(is_channel)
+            
+            if not pinned_reactions:
+                return
+            
+            original_list = param.args[0]
+            
+            star_reactions = []
+            allowed_reactions = []
+            for i in range(original_list.size()):
+                reaction = original_list.get(i)
+                if hasattr(reaction, 'isStar') and reaction.isStar:
+                    star_reactions.append((i, reaction))
+                else:
+                    allowed_reactions.append(reaction)
+            
+            ArrayList = jclass("java.util.ArrayList")
+            new_list = ArrayList()
+            
+            added_hashes = set()
+            for pinned in pinned_reactions:
+                found = False
+                for allowed in allowed_reactions:
+                    if pinned.hash == allowed.hash:
+                        new_list.add(pinned)
+                        added_hashes.add(pinned.hash)
+                        found = True
+                        break
+            
+            for allowed in allowed_reactions:
+                if allowed.hash not in added_hashes:
+                    new_list.add(allowed)
+ 
+            for original_pos, star_reaction in star_reactions:
+                if original_pos <= new_list.size():
+                    new_list.add(original_pos, star_reaction)
+                else:
+                    new_list.add(star_reaction)
+            
+            param.args[0] = new_list
+            
+            self.processed_count += 1
+            
+        except Exception:
+            pass
+    
+    def _is_channel_context(self, container):
+        try:
+            from client_utils import get_last_fragment
+            fragment = get_last_fragment()
+            
+            if fragment is None:
+                return False
+            
+            ChatActivity = find_class("org.telegram.ui.ChatActivity")
+            if isinstance(fragment, ChatActivity):
+                current_chat = fragment.getCurrentChat()
+                if current_chat is not None:
+                    return not current_chat.megagroup
+            
+            return False
+        except Exception:
+            return False
+
+
 class SearchLinksReplacement(MethodReplacement):
     def replace_hooked_method(self, param):
         return None
@@ -11739,3 +11936,256 @@ class SearchFilterSendRequestHook:
                     
         except:
             pass
+
+
+class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentDelegate)):
+    
+    def __init__(self, plugin):
+        super().__init__()
+        self.plugin = plugin
+        self.listView = None
+        self.current_tab = 0
+        self.emoji_spans = {}
+    
+    def getTitle(self):
+        return "Pinned Reactions"
+    
+    def onFragmentCreate(self):
+        pass
+    
+    def onFragmentDestroy(self):
+        pass
+    
+    def onBackPressed(self):
+        return True
+    
+    def beforeCreateView(self):
+        return None
+
+    def onLongClick(self, item, view, position, x, y):
+        return False
+    
+    def _get_emoji_for_document_id(self, document_id):
+        try:
+            from android.text import SpannableString, Spanned
+            from org.telegram.ui.Components import AnimatedEmojiSpan
+            
+            spannable = SpannableString(" ")
+            span = AnimatedEmojiSpan(document_id, None)
+            spannable.setSpan(span, 0, spannable.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            return spannable
+        except Exception:
+            return f"ID: {document_id}"    
+    
+    def afterCreateView(self, view):
+        from org.telegram.ui.Components import UniversalRecyclerView
+        if hasattr(view, 'getChildAt'):
+            for i in range(view.getChildCount()):
+                child = view.getChildAt(i)
+                if isinstance(child, UniversalRecyclerView):
+                    self.listView = child
+                    break
+        return None
+    
+    def fillItems(self, items, adapter):
+        from org.telegram.ui.Components import UItem
+        from org.telegram.messenger import Utilities
+        from java import jarray, jclass, dynamic_proxy
+        
+        def on_tab_change(tab_index):
+            self.current_tab = tab_index
+            if self.listView is not None:
+                self.listView.adapter.update(True)
+        
+        CallbackInterface = Utilities.Callback
+        class TabCallback(dynamic_proxy(CallbackInterface)):
+            def __init__(self, callback):
+                super().__init__()
+                self.callback = callback
+            
+            def run(self, value):
+                self.callback(value)
+        
+        String = jclass('java.lang.String')
+        tab_names = jarray(String)(["Chats", "Channels"])
+        
+        items.add(UItem.asSlideView(
+            tab_names,
+            self.current_tab,
+            TabCallback(on_tab_change)
+        ))
+        
+        is_channel = self.current_tab == 1
+        reactions_list = self._get_reactions_list(is_channel)
+        
+        items.add(UItem.asHeader(f"Pinned Reactions ({len(reactions_list)}/7)"))
+        
+        if reactions_list:
+            for idx, reaction in enumerate(reactions_list):
+                if "document_id" in reaction:
+                    document_id = reaction["document_id"]
+                    emoji_span = self._get_emoji_for_document_id(document_id)
+                    
+                    from android.text import SpannableStringBuilder
+                    combined = SpannableStringBuilder()
+                    combined.append(emoji_span)
+                    combined.append("  Tap to remove")
+                    
+                    self.emoji_spans[100 + idx] = combined
+                    button_item = UItem.asButton(100 + idx, combined).accent()
+                else:
+                    emoji = reaction.get("emoticon", "?")
+                    button_text = f"{emoji}  Tap to remove"
+                    button_item = UItem.asButton(100 + idx, button_text).accent()
+                
+                items.add(button_item)
+        else:
+            items.add(UItem.asShadow("No reactions pinned yet"))
+        
+        if len(reactions_list) < 7:
+            items.add(UItem.asButton(200, "Add Reaction").accent())
+        
+        items.add(UItem.asShadow(
+            "Tap Add Reaction and enter an emoji"
+        ))
+    
+    def onClick(self, item, view, position, x, y):
+        from ui.alert import AlertDialogBuilder
+        from android_utils import run_on_ui_thread
+        
+        item_id = item.id
+        
+        if 100 <= item_id < 200:
+            idx = item_id - 100
+            is_channel = self.current_tab == 1
+            reactions = self._get_reactions_list(is_channel)
+            if idx < len(reactions):
+                reactions.pop(idx)
+                self.plugin.save_pinned_reactions(is_channel, reactions)
+                if self.listView is not None:
+                    self.listView.adapter.update(True)
+        elif item_id == 200:
+            self._show_add_reaction_dialog()
+    
+    def _show_add_reaction_dialog(self):
+        from ui.alert import AlertDialogBuilder
+        from client_utils import get_last_fragment
+        from org.telegram.ui.Components import EditTextBoldCursor
+        from org.telegram.ui.ActionBar import Theme
+        from org.telegram.messenger import AndroidUtilities
+        from android.text import InputType
+        from android.util import TypedValue
+        from android.widget import FrameLayout
+        from android.view import Gravity
+        from android_utils import run_on_ui_thread
+        
+        fragment = get_last_fragment()
+        if fragment is None:
+            return
+        
+        activity = fragment.getParentActivity()
+        if activity is None:
+            return
+
+        edit_text = EditTextBoldCursor(activity)
+        edit_text.setHint("Document ID")
+        edit_text.setInputType(InputType.TYPE_CLASS_TEXT)
+        edit_text.setMaxLines(1)
+        edit_text.setSingleLine(True)
+        edit_text.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18)
+        edit_text.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText))
+        edit_text.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteHintText))
+        edit_text.setBackground(Theme.createEditTextDrawable(activity, True))
+        edit_text.setCursorColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader))
+        edit_text.setCursorSize(AndroidUtilities.dp(20))
+        edit_text.setCursorWidth(1.5)
+        edit_text.setPadding(0, 0, 0, 0)
+        edit_text.setFocusable(True)
+        
+        builder = AlertDialogBuilder(activity)
+        builder.set_title("Add Reaction")
+        builder.set_message("Enter the document ID of the emoji you want to pin")
+        builder.set_view(edit_text)
+        
+        def on_add(dialog, which):
+            from ui.bulletin import BulletinHelper
+            from org.telegram.messenger import UserConfig
+            
+            input_text = str(edit_text.getText()).strip()
+            if not input_text:
+                return
+            
+            is_channel = self.current_tab == 1
+            reactions = self._get_reactions_list(is_channel)
+            
+            try:
+                document_id = int(input_text)
+                
+                if not UserConfig.getInstance(0).isPremium():
+                    BulletinHelper.show_error("Premium required", fragment)
+                    return
+                
+                for reaction in reactions:
+                    if reaction.get("document_id") == document_id:
+                        BulletinHelper.show_error("Already pinned", fragment)
+                        return
+                
+                if len(reactions) < 7:
+                    reactions.append({"document_id": document_id})
+                    self.plugin.save_pinned_reactions(is_channel, reactions)
+                    run_on_ui_thread(lambda: self.listView.adapter.update(True) if self.listView else None, 100)
+            except ValueError:
+                for reaction in reactions:
+                    if reaction.get("emoticon") == input_text:
+                        BulletinHelper.show_error("Already pinned", fragment)
+                        return
+                
+                if len(reactions) < 7:
+                    reactions.append({"emoticon": input_text})
+                    self.plugin.save_pinned_reactions(is_channel, reactions)
+                    run_on_ui_thread(lambda: self.listView.adapter.update(True) if self.listView else None, 100)
+        
+        def on_cancel_click(dialog, which):
+            try:
+                AndroidUtilities.hideKeyboard(edit_text)
+            except Exception:
+                pass
+            dialog.dismiss()
+        
+        builder.set_positive_button("Add", on_add)
+        builder.set_negative_button("Cancel", on_cancel_click)
+        
+        dialog = builder.show()
+        
+        def apply_layout_params():
+            try:
+                layout_params = edit_text.getLayoutParams()
+                if layout_params is not None:
+                    if isinstance(layout_params, FrameLayout.LayoutParams):
+                        layout_params.gravity = Gravity.CENTER_HORIZONTAL
+                    
+                    if hasattr(layout_params, 'rightMargin'):
+                        layout_params.rightMargin = AndroidUtilities.dp(24)
+                        layout_params.leftMargin = AndroidUtilities.dp(24)
+                        layout_params.height = AndroidUtilities.dp(36)
+                        layout_params.bottomMargin = AndroidUtilities.dp(15)
+                    edit_text.setLayoutParams(layout_params)
+                
+                edit_text.requestFocus()
+                text_length = edit_text.getText().length() if edit_text.getText() else 0
+                edit_text.setSelection(0, text_length)
+            except Exception:
+                pass
+        
+        run_on_ui_thread(apply_layout_params, 100)
+    
+    def _get_reactions_list(self, is_channel):
+        if is_channel:
+            reactions_json = self.plugin.get_setting("pinned_reactions_channels", "[]")
+        else:
+            reactions_json = self.plugin.get_setting("pinned_reactions_chats", "[]")
+        
+        try:
+            return json.loads(reactions_json)
+        except:
+            return []
