@@ -4702,7 +4702,9 @@ class UiTweaksPlugin(BasePlugin):
             self.ios_sound_path = os.path.join(files_dir, "custom_received.mp3")
             
             if not os.path.exists(self.ios_sound_path):
-                IOS_SOUND_URL = "https://raw.githubusercontent.com/luvztroy/UiTweaks/Beta/Assets/Audio/Custom%20received.mp3"
+                branch_index = self.get_setting("update_branch", 0)
+                branch = "main" if branch_index == 0 else "Beta"
+                IOS_SOUND_URL = f"https://raw.githubusercontent.com/luvztroy/UiTweaks/{branch}/Assets/Audio/Custom%20received.mp3"
                 urllib.request.urlretrieve(IOS_SOUND_URL, self.ios_sound_path)
         except Exception as e:
             pass
@@ -11945,7 +11947,7 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
         self.emoji_spans = {}
     
     def getTitle(self):
-        return "Pinned Reactions"
+        return get_string("pinned_reactions_title", "Pinned Reactions")
     
     def onFragmentCreate(self):
         pass
@@ -12004,7 +12006,7 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
                 self.callback(value)
         
         String = jclass('java.lang.String')
-        tab_names = jarray(String)(["Chats", "Channels"])
+        tab_names = jarray(String)([get_string("chats", "Chats"), get_string("channels", "Channels")])
         
         items.add(UItem.asSlideView(
             tab_names,
@@ -12015,7 +12017,7 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
         is_channel = self.current_tab == 1
         reactions_list = self._get_reactions_list(is_channel)
         
-        items.add(UItem.asHeader(f"Pinned Reactions ({len(reactions_list)}/7)"))
+        items.add(UItem.asHeader(get_string("pinned_reactions_count", f"Pinned Reactions ({len(reactions_list)}/7)")))
         
         if reactions_list:
             for idx, reaction in enumerate(reactions_list):
@@ -12026,24 +12028,24 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
                     from android.text import SpannableStringBuilder
                     combined = SpannableStringBuilder()
                     combined.append(emoji_span)
-                    combined.append("  Tap to remove")
+                    combined.append(f"  {get_string('tap_to_remove', 'Tap to remove')}")
                     
                     self.emoji_spans[100 + idx] = combined
                     button_item = UItem.asButton(100 + idx, combined).accent()
                 else:
                     emoji = reaction.get("emoticon", "?")
-                    button_text = f"{emoji}  Tap to remove"
+                    button_text = f"{emoji}  {get_string('tap_to_remove', 'Tap to remove')}"
                     button_item = UItem.asButton(100 + idx, button_text).accent()
                 
                 items.add(button_item)
         else:
-            items.add(UItem.asShadow("No reactions pinned yet"))
+            items.add(UItem.asShadow(get_string("no_reactions_pinned", "No reactions pinned yet")))
         
         if len(reactions_list) < 7:
-            items.add(UItem.asButton(200, "Add Reaction").accent())
+            items.add(UItem.asButton(200, get_string("add_reaction", "Add Reaction")).accent())
         
         items.add(UItem.asShadow(
-            "Tap Add Reaction and enter an emoji"
+            get_string("add_reaction_hint", "Tap Add Reaction and enter an emoji")
         ))
     
     def onClick(self, item, view, position, x, y):
@@ -12085,7 +12087,7 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
             return
 
         edit_text = EditTextBoldCursor(activity)
-        edit_text.setHint("Document ID")
+        edit_text.setHint(get_string("document_id_hint", "Document ID"))
         edit_text.setInputType(InputType.TYPE_CLASS_TEXT)
         edit_text.setMaxLines(1)
         edit_text.setSingleLine(True)
@@ -12100,8 +12102,8 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
         edit_text.setFocusable(True)
         
         builder = AlertDialogBuilder(activity)
-        builder.set_title("Add Reaction")
-        builder.set_message("Enter the document ID of the emoji you want to pin")
+        builder.set_title(get_string("add_reaction_title", "Add Reaction"))
+        builder.set_message(get_string("add_reaction_message", "Enter the document ID of the emoji you want to pin"))
         builder.set_view(edit_text)
         
         def on_add(dialog, which):
@@ -12119,12 +12121,12 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
                 document_id = int(input_text)
                 
                 if not UserConfig.getInstance(0).isPremium():
-                    BulletinHelper.show_error("Premium required", fragment)
+                    BulletinHelper.show_error(get_string("premium_required", "Premium required"), fragment)
                     return
                 
                 for reaction in reactions:
                     if reaction.get("document_id") == document_id:
-                        BulletinHelper.show_error("Already pinned", fragment)
+                        BulletinHelper.show_error(get_string("already_pinned", "Already pinned"), fragment)
                         return
                 
                 if len(reactions) < 7:
@@ -12134,7 +12136,7 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
             except ValueError:
                 for reaction in reactions:
                     if reaction.get("emoticon") == input_text:
-                        BulletinHelper.show_error("Already pinned", fragment)
+                        BulletinHelper.show_error(get_string("already_pinned", "Already pinned"), fragment)
                         return
                 
                 if len(reactions) < 7:
@@ -12149,8 +12151,8 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
                 pass
             dialog.dismiss()
         
-        builder.set_positive_button("Add", on_add)
-        builder.set_negative_button("Cancel", on_cancel_click)
+        builder.set_positive_button(get_string("button_add", "Add"), on_add)
+        builder.set_negative_button(get_string("button_cancel", "Cancel"), on_cancel_click)
         
         dialog = builder.show()
         
