@@ -11804,6 +11804,8 @@ class SetVisibleReactionsListHook(MethodHook):
             
             original_list = param.args[0]
             
+            allowed_reactions_type = self._get_allowed_reactions_type(is_channel)
+            
             star_reactions = []
             allowed_reactions = []
             for i in range(original_list.size()):
@@ -11825,6 +11827,11 @@ class SetVisibleReactionsListHook(MethodHook):
                         added_hashes.add(pinned.hash)
                         found = True
                         break
+                
+                if not found:
+                    if "All" in str(allowed_reactions_type):
+                        new_list.add(pinned)
+                        added_hashes.add(pinned.hash)
             
             for allowed in allowed_reactions:
                 if allowed.hash not in added_hashes:
@@ -11860,6 +11867,32 @@ class SetVisibleReactionsListHook(MethodHook):
             return False
         except Exception:
             return False
+    
+    def _get_allowed_reactions_type(self, is_channel):
+        try:
+            from client_utils import get_last_fragment
+            
+            fragment = get_last_fragment()
+            if fragment is None:
+                return "Unknown"
+            
+            ChatActivity = find_class("org.telegram.ui.ChatActivity")
+            if isinstance(fragment, ChatActivity):
+                current_chat = fragment.getCurrentChat()
+                if current_chat is not None:
+                    MessagesController = find_class("org.telegram.messenger.MessagesController")
+                    if MessagesController:
+                        mc = MessagesController.getInstance(0)
+                        chat_full = mc.getChatFull(current_chat.id)
+                        if chat_full and hasattr(chat_full, 'available_reactions'):
+                            reactions_obj = chat_full.available_reactions
+                            if reactions_obj:
+                                class_name = reactions_obj.getClass().getSimpleName()
+                                return class_name
+            
+            return "Unknown"
+        except Exception:
+            return "Unknown"
 
 
 class SearchLinksReplacement(MethodReplacement):
