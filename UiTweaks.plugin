@@ -12180,12 +12180,12 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
                 document_id = int(input_text)
                 
                 if not UserConfig.getInstance(0).isPremium():
-                    BulletinHelper.show_error(get_string("premium_required", "Premium required"), fragment)
+                    BulletinHelper.show_simple(get_string("premium_required", "Premium required"), R_tg.raw.star_premium_2, fragment)
                     return
                 
                 for reaction in reactions:
                     if reaction.get("document_id") == document_id:
-                        BulletinHelper.show_error(get_string("already_pinned", "Already pinned"), fragment)
+                        BulletinHelper.show_simple(get_string("already_pinned", "Already pinned"), R_tg.raw.ic_pin, fragment)
                         return
                 
                 if len(reactions) < 7:
@@ -12195,7 +12195,7 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
             except ValueError:
                 for reaction in reactions:
                     if reaction.get("emoticon") == input_text:
-                        BulletinHelper.show_error(get_string("already_pinned", "Already pinned"), fragment)
+                        BulletinHelper.show_simple(get_string("already_pinned", "Already pinned"), R_tg.raw.ic_pin, fragment)
                         return
                 
                 if len(reactions) < 7:
