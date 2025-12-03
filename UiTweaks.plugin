@@ -2834,26 +2834,6 @@ class UiTweaksPlugin(BasePlugin):
             self._send_comments_pending[peer] = (params, account)
             return HookResult(strategy=HookStrategy.CANCEL)
         
-        try:
-            decoded = base64.b64decode(message).decode()
-            data = json.loads(decoded)
-            if data.get("plugin") == "UiTweaks" and "settings" in data:
-                entities = getattr(params, "entities", None)
-                if entities is None:
-                    from java.util import ArrayList
-                    entities = ArrayList()
-                
-                blockquote_entity = TLRPC.TL_messageEntityBlockquote()
-                blockquote_entity.collapsed = True
-                blockquote_entity.offset = 0
-                blockquote_entity.length = len(message.encode('utf-16-le')) // 2
-                entities.add(0, blockquote_entity)
-                params.entities = entities
-                
-                return HookResult(strategy=HookStrategy.MODIFY, params=params)
-        except:
-            pass
-        
         return HookResult()
 
     def _cleanup_activity_resources(self):
