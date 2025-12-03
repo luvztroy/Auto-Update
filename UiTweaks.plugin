@@ -2062,8 +2062,6 @@ class UiTweaksPlugin(BasePlugin):
             ) if self.get_setting("hide_star_reaction", False) else None,
             
             Header(text=get_string("pinned_reactions", "Pinned Reactions")),
-            self.Quanta_switch("use_pinned_reactions_chats", get_string("chats", "Chats"), False, lambda v: self._apply_hooks(), link_alias="use_pinned_reactions_chats"),
-            self.Quanta_switch("use_pinned_reactions_channels", get_string("channels", "Channels"), False, lambda v: self._apply_hooks(), link_alias="use_pinned_reactions_channels"),
             self.Quanta_text(
                 text=get_string("configure_pinned_reactions", "Configure Pinned Reactions"),
                 on_click=lambda v: self._open_pinned_reactions_settings_ui(),
@@ -3189,7 +3187,7 @@ class UiTweaksPlugin(BasePlugin):
             if self.get_setting("disable_link_preview", False):
                 self._hook_disable_link_preview()
             
-            if self.get_setting("use_pinned_reactions_chats", False) or self.get_setting("use_pinned_reactions_channels", False):
+            if self.get_setting("pinned_reactions_enabled_chats", "true") == "true" or self.get_setting("pinned_reactions_enabled_channels", "true") == "true":
                 self._hook_pinned_reactions()
 
         except Exception as e:
@@ -4852,11 +4850,11 @@ class UiTweaksPlugin(BasePlugin):
     
     def get_pinned_reactions(self, is_channel):
         if is_channel:
-            if not self.get_setting("use_pinned_reactions_channels", False):
+            if self.get_setting("pinned_reactions_enabled_channels", "true") != "true":
                 return []
             reactions_json = self.get_setting("pinned_reactions_channels", "[]")
         else:
-            if not self.get_setting("use_pinned_reactions_chats", False):
+            if self.get_setting("pinned_reactions_enabled_chats", "true") != "true":
                 return []
             reactions_json = self.get_setting("pinned_reactions_chats", "[]")
         
@@ -11987,66 +11985,85 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
         return None
     
     def fillItems(self, items, adapter):
-        from org.telegram.ui.Components import UItem
-        from org.telegram.messenger import Utilities
-        from java import jarray, jclass, dynamic_proxy
-        
-        def on_tab_change(tab_index):
-            self.current_tab = tab_index
-            if self.listView is not None:
-                self.listView.adapter.update(True)
-        
-        CallbackInterface = Utilities.Callback
-        class TabCallback(dynamic_proxy(CallbackInterface)):
-            def __init__(self, callback):
-                super().__init__()
-                self.callback = callback
+        try:
+            from org.telegram.ui.Components import UItem
+            from org.telegram.messenger import Utilities
+            from java import jarray, jclass, dynamic_proxy
             
-            def run(self, value):
-                self.callback(value)
-        
-        String = jclass('java.lang.String')
-        tab_names = jarray(String)([get_string("chats", "Chats"), get_string("channels", "Channels")])
-        
-        items.add(UItem.asSlideView(
-            tab_names,
-            self.current_tab,
-            TabCallback(on_tab_change)
-        ))
-        
-        is_channel = self.current_tab == 1
-        reactions_list = self._get_reactions_list(is_channel)
-        
-        items.add(UItem.asHeader(get_string("pinned_reactions_count", f"Pinned Reactions ({len(reactions_list)}/7)")))
-        
-        if reactions_list:
-            for idx, reaction in enumerate(reactions_list):
-                if "document_id" in reaction:
-                    document_id = reaction["document_id"]
-                    emoji_span = self._get_emoji_for_document_id(document_id)
-                    
-                    from android.text import SpannableStringBuilder
-                    combined = SpannableStringBuilder()
-                    combined.append(emoji_span)
-                    combined.append(f"  {get_string('tap_to_remove', 'Tap to remove')}")
-                    
-                    self.emoji_spans[100 + idx] = combined
-                    button_item = UItem.asButton(100 + idx, combined).accent()
-                else:
-                    emoji = reaction.get("emoticon", "?")
-                    button_text = f"{emoji}  {get_string('tap_to_remove', 'Tap to remove')}"
-                    button_item = UItem.asButton(100 + idx, button_text).accent()
+            def on_tab_change(tab_index):
+                self.current_tab = tab_index
+                if self.listView is not None:
+                    self.listView.adapter.update(True)
+            
+            CallbackInterface = Utilities.Callback
+            class TabCallback(dynamic_proxy(CallbackInterface)):
+                def __init__(self, callback):
+                    super().__init__()
+                    self.callback = callback
                 
-                items.add(button_item)
-        else:
-            items.add(UItem.asShadow(get_string("no_reactions_pinned", "No reactions pinned yet")))
+                def run(self, value):
+                    self.callback(value)
+            
+            String = jclass('java.lang.String')
+            tab_names = jarray(String)([get_string("chats", "Chats"), get_string("channels", "Channels")])
+            
+            items.add(UItem.asSlideView(
+                tab_names,
+                self.current_tab,
+                TabCallback(on_tab_change)
+            ))
         
-        if len(reactions_list) < 7:
-            items.add(UItem.asButton(200, get_string("add_reaction", "Add Reaction")).accent())
+            is_channel = self.current_tab == 1
+            reactions_list = self._get_reactions_list(is_channel)
+            
+            enable_key = "pinned_reactions_enabled_channels" if is_channel else "pinned_reactions_enabled_chats"
+            is_enabled = self.plugin.get_setting(enable_key, "true") == "true"
+            
+            def on_switch_change(enabled):
+                self.plugin.set_setting(enable_key, "true" if enabled else "false")
+                if self.listView:
+                    self.listView.adapter.update(True)
+            
+            switch_title = get_string("channels", "Enable Pinned Reactions in Channels") if is_channel else get_string("chats", "Enable Pinned Reactions in Chats")
+            items.add(UItem.asCheck(
+                1,
+                switch_title
+            ).setChecked(is_enabled))
+            
+            items.add(UItem.asShadow(get_string("pin_reactions_info", "You can pin reactions from any pack")))
+            
+            
+            if reactions_list:
+                for idx, reaction in enumerate(reactions_list):
+                    if "document_id" in reaction:
+                        document_id = reaction["document_id"]
+                        emoji_span = self._get_emoji_for_document_id(document_id)
+                        
+                        from android.text import SpannableStringBuilder
+                        combined = SpannableStringBuilder()
+                        combined.append(emoji_span)
+                        combined.append(f"  {get_string('tap_to_remove', 'Tap to remove')}")
+                        
+                        self.emoji_spans[100 + idx] = combined
+                        button_item = UItem.asButton(100 + idx, combined).accent()
+                    else:
+                        emoji = reaction.get("emoticon", "?")
+                        button_text = f"{emoji}  {get_string('tap_to_remove', 'Tap to remove')}"
+                        button_item = UItem.asButton(100 + idx, button_text).accent()
+                    
+                    items.add(button_item)
+            else:
+                items.add(UItem.asShadow(get_string("no_reactions_pinned", "No reactions pinned yet")))
+            
+            if len(reactions_list) < 7:
+                items.add(UItem.asButton(200, get_string("add_reaction", "Add Reaction")).accent())
+            
+            items.add(UItem.asShadow(
+                get_string("add_reaction_hint", "Tap Add Reaction and enter an emoji")
+            ))
         
-        items.add(UItem.asShadow(
-            get_string("add_reaction_hint", "Tap Add Reaction and enter an emoji")
-        ))
+        except Exception:
+            pass
     
     def onClick(self, item, view, position, x, y):
         from ui.alert import AlertDialogBuilder
@@ -12054,7 +12071,14 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
         
         item_id = item.id
         
-        if 100 <= item_id < 200:
+        if item_id == 1:
+            is_channel = self.current_tab == 1
+            enable_key = "pinned_reactions_enabled_channels" if is_channel else "pinned_reactions_enabled_chats"
+            current_value = self.plugin.get_setting(enable_key, "true") == "true"
+            self.plugin.set_setting(enable_key, "false" if current_value else "true")
+            if self.listView:
+                self.listView.adapter.update(True)
+        elif 100 <= item_id < 200:
             idx = item_id - 100
             is_channel = self.current_tab == 1
             reactions = self._get_reactions_list(is_channel)
