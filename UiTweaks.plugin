@@ -15,7 +15,7 @@ from base_plugin import BasePlugin, MenuItemData, MenuItemType, HookResult, Hook
 from hook_utils import find_class, get_private_field, set_private_field
 from java import dynamic_proxy, jclass, jlong
 
-from ui.settings import Header, Switch, Divider, Selector, Text
+from ui.settings import Header, Switch, Divider, Selector, Text, EditText
 from ui.bulletin import BulletinHelper
 from ui.alert import AlertDialogBuilder
 
@@ -2100,6 +2100,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("enable_ai_summarize", get_string("enable_ai_summarize", "Summarize Chat"), False, lambda v: self._apply_hooks(), link_alias="enable_ai_summarize"),
             self.Quanta_switch("enable_search_filter", get_string("enable_search_filter", "Search Filter"), False, lambda v: self._apply_hooks(), link_alias="enable_search_filter"),
             self.Quanta_switch("disable_link_preview", get_string("disable_link_preview", "Disable Link Preview"), False, lambda v: self._apply_hooks(), link_alias="disable_link_preview"),
+            EditText(key="disable_link_preview_exclude_pattern", hint=get_string("disable_link_preview_pattern_hint", "Regex pattern to exclude"), default="", max_length=500, multiline=True) if self.get_setting("disable_link_preview", False) else None,
         ])
         
         settings.extend([
@@ -4931,7 +4932,7 @@ class UiTweaksPlugin(BasePlugin):
             )
             search_links_method.setAccessible(True)
             
-            self.hook_search_links_ref = self.hook_method(search_links_method, SearchLinksReplacement())
+            self.hook_search_links_ref = self.hook_method(search_links_method, SearchLinksReplacement(self))
             
         except Exception as e:
             pass
@@ -11901,9 +11902,38 @@ class SetVisibleReactionsListHook(MethodHook):
             return "TL_chatReactionsAll"
 
 
-class SearchLinksReplacement(MethodReplacement):
-    def replace_hooked_method(self, param):
-        return None
+class SearchLinksReplacement(MethodHook):
+    def __init__(self, plugin_instance):
+        super().__init__()
+        self.plugin = plugin_instance
+    
+    def before_hooked_method(self, param):
+        try:
+            text = param.args[0] if len(param.args) > 0 else None
+            if not text:
+                param.setResult(None)
+                return
+            
+            text_str = str(text)
+            exclude_pattern = self.plugin.get_setting("disable_link_preview_exclude_pattern", "")
+            
+            if not exclude_pattern or exclude_pattern.strip() == "":
+                param.setResult(None)
+                return
+            
+            try:
+                if re.search(exclude_pattern, text_str, re.IGNORECASE):
+                    return
+                else:
+                    param.setResult(None)
+                    return
+            except re.error as e:
+                param.setResult(None)
+                return
+            
+        except Exception as e:
+            param.setResult(None)
+            return
 
 
 class EnterViewConstructorHook:
