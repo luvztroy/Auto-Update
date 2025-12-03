@@ -2101,6 +2101,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("enable_search_filter", get_string("enable_search_filter", "Search Filter"), False, lambda v: self._apply_hooks(), link_alias="enable_search_filter"),
             self.Quanta_switch("disable_link_preview", get_string("disable_link_preview", "Disable Link Preview"), False, lambda v: self._apply_hooks(), link_alias="disable_link_preview"),
             EditText(key="disable_link_preview_exclude_pattern", hint=get_string("disable_link_preview_pattern_hint", "Regex pattern to exclude"), default="", max_length=500, multiline=True) if self.get_setting("disable_link_preview", False) else None,
+            Divider(text=get_string("disable_link_preview_info", "You can exclude links that match the regex pattern. Use regex101.com to check your pattern")) if self.get_setting("disable_link_preview", False) else None,
         ])
         
         settings.extend([
