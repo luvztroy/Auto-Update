@@ -12032,6 +12032,8 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
             
             items.add(UItem.asShadow(get_string("pin_reactions_info", "You can pin reactions from any pack")))
             
+            header_text = get_string("pinned_reactions_count", "Pinned Reactions ({count}/7)").format(count=len(reactions_list))
+            items.add(UItem.asHeader(header_text))
             
             if reactions_list:
                 for idx, reaction in enumerate(reactions_list):
