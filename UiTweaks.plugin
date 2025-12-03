@@ -12024,7 +12024,7 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
                 if self.listView:
                     self.listView.adapter.update(True)
             
-            switch_title = get_string("channels", "Enable Pinned Reactions in Channels") if is_channel else get_string("chats", "Enable Pinned Reactions in Chats")
+            switch_title = get_string("channels_switch", "Enable Pinned Reactions in Channels") if is_channel else get_string("chats_switch", "Enable Pinned Reactions in Chats")
             items.add(UItem.asCheck(
                 1,
                 switch_title
