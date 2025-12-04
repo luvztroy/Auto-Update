@@ -1518,6 +1518,8 @@ class UiTweaksPlugin(BasePlugin):
         self.hook_always_visible_schedule_button_ref = None
         self.hook_remove_greeting_sticker_ref = None
         self.hook_remove_https_from_links_ref = None
+        self.hook_share_alert_forward_open_ref = None
+        self.hook_share_alert_forward_process_ref = None
         
         try:
             locale_controller = LocaleController.getInstance()
@@ -2096,6 +2098,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("enable_ai_summarize", get_string("enable_ai_summarize", "Summarize Chat"), False, lambda v: self._apply_hooks(), link_alias="enable_ai_summarize"),
             self.Quanta_switch("enable_search_filter", get_string("enable_search_filter", "Search Filter"), False, lambda v: self._apply_hooks(), link_alias="enable_search_filter"),
             self.Quanta_switch("enable_old_forward", get_string("enable_old_forward", "Old Forward Sheet"), False, lambda v: self._apply_hooks(), link_alias="enable_old_forward"),
+            self.Quanta_switch("enable_share_alert_forward", get_string("enable_share_alert_forward", "ShareAlert for All Forwards"), False, lambda v: self._handle_forward_mode_change("enable_share_alert_forward", v), link_alias="enable_share_alert_forward"),
             self.Quanta_switch("disable_link_preview", get_string("disable_link_preview", "Disable Link Preview"), False, lambda v: self._apply_hooks(), link_alias="disable_link_preview"),
             EditText(key="disable_link_preview_exclude_pattern", hint=get_string("disable_link_preview_pattern_hint", "Regex pattern to exclude"), default="", max_length=500, multiline=True) if self.get_setting("disable_link_preview", False) else None,
             Divider(text=get_string("disable_link_preview_info", "You can exclude links that match the regex pattern. Use regex101.com to check your pattern")) if self.get_setting("disable_link_preview", False) else None,
@@ -2962,6 +2965,8 @@ class UiTweaksPlugin(BasePlugin):
             "hook_enter_view_constructor_ref",
             "hook_send_message_params_ref",
             "hook_reactions_container_ref",
+            "hook_share_alert_forward_open_ref",
+            "hook_share_alert_forward_process_ref",
         ):
             ref = getattr(self, ref_attr, None)
             if ref:
@@ -3167,6 +3172,9 @@ class UiTweaksPlugin(BasePlugin):
             
             if self.get_setting("pinned_reactions_enabled_chats", "true") == "true" or self.get_setting("pinned_reactions_enabled_channels", "true") == "true":
                 self._hook_pinned_reactions()
+            
+            if self.get_setting("enable_share_alert_forward", False):
+                self._hook_share_alert_forward()
 
         except Exception as e:
             pass
@@ -4528,6 +4536,12 @@ class UiTweaksPlugin(BasePlugin):
             return self.custom_saved_chat_id
         return UserConfig.getInstance(UserConfig.selectedAccount).clientUserId
     
+    def _handle_forward_mode_change(self, setting_key, enabled):
+        if enabled:
+            other_key = "enable_share_alert_forward" if setting_key == "enable_old_forward" else "enable_old_forward"
+            self.set_setting(other_key, False, reload_settings=True)
+        self._apply_hooks()
+    
     def _select_custom_saved_chat(self):
         fragment = get_last_fragment()
         if not fragment:
@@ -4958,6 +4972,21 @@ class UiTweaksPlugin(BasePlugin):
                 continue
         
         return visible_reactions
+    
+    def _hook_share_alert_forward(self):
+        try:
+            ChatActivity = find_class("org.telegram.ui.ChatActivity")
+            activity_class = ChatActivity.getClass()
+            
+            method1 = activity_class.getDeclaredMethod("openForward", jclass("java.lang.Boolean").TYPE)
+            method1.setAccessible(True)
+            self.hook_share_alert_forward_open_ref = self.hook_method(method1, OpenForwardHook())
+            
+            method2 = activity_class.getDeclaredMethod("processSelectedOption", jclass("java.lang.Integer").TYPE)
+            method2.setAccessible(True)
+            self.hook_share_alert_forward_process_ref = self.hook_method(method2, ProcessSelectedOptionHook())
+        except Exception:
+            pass
     
     def _hook_disable_link_preview(self):
         try:
@@ -12340,3 +12369,45 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
             return json.loads(reactions_json)
         except:
             return []
+
+
+class ProcessSelectedOptionHook(MethodHook):
+    def before_hooked_method(self, param):
+        if param.args[0] == 2:
+            activity = param.thisObject
+            activity_class = activity.getClass()
+            
+            selected = activity_class.getDeclaredField("selectedObject")
+            selected.setAccessible(True)
+            
+            selected_group = activity_class.getDeclaredField("selectedObjectGroup")
+            selected_group.setAccessible(True)
+            
+            forwarding = activity_class.getDeclaredField("forwardingMessage")
+            forwarding.setAccessible(True)
+            forwarding.set(activity, selected.get(activity))
+            
+            forwarding_group = activity_class.getDeclaredField("forwardingMessageGroup")
+            forwarding_group.setAccessible(True)
+            forwarding_group.set(activity, selected_group.get(activity))
+            
+            try:
+                scrim = activity_class.getDeclaredField("scrimPopupWindow")
+                scrim.setAccessible(True)
+                popup = scrim.get(activity)
+                if popup:
+                    popup.dismiss()
+            except:
+                pass
+            
+            method = activity_class.getDeclaredMethod("openForward", jclass("java.lang.Boolean").TYPE)
+            method.setAccessible(True)
+            method.invoke(activity, False)
+            
+            param.setResult(None)
+
+
+class OpenForwardHook(MethodHook):
+    def before_hooked_method(self, param):
+        if param.args[0]:
+            param.args[0] = False
