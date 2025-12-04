@@ -3565,117 +3565,6 @@ class UiTweaksPlugin(BasePlugin):
         self.current_mode = "forward"
         log("[UiTweaks]current_mode reset to 'forward'")
 
-    def _perform_hide_caption_forward(self, chat_activity):
-        try:
-            from java.util import ArrayList
-            messages_to_forward = ArrayList()
-            
-            selectedIds = get_private_field(chat_activity, "selectedMessagesIds")
-            messagesDict = get_private_field(chat_activity, "messagesDict")
-            
-            if selectedIds is not None and messagesDict is not None:
-                for a in range(2):
-                    ids = selectedIds[a]
-                    if ids is None:
-                        continue
-                    size = ids.size()
-                    keys = []
-                    for idx in range(size):
-                        keys.append(ids.keyAt(idx))
-                    for key in keys:
-                        msg = messagesDict[a].get(key)
-                        if msg is not None:
-                            messages_to_forward.add(msg)
-            
-            if messages_to_forward.size() == 0:
-                return
-            
-            from android.os import Bundle
-            args = Bundle()
-            args.putBoolean("onlySelect", True)
-            args.putBoolean("canSelectTopics", True)
-            args.putInt("dialogsType", 3)
-            
-            dialogs_fragment = DialogsActivity(args)
-            
-            from java import dynamic_proxy
-            
-            class HideCaptionDelegate(dynamic_proxy(DialogsActivity.DialogsActivityDelegate)):
-                def __init__(self, messages, chat_activity, plugin_instance):
-                    super().__init__()
-                    self.messages = messages
-                    self.chat_activity = chat_activity
-                    self.plugin_ref = weakref.ref(plugin_instance)
-                
-                def didSelectDialogs(self, fragment1, dids, message_text, param, notify, scheduleDate, topicsFragment):
-                    plugin = self.plugin_ref()
-                    if plugin is None:
-                        return
-                    
-                    if dids.size() != 1:
-                        return False
-                    
-                    topicKey = dids.get(0)
-                    did = topicKey.dialogId
-                    
-                    if did != self.chat_activity.getDialogId() or (hasattr(self.chat_activity, 'getTopicId') and self.chat_activity.getTopicId() != topicKey.topicId):
-                        from android.os import Bundle as B
-                        from org.telegram.ui import ChatActivity as CA
-                        from org.telegram.messenger import DialogObject, NotificationCenter
-                        args2 = B()
-                        args2.putBoolean("scrollToTopOnResume", True)
-                        if DialogObject.isEncryptedDialog(did):
-                            args2.putInt("enc_id", DialogObject.getEncryptedChatId(did))
-                        elif DialogObject.isUserDialog(did):
-                            args2.putLong("user_id", did)
-                        else:
-                            args2.putLong("chat_id", -did)
-                        
-                        if not self.chat_activity.getMessagesController().checkCanOpenChat(args2, fragment1):
-                            return True
-                        
-                        self.chat_activity.getNotificationCenter().postNotificationName(NotificationCenter.closeChats)
-                        
-                        new_chat = CA(args2)
-                        
-                        ForumUtilities = find_class("org.telegram.ui.Components.Forum.ForumUtilities")
-                        if ForumUtilities:
-                            ForumUtilities.applyTopic(new_chat, dids.get(0))
-                        
-                        fragment1.presentFragment(new_chat, True)
-                        host = new_chat
-                    else:
-                        host = self.chat_activity
-                    
-                    BooleanTYPE = find_class("java.lang.Boolean").TYPE
-                    ArrayListClass = find_class("java.util.ArrayList")
-                    m = host.getClass().getDeclaredMethod("showFieldPanelForForward", BooleanTYPE, ArrayListClass.getClass())
-                    m.setAccessible(True)
-                    m.invoke(host, True, self.messages)
-                    
-                    params = get_private_field(host, "messagePreviewParams")
-                    if params is not None:
-                        try:
-                            set_private_field(params, "hideCaption", True)
-                            set_private_field(params, "hideForwardSendersName", True)
-                        except:
-                            pass
-                    
-                    fragment1.finishFragment()
-                    return True
-                
-                def canSelectStories(self):
-                    return False
-            
-            delegate = HideCaptionDelegate(messages_to_forward, chat_activity, self)
-            dialogs_fragment.setDelegate(delegate)
-            chat_activity.presentFragment(dialogs_fragment)
-            
-            self.current_mode = "forward"
-            log("[UiTweaks]current_mode reset to 'forward' (hide_caption)")
-        except Exception as e:
-            log(f"[UiTweaks] Error in hide caption forward: {e}")
-
     def _collect_selected_messages(self, chat_activity):
         try:
             from java.util import ArrayList
@@ -5824,7 +5713,8 @@ class UiTweaksPlugin(BasePlugin):
             self.current_mode = "forward"
             return HookResult(strategy=HookStrategy.MODIFY, request=request)
         
-        if request_name == "TL_messages_forwardMessages" and self.current_mode == "hide_caption" and hasattr(request, 'drop_author'):
+        if request_name == "TL_messages_forwardMessages" and self.current_mode == "hide_caption" and hasattr(request, 'drop_media_captions'):
+            request.drop_media_captions = True
             request.drop_author = True
             if hasattr(request, 'noforwards'):
                 request.noforwards = True
