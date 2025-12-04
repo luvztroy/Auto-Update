@@ -1508,7 +1508,6 @@ class UiTweaksPlugin(BasePlugin):
         self.add_hook("TL_messages_forwardMessages")
         
         self.current_mode = self.get_setting("forward_mode", "forward")
-        self.hook_no_quote_pause_ref = None
         
         self.update_available = False
         self.latest_version = None
@@ -3052,7 +3051,6 @@ class UiTweaksPlugin(BasePlugin):
                 self._hook_join_confirmation()
             if self.get_setting("enable_no_quote_forward", False):
                 self._hook_actions_buttons_layout()
-                self._hook_no_quote_pause()
             if self.get_setting("typing_instead_sticker", False):
                 self._hook_send_typing_method()
             if self.get_setting("enable_recent_chats_menu", False):
@@ -3564,6 +3562,110 @@ class UiTweaksPlugin(BasePlugin):
         
         chat_activity.presentFragment(dialogs_fragment)
 
+        self.current_mode = "forward"
+        log("[UiTweaks]current_mode reset to 'forward'")
+
+    def _perform_hide_caption_forward(self, chat_activity):
+        try:
+            from java.util import ArrayList
+            messages_to_forward = ArrayList()
+            
+            selectedIds = get_private_field(chat_activity, "selectedMessagesIds")
+            messagesDict = get_private_field(chat_activity, "messagesDict")
+            
+            if selectedIds is not None and messagesDict is not None:
+                for a in range(2):
+                    ids = selectedIds[a]
+                    if ids is None:
+                        continue
+                    size = ids.size()
+                    keys = []
+                    for idx in range(size):
+                        keys.append(ids.keyAt(idx))
+                    for key in keys:
+                        msg = messagesDict[a].get(key)
+                        if msg is not None:
+                            messages_to_forward.add(msg)
+            
+            if messages_to_forward.size() == 0:
+                return
+            
+            from android.os import Bundle
+            args = Bundle()
+            args.putBoolean("onlySelect", True)
+            args.putBoolean("canSelectTopics", True)
+            args.putInt("dialogsType", 3)
+            
+            dialogs_fragment = DialogsActivity(args)
+            
+            from java import dynamic_proxy
+            
+            class HideCaptionDelegate(dynamic_proxy(DialogsActivity.DialogsActivityDelegate)):
+                def __init__(self, messages, chat_activity, plugin_instance):
+                    super().__init__()
+                    self.messages = messages
+                    self.chat_activity = chat_activity
+                    self.plugin_ref = weakref.ref(plugin_instance)
+                
+                def didSelectDialogs(self, fragment1, dids, message_text, param, notify, scheduleDate, topicsFragment):
+                    plugin = self.plugin_ref()
+                    if plugin is None:
+                        return
+                    
+                    if dids.size() != 1:
+                        return False
+                    
+                    topicKey = dids.get(0)
+                    did = topicKey.dialogId
+                    
+                    if did != self.chat_activity.getDialogId() or (hasattr(self.chat_activity, 'getTopicId') and self.chat_activity.getTopicId() != topicKey.topicId):
+                        from android.os import Bundle as B
+                        from org.telegram.ui import ChatActivity as CA
+                        from org.telegram.messenger import DialogObject
+                        args2 = B()
+                        args2.putBoolean("scrollToTopOnResume", True)
+                        if DialogObject.isEncryptedDialog(did):
+                            args2.putInt("enc_id", DialogObject.getEncryptedChatId(did))
+                        elif DialogObject.isUserDialog(did):
+                            args2.putLong("user_id", did)
+                        else:
+                            args2.putLong("chat_id", -did)
+                        new_chat = CA(args2)
+                        if not self.chat_activity.presentFragment(new_chat, True):
+                            return True
+                        host = new_chat
+                    else:
+                        host = self.chat_activity
+                    
+                    BooleanTYPE = find_class("java.lang.Boolean").TYPE
+                    ArrayListClass = find_class("java.util.ArrayList")
+                    m = host.getClass().getDeclaredMethod("showFieldPanelForForward", BooleanTYPE, ArrayListClass.getClass())
+                    m.setAccessible(True)
+                    m.invoke(host, True, self.messages)
+                    
+                    params = get_private_field(host, "messagePreviewParams")
+                    if params is not None:
+                        try:
+                            set_private_field(params, "hideCaption", True)
+                            set_private_field(params, "hideForwardSendersName", True)
+                        except:
+                            pass
+                    
+                    fragment1.finishFragment()
+                    return True
+                
+                def canSelectStories(self):
+                    return False
+            
+            delegate = HideCaptionDelegate(messages_to_forward, chat_activity, self)
+            dialogs_fragment.setDelegate(delegate)
+            chat_activity.presentFragment(dialogs_fragment)
+            
+            self.current_mode = "forward"
+            log("[UiTweaks]current_mode reset to 'forward' (hide_caption)")
+        except Exception as e:
+            log(f"[UiTweaks] Error in hide caption forward: {e}")
+
     def _collect_selected_messages(self, chat_activity):
         try:
             from java.util import ArrayList
@@ -3741,6 +3843,7 @@ class UiTweaksPlugin(BasePlugin):
                     try:
                         layout = param.thisObject
                         hook_self.plugin._setup_forward_button(layout)
+                        hook_self.plugin._hook_add_to_selected_messages(layout)
                     except Exception as e:
                         pass
             
@@ -3751,12 +3854,58 @@ class UiTweaksPlugin(BasePlugin):
     
     def _setup_forward_button(self, layout):
         try:
+            ViewOnClickListenerClass = find_class("android.view.View$OnClickListener")
+            setForwardButtonMethod = layout.getClass().getDeclaredMethod(
+                "setForwardButtonOnClickListener",
+                ViewOnClickListenerClass
+            )
+            setForwardButtonMethod.setAccessible(True)
+            
+            plugin_ref = self
+            
+            class SetForwardListenerHook:
+                def __init__(hook_self):
+                    hook_self.plugin = plugin_ref
+                    hook_self.layout = layout
+                
+                def before_hooked_method(hook_self, param):
+                    try:
+                        original_listener = param.args[0]
+                        
+                        def wrapped_click(view):
+                            try:
+                                if hook_self.plugin.current_mode == "no_quote":
+                                    from client_utils import get_last_fragment
+                                    from java.lang import Boolean
+                                    chat_activity = get_last_fragment()
+                                    if chat_activity:
+                                        openForwardMethod = chat_activity.getClass().getDeclaredMethod("openForward", Boolean.TYPE)
+                                        openForwardMethod.setAccessible(True)
+                                        openForwardMethod.invoke(chat_activity, True)
+                                    return
+                                elif hook_self.plugin.current_mode == "hide_caption":
+                                    from client_utils import get_last_fragment
+                                    chat_activity = get_last_fragment()
+                                    if chat_activity:
+                                        hook_self.plugin._perform_hide_caption_forward(chat_activity)
+                                    return
+                                else:
+                                    if original_listener is not None:
+                                        original_listener.onClick(view)
+                            except Exception as e:
+                                if original_listener is not None:
+                                    original_listener.onClick(view)
+                        
+                        param.args[0] = OnClickListener(wrapped_click)
+                    except Exception as e:
+                        pass
+            
+            self.hook_method(setForwardButtonMethod, SetForwardListenerHook())
+            
             forward_button = layout.getForwardButton()
             
             if forward_button is None:
                 return
-            
-            plugin_ref = self
             
             def on_forward_long_click(view):
                 try:
@@ -3772,12 +3921,40 @@ class UiTweaksPlugin(BasePlugin):
         except Exception as e:
             pass
     
+    def _hook_add_to_selected_messages(self, layout):
+        try:
+            addToSelectedMessagesMethod = layout.getClass().getDeclaredMethod(
+                "addToSelectedMessages",
+                find_class("org.telegram.messenger.MessageObject")
+            )
+            addToSelectedMessagesMethod.setAccessible(True)
+            
+            plugin_ref = self
+            
+            class AddToSelectedMessagesHook:
+                def __init__(hook_self):
+                    hook_self.plugin = plugin_ref
+                
+                def before_hooked_method(hook_self, param):
+                    try:
+                        message = param.args[0]
+                        if message is None:
+                            hook_self.plugin.current_mode = "forward"
+                    except Exception:
+                        pass
+            
+            self.hook_method(addToSelectedMessagesMethod, AddToSelectedMessagesHook())
+        except Exception as e:
+            pass
+    
     def _show_mode_selector_dialog(self, button_view, layout):
         def show_dialog():
             try:
                 from android.widget import LinearLayout
                 from org.telegram.ui.ActionBar import AlertDialog, Theme
                 from org.telegram.messenger import AndroidUtilities
+                
+                self.current_mode = self.get_setting("forward_mode", "forward")
                 
                 context = button_view.getContext()
                 
@@ -3788,8 +3965,8 @@ class UiTweaksPlugin(BasePlugin):
                 linear_layout.setOrientation(LinearLayout.VERTICAL)
                 builder.setView(linear_layout)
                 
-                options = [get_string("forward_option", "Forward"), get_string("no_quote_option", "No Quote")]
-                current_index = 0 if self.current_mode == "forward" else 1
+                options = [get_string("forward_option", "Forward"), get_string("no_quote_option", "No Quote"), get_string("hide_caption_option", "Hide Caption")]
+                current_index = 0 if self.current_mode == "forward" else (1 if self.current_mode == "no_quote" else 2)
                 
                 RadioColorCellClass = find_class("org.telegram.ui.Cells.RadioColorCell")
                 
@@ -3815,6 +3992,8 @@ class UiTweaksPlugin(BasePlugin):
                                     plugin_ref.current_mode = "forward"
                                 elif index == 1:
                                     plugin_ref.current_mode = "no_quote"
+                                elif index == 2:
+                                    plugin_ref.current_mode = "hide_caption"
                                 
                                 plugin_ref.set_setting("forward_mode", plugin_ref.current_mode)
                                 plugin_ref._update_forward_button_text(layout_ref)
@@ -3852,6 +4031,8 @@ class UiTweaksPlugin(BasePlugin):
                 
                 if self.current_mode == "no_quote":
                     text_view.setText(get_string("no_quote_option", "No Quote"))
+                elif self.current_mode == "hide_caption":
+                    text_view.setText(get_string("hide_caption_option", "Hide Caption"))
                 else:
                     text_view.setText(get_string("forward_option", "Forward"))
                 
@@ -3859,28 +4040,6 @@ class UiTweaksPlugin(BasePlugin):
                 pass
         
         run_on_ui_thread(update_text)
-    
-    def _hook_no_quote_pause(self):
-        try:
-            DialogsActivityClass = find_class("org.telegram.ui.DialogsActivity")
-            if not DialogsActivityClass:
-                return
-            
-            onPauseMethod = DialogsActivityClass.getClass().getDeclaredMethod("onPause")
-            onPauseMethod.setAccessible(True)
-            
-            class DialogsPauseHook:
-                def __init__(self, plugin_instance):
-                    self.plugin = plugin_instance
-                
-                def before_hooked_method(self, param):
-                    self.plugin.current_mode = "forward"
-                    self.plugin.log("Forward mode: Reset to 'forward' on DialogsActivity pause")
-            
-            pause_hook = DialogsPauseHook(self)
-            self.hook_no_quote_pause_ref = self.hook_method(onPauseMethod, pause_hook)
-        except Exception:
-            pass
     
     def _hook_add_to_folder_all_tabs(self):
         try:
@@ -5652,6 +5811,13 @@ class UiTweaksPlugin(BasePlugin):
     def pre_request_hook(self, request_name: str, account: int, request):
         if request_name == "TL_messages_forwardMessages" and self.current_mode == "no_quote" and hasattr(request, 'drop_author'):
             request.drop_author = True
+            self.current_mode = "forward"
+            return HookResult(strategy=HookStrategy.MODIFY, request=request)
+        
+        if request_name == "TL_messages_forwardMessages" and self.current_mode == "hide_caption" and hasattr(request, 'drop_author'):
+            request.drop_author = True
+            if hasattr(request, 'noforwards'):
+                request.noforwards = True
             self.current_mode = "forward"
             return HookResult(strategy=HookStrategy.MODIFY, request=request)
         
