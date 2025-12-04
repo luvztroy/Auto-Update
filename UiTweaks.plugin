@@ -1968,7 +1968,6 @@ class UiTweaksPlugin(BasePlugin):
         return [ 
             Header(text=get_string("chats", "Chats")),
             self.Quanta_switch("enable_message_preview_enhancement", get_string("message_preview_send_button", "Share media from link preview"), False, lambda v: self._apply_hooks(), link_alias="enable_message_preview_enhancement"),
-            self.Quanta_switch("enable_code_formatting", get_string("code_formatting_menu", "Code & Mention Formatting"), False, lambda v: self._apply_hooks(), link_alias="enable_code_formatting"),
             self.Quanta_switch("enable_share_sheet_folders", get_string("add_folders_to_share_sheet", "Folders in direct share sheet"), False, lambda v: self._apply_hooks(), link_alias="enable_share_sheet_folders"),
             self.Quanta_switch("enable_sender_select_enhancement", get_string("sender_select_improvements", "Send message as menu improvements"), False, lambda v: self._apply_hooks(), link_alias="enable_sender_select_enhancement"),
             Divider(text=get_string("sender_select_subtext", "Show personal account in \"send message as\" menu where you are the owner of the group")),
@@ -2046,6 +2045,7 @@ class UiTweaksPlugin(BasePlugin):
             Header(text=get_string("input_field", "Input Field")),
             self.Quanta_switch("hide_bot_button", get_string("hide_bot_button", "Hide Bot Button in Input Field"), False, lambda v: self._apply_hooks(), link_alias="hide_bot_button"),
             self.Quanta_switch("typing_instead_sticker", get_string("typing_instead_sticker", "Typing Instead of Choosing Sticker"), False, lambda v: self._apply_hooks(), link_alias="typing_instead_sticker"),
+            self.Quanta_switch("enable_code_formatting", get_string("code_formatting_menu", "Code & Mention Formatting"), False, lambda v: self._apply_hooks(), link_alias="enable_code_formatting"),
             self.Quanta_switch("always_visible_schedule_button", get_string("always_visible_schedule_button", "Always Visible Schedule Button"), False, lambda v: self._apply_hooks(), link_alias="always_visible_schedule_button"),
         ])
         
