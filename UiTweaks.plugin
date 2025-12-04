@@ -122,9 +122,6 @@ TL_documentAttributeAudio = jclass('org.telegram.tgnet.TLRPC$TL_documentAttribut
 TL_documentAttributeVideo = jclass('org.telegram.tgnet.TLRPC$TL_documentAttributeVideo')
 TL_documentAttributeAnimated = jclass('org.telegram.tgnet.TLRPC$TL_documentAttributeAnimated')
 
-
-CUSTOM_BUTTON_TAG = 0x6E7166
-
 class RecentChatsManager:
     
     MAX_RECENT_DIALOGS = 25
