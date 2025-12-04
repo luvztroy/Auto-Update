@@ -3438,37 +3438,49 @@ class UiTweaksPlugin(BasePlugin):
             
         from java.util import ArrayList
         messages_to_forward = ArrayList()
-        try:
-            collected = self._collect_selected_messages(chat_activity)
-        except Exception:
-            collected = None
-        if collected is not None:
+        
+        if message and hasattr(message, 'getGroupId') and message.getGroupId() != 0:
+            group_id = message.getGroupId()
+            
             try:
-                size = collected.size()
-                for i in range(size):
-                    obj = collected.get(i)
-                    try:
-                        if isinstance(obj, MessageObject):
-                            messages_to_forward.add(obj)
-                        else:
-                            messages_to_forward.add(obj)
-                    except Exception:
-                        messages_to_forward.add(obj)
-            except Exception:
-                pass
+                messagesDict = get_private_field(chat_activity, "messagesDict")
+                if messagesDict is not None and len(messagesDict) > 0:
+                    for a in range(len(messagesDict)):
+                        if messagesDict[a] is None:
+                            continue
+                        msg_dict = messagesDict[a]
+                        
+                        keys_to_check = []
+                        try:
+                            size = msg_dict.size()
+                            for idx in range(size):
+                                keys_to_check.append(msg_dict.keyAt(idx))
+                        except:
+                            pass
+                        
+                        for key in keys_to_check:
+                            try:
+                                msg = msg_dict.get(key)
+                                if msg and hasattr(msg, 'getGroupId') and msg.getGroupId() == group_id:
+                                    messages_to_forward.add(msg)
+                            except:
+                                pass
+                else:
+                    messages_to_forward.add(message)
+            except:
+                messages_to_forward.add(message)
+        else:
+            if message:
+                messages_to_forward.add(message)
+        
         if messages_to_forward.size() == 0 and hasattr(chat_activity, 'selectedObjects') and chat_activity.selectedObjects:
             for obj in chat_activity.selectedObjects:
-                try:
-                    if isinstance(obj, MessageObject):
-                        messages_to_forward.add(obj)
-                    else:
-                        messages_to_forward.add(obj)
-                except Exception:
-                    messages_to_forward.add(obj)
+                messages_to_forward.add(obj)
+        
         if messages_to_forward.size() == 0 and message:
             messages_to_forward.add(message)
         
-        if not messages_to_forward:
+        if not messages_to_forward or messages_to_forward.size() == 0:
             return
         
         if hasattr(chat_activity, 'getCurrentChat') and chat_activity.getCurrentChat():
@@ -3498,6 +3510,7 @@ class UiTweaksPlugin(BasePlugin):
                 plugin = self.plugin_ref()
                 if plugin is None:
                     return
+                    
                 if dids.size() > 1 or dids.get(0).dialogId == self.chat_activity.getUserConfig().getClientUserId() or message_text:
                     for i in range(dids.size()):
                         dialog = dids.get(i)
@@ -3541,7 +3554,7 @@ class UiTweaksPlugin(BasePlugin):
                     if params is not None:
                         try:
                             set_private_field(params, "hideForwardSendersName", True)
-                        except Exception:
+                        except:
                             pass
                 
                 return True
