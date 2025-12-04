@@ -2097,7 +2097,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("enable_gif_spoiler", get_string("gif_spoiler_caption", "GIF Spoiler & Caption"), False, lambda v: self._apply_hooks(), link_alias="enable_gif_spoiler"),
             self.Quanta_switch("enable_ai_summarize", get_string("enable_ai_summarize", "Summarize Chat"), False, lambda v: self._apply_hooks(), link_alias="enable_ai_summarize"),
             self.Quanta_switch("enable_search_filter", get_string("enable_search_filter", "Search Filter"), False, lambda v: self._apply_hooks(), link_alias="enable_search_filter"),
-            self.Quanta_switch("enable_old_forward", get_string("enable_old_forward", "Old Forward Sheet"), False, lambda v: self._apply_hooks(), link_alias="enable_old_forward"),
+            self.Quanta_switch("enable_old_forward", get_string("enable_old_forward", "Classic Forward Sheet"), False, lambda v: self._handle_forward_mode_change("enable_old_forward", v), link_alias="enable_old_forward"),
             self.Quanta_switch("enable_share_alert_forward", get_string("enable_share_alert_forward", "ShareAlert for All Forwards"), False, lambda v: self._handle_forward_mode_change("enable_share_alert_forward", v), link_alias="enable_share_alert_forward"),
             self.Quanta_switch("disable_link_preview", get_string("disable_link_preview", "Disable Link Preview"), False, lambda v: self._apply_hooks(), link_alias="disable_link_preview"),
             EditText(key="disable_link_preview_exclude_pattern", hint=get_string("disable_link_preview_pattern_hint", "Regex pattern to exclude"), default="", max_length=500, multiline=True) if self.get_setting("disable_link_preview", False) else None,
