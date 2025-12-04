@@ -2095,6 +2095,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("enable_gif_spoiler", get_string("gif_spoiler_caption", "GIF Spoiler & Caption"), False, lambda v: self._apply_hooks(), link_alias="enable_gif_spoiler"),
             self.Quanta_switch("enable_ai_summarize", get_string("enable_ai_summarize", "Summarize Chat"), False, lambda v: self._apply_hooks(), link_alias="enable_ai_summarize"),
             self.Quanta_switch("enable_search_filter", get_string("enable_search_filter", "Search Filter"), False, lambda v: self._apply_hooks(), link_alias="enable_search_filter"),
+            self.Quanta_switch("enable_old_forward", get_string("enable_old_forward", "Old Forward Sheet"), False, lambda v: self._apply_hooks(), link_alias="enable_old_forward"),
             self.Quanta_switch("disable_link_preview", get_string("disable_link_preview", "Disable Link Preview"), False, lambda v: self._apply_hooks(), link_alias="disable_link_preview"),
             EditText(key="disable_link_preview_exclude_pattern", hint=get_string("disable_link_preview_pattern_hint", "Regex pattern to exclude"), default="", max_length=500, multiline=True) if self.get_setting("disable_link_preview", False) else None,
             Divider(text=get_string("disable_link_preview_info", "You can exclude links that match the regex pattern. Use regex101.com to check your pattern")) if self.get_setting("disable_link_preview", False) else None,
@@ -3771,23 +3772,24 @@ class UiTweaksPlugin(BasePlugin):
                     try:
                         original_listener = param.args[0]
                         
+                        def open_old_share_sheet():
+                            try:
+                                from client_utils import get_last_fragment
+                                from java.lang import Boolean
+                                chat_activity = get_last_fragment()
+                                if chat_activity:
+                                    openForwardMethod = chat_activity.getClass().getDeclaredMethod("openForward", Boolean.TYPE)
+                                    openForwardMethod.setAccessible(True)
+                                    openForwardMethod.invoke(chat_activity, True)
+                            except Exception as e:
+                                pass
+                        
                         def wrapped_click(view):
                             try:
-                                if hook_self.plugin.current_mode == "no_quote":
-                                    from client_utils import get_last_fragment
-                                    from java.lang import Boolean
-                                    chat_activity = get_last_fragment()
-                                    if chat_activity:
-                                        openForwardMethod = chat_activity.getClass().getDeclaredMethod("openForward", Boolean.TYPE)
-                                        openForwardMethod.setAccessible(True)
-                                        openForwardMethod.invoke(chat_activity, True)
-                                    return
-                                elif hook_self.plugin.current_mode == "hide_caption":
-                                    from client_utils import get_last_fragment
-                                    chat_activity = get_last_fragment()
-                                    if chat_activity:
-                                        hook_self.plugin._perform_hide_caption_forward(chat_activity)
-                                    return
+                                use_old_share_sheet = hook_self.plugin.get_setting("enable_old_forward", False)
+                                
+                                if use_old_share_sheet:
+                                    open_old_share_sheet()
                                 else:
                                     if original_listener is not None:
                                         original_listener.onClick(view)
@@ -5716,8 +5718,6 @@ class UiTweaksPlugin(BasePlugin):
         if request_name == "TL_messages_forwardMessages" and self.current_mode == "hide_caption" and hasattr(request, 'drop_media_captions'):
             request.drop_media_captions = True
             request.drop_author = True
-            if hasattr(request, 'noforwards'):
-                request.noforwards = True
             self.current_mode = "forward"
             return HookResult(strategy=HookStrategy.MODIFY, request=request)
         
