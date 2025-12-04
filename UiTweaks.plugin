@@ -3621,7 +3621,7 @@ class UiTweaksPlugin(BasePlugin):
                     if did != self.chat_activity.getDialogId() or (hasattr(self.chat_activity, 'getTopicId') and self.chat_activity.getTopicId() != topicKey.topicId):
                         from android.os import Bundle as B
                         from org.telegram.ui import ChatActivity as CA
-                        from org.telegram.messenger import DialogObject
+                        from org.telegram.messenger import DialogObject, NotificationCenter
                         args2 = B()
                         args2.putBoolean("scrollToTopOnResume", True)
                         if DialogObject.isEncryptedDialog(did):
@@ -3630,9 +3630,19 @@ class UiTweaksPlugin(BasePlugin):
                             args2.putLong("user_id", did)
                         else:
                             args2.putLong("chat_id", -did)
-                        new_chat = CA(args2)
-                        if not self.chat_activity.presentFragment(new_chat, True):
+                        
+                        if not self.chat_activity.getMessagesController().checkCanOpenChat(args2, fragment1):
                             return True
+                        
+                        self.chat_activity.getNotificationCenter().postNotificationName(NotificationCenter.closeChats)
+                        
+                        new_chat = CA(args2)
+                        
+                        ForumUtilities = find_class("org.telegram.ui.Components.Forum.ForumUtilities")
+                        if ForumUtilities:
+                            ForumUtilities.applyTopic(new_chat, dids.get(0))
+                        
+                        fragment1.presentFragment(new_chat, True)
                         host = new_chat
                     else:
                         host = self.chat_activity
