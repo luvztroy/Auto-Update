@@ -1347,6 +1347,11 @@ class UiTweaksPlugin(BasePlugin):
         
         self.hook_unify_username_behavior_process_click_ref = None
         self.hook_unify_username_behavior_bind_ref = None
+        
+        self.hook_edit_file_name_ref = None
+        self._last_item_options = None
+        self._menu_item_added = False
+        self._message_send_preview = None
 
     def log(self, message: str):
         if self.get_setting("show_logs", False):
@@ -2085,6 +2090,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("enable_no_quote_forward", get_string("enable_no_quote_forward", "Enable No-Quote Forward"), False, lambda v: self._update_no_quote_forward_menu_item(), link_alias="enable_no_quote_forward"),
             self.Quanta_switch("enable_message_repeat", get_string("enable_message_repeat", "Enable Message Repeat"), False, lambda v: self._update_message_repeat_menu_item(), link_alias="enable_message_repeat"),
             Selector(key="swipe_action", text=get_string("swipe_action", "Message Swipe Action"), default=0, items=[get_string("swipe_reply", "Reply"), get_string("swipe_save", "Save"), get_string("swipe_translate", "Translate"), get_string("swipe_direct_share", "Direct Share")]),
+            self.Quanta_switch("enable_edit_file_name", get_string("enable_edit_file_name", "Edit File Name"), False, lambda v: self._apply_hooks(), link_alias="enable_edit_file_name"),
             self.Quanta_switch("enable_delete_with_duration", get_string("enable_delete_with_duration", "Delete with Duration Selection"), False, lambda v: self._apply_delete_with_duration_hooks(), link_alias="enable_delete_with_duration"),
             Divider(text=get_string("delete_with_duration_info", "Adds duration selection when banning/restricting users after deleting their messages.")) if self.get_setting("enable_delete_with_duration", False) else None,
         ])
@@ -2977,6 +2983,7 @@ class UiTweaksPlugin(BasePlugin):
             "hook_share_alert_forward_process_ref",
             "hook_unify_username_behavior_process_click_ref",
             "hook_unify_username_behavior_bind_ref",
+            "hook_edit_file_name_ref",
         ):
             ref = getattr(self, ref_attr, None)
             if ref:
@@ -3188,6 +3195,9 @@ class UiTweaksPlugin(BasePlugin):
             
             if self.get_setting("enable_share_alert_forward", False):
                 self._hook_share_alert_forward()
+            
+            if self.get_setting("enable_edit_file_name", False):
+                self._hook_edit_file_name()
 
         except Exception as e:
             pass
@@ -4128,6 +4138,220 @@ class UiTweaksPlugin(BasePlugin):
             except Exception:
                 pass
         
+        except Exception:
+            pass
+    
+    def _hook_edit_file_name(self):
+        try:
+            from org.telegram.ui import MessageSendPreview
+            from org.telegram.ui.Components import ItemOptions
+            
+            set_item_options_method = MessageSendPreview.getClass().getDeclaredMethod("setItemOptions", ItemOptions)
+            
+            handler = EditFileNameSetItemOptionsHook(self)
+            self.hook_edit_file_name_ref = self.hook_method(set_item_options_method, handler)
+            
+        except Exception:
+            pass
+    
+    def _has_document_selected(self):
+        try:
+            from org.telegram.ui import ChatActivity
+            
+            fragment = get_last_fragment()
+            if fragment is None or not isinstance(fragment, ChatActivity):
+                return False
+            
+            chat_attach_alert = get_private_field(fragment, "chatAttachAlert")
+            if chat_attach_alert is None:
+                return False
+            
+            current_layout = get_private_field(chat_attach_alert, "currentAttachLayout")
+            if current_layout is None:
+                return False
+            
+            document_layout_class = find_class("org.telegram.ui.Components.ChatAttachAlertDocumentLayout")
+            if document_layout_class and isinstance(current_layout, document_layout_class):
+                selected_files = get_private_field(current_layout, "selectedFilesOrder")
+                return selected_files is not None and not selected_files.isEmpty()
+            
+            return False
+            
+        except Exception:
+            return False
+    
+    def _on_edit_filename_click(self, options_instance, message_send_preview=None):
+        try:
+            if message_send_preview is not None:
+                try:
+                    message_send_preview.dismiss()
+                except Exception:
+                    pass
+            
+            from org.telegram.ui import ChatActivity
+            fragment = get_last_fragment()
+            
+            if fragment is None or not isinstance(fragment, ChatActivity):
+                return
+            
+            chat_attach_alert = get_private_field(fragment, "chatAttachAlert")
+            if chat_attach_alert is None:
+                return
+            
+            document_layout = get_private_field(chat_attach_alert, "currentAttachLayout")
+            if document_layout is None:
+                return
+            
+            selected_files_order = get_private_field(document_layout, "selectedFilesOrder")
+            if selected_files_order is None or selected_files_order.isEmpty():
+                return
+            
+            file_path = selected_files_order.get(0)
+            if file_path is None:
+                return
+            import os
+            filename = os.path.basename(file_path)
+            
+            def show_dialog():
+                self._show_filename_edit_dialog(filename, file_path, document_layout)
+            
+            run_on_ui_thread(show_dialog)
+            
+        except Exception:
+            pass
+    
+    def _show_filename_edit_dialog(self, original_filename, file_path, document_layout):
+        from ui.alert import AlertDialogBuilder
+        from client_utils import get_last_fragment
+        from org.telegram.ui.Components import EditTextBoldCursor
+        from org.telegram.ui.ActionBar import Theme
+        from org.telegram.messenger import AndroidUtilities
+        from android.text import InputType
+        from android.util import TypedValue
+        from android.widget import FrameLayout
+        from android.view import Gravity
+        from android_utils import run_on_ui_thread
+        
+        fragment = get_last_fragment()
+        if fragment is None:
+            return
+        
+        activity = fragment.getParentActivity()
+        if activity is None:
+            return
+
+        edit_text = EditTextBoldCursor(activity)
+        edit_text.setHint(get_string("file_name", "File Name"))
+        edit_text.setText(original_filename)
+        edit_text.setInputType(InputType.TYPE_CLASS_TEXT)
+        edit_text.setMaxLines(1)
+        edit_text.setSingleLine(True)
+        edit_text.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18)
+        edit_text.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText))
+        edit_text.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteHintText))
+        edit_text.setBackground(Theme.createEditTextDrawable(activity, True))
+        edit_text.setCursorColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader))
+        edit_text.setCursorSize(AndroidUtilities.dp(20))
+        edit_text.setCursorWidth(1.5)
+        edit_text.setPadding(0, 0, 0, 0)
+        edit_text.setFocusable(True)
+        
+        builder = AlertDialogBuilder(activity)
+        builder.set_title(get_string("edit_file_name", "Edit File Name"))
+        builder.set_message(get_string("enter_new_file_name", "Enter the new file name"))
+        builder.set_view(edit_text)
+        
+        plugin_ref = self
+        
+        def on_save(dialog, which):
+            input_text = str(edit_text.getText()).strip()
+            plugin_ref._apply_filename_change(
+                input_text,
+                file_path,
+                document_layout,
+                dialog
+            )
+        
+        def on_cancel_click(dialog, which):
+            try:
+                AndroidUtilities.hideKeyboard(edit_text)
+            except Exception:
+                pass
+            dialog.dismiss()
+        
+        builder.set_positive_button(get_string("save", "Save"), on_save)
+        builder.set_negative_button(get_string("cancel", "Cancel"), on_cancel_click)
+        
+        dialog = builder.show()
+        
+        def apply_layout_params():
+            try:
+                layout_params = edit_text.getLayoutParams()
+                if layout_params is not None:
+                    if isinstance(layout_params, FrameLayout.LayoutParams):
+                        layout_params.gravity = Gravity.CENTER_HORIZONTAL
+                    
+                    if hasattr(layout_params, 'rightMargin'):
+                        layout_params.rightMargin = AndroidUtilities.dp(24)
+                        layout_params.leftMargin = AndroidUtilities.dp(24)
+                        layout_params.height = AndroidUtilities.dp(36)
+                        layout_params.bottomMargin = AndroidUtilities.dp(15)
+                    edit_text.setLayoutParams(layout_params)
+                
+                edit_text.requestFocus()
+                text_length = edit_text.getText().length() if edit_text.getText() else 0
+                edit_text.setSelection(0, text_length)
+            except Exception:
+                pass
+        
+        run_on_ui_thread(apply_layout_params, 100)
+    
+    def _apply_filename_change(self, new_filename, old_path, document_layout, dialog):
+        try:
+            if not new_filename or len(new_filename.strip()) == 0:
+                dialog.dismiss()
+                return
+            
+            new_filename = new_filename.strip()
+            
+            import os
+            import shutil
+            
+            old_dir = os.path.dirname(old_path)
+            new_path = os.path.join(old_dir, new_filename)
+            
+            if os.path.exists(old_path):
+                shutil.copy2(old_path, new_path)
+                
+                selected_files_order = get_private_field(document_layout, "selectedFilesOrder")
+                selected_files = get_private_field(document_layout, "selectedFiles")
+                
+                if selected_files_order and selected_files:
+                    selected_files_order.set(0, new_path)
+                    
+                    old_list_item = selected_files.get(old_path)
+                    if old_list_item:
+                        selected_files.remove(old_path)
+                        
+                        from java.io import File
+                        new_file = File(new_path)
+                        old_list_item.file = new_file
+                        old_list_item.title = new_filename
+                        
+                        selected_files.put(new_path, old_list_item)
+                        
+                        def refresh_list():
+                            try:
+                                list_adapter = get_private_field(document_layout, "listAdapter")
+                                if list_adapter:
+                                    list_adapter.notifyDataSetChanged()
+                            except Exception:
+                                pass
+                        
+                        run_on_ui_thread(refresh_list)
+            
+            dialog.dismiss()
+            
         except Exception:
             pass
     
@@ -12563,6 +12787,62 @@ class UnifyUsernameBindViewHook(MethodHook):
             view.setTextAndValue(new_text, new_label, True)
             
         except:
+            pass
+
+
+class EditFileNameSetItemOptionsHook(MethodHook):
+    def __init__(self, plugin):
+        self.plugin = plugin
+    
+    def before_hooked_method(self, param):
+        try:
+            options = param.args[0] if param and hasattr(param, "args") and param.args else None
+            if not options:
+                return
+            
+            if getattr(self.plugin, "_last_item_options", None) is not options:
+                self.plugin._last_item_options = options
+                self.plugin._menu_item_added = False
+            
+            message_send_preview = param.thisObject if param and hasattr(param, "thisObject") else None
+            self.plugin._message_send_preview = message_send_preview
+            
+            if getattr(self.plugin, "_menu_item_added", False):
+                return
+            
+            if not self.plugin._has_document_selected():
+                return
+            
+            from org.telegram.messenger import R
+            from java.lang import Runnable
+            from java import dynamic_proxy
+            
+            class RunnableFactory(dynamic_proxy(Runnable)):
+                def __init__(self, fn):
+                    super().__init__()
+                    self.fn = fn
+                
+                def run(self):
+                    try:
+                        self.fn()
+                    except Exception:
+                        pass
+            
+            action = RunnableFactory(lambda opts=options, preview=message_send_preview: self.plugin._on_edit_filename_click(opts, preview))
+            
+            try:
+                icon_id = R.drawable.msg_edit
+            except:
+                icon_id = 0
+            
+            if icon_id > 0:
+                options.add(icon_id, get_string("edit_file_name", "Edit File Name"), action)
+            else:
+                options.add(get_string("edit_file_name", "Edit File Name"), action)
+            
+            self.plugin._menu_item_added = True
+            
+        except Exception:
             pass
 
 
