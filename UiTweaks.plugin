@@ -4279,7 +4279,7 @@ class UiTweaksPlugin(BasePlugin):
                 pass
             dialog.dismiss()
         
-        builder.set_positive_button(get_string("save", "Save"), on_save)
+        builder.set_positive_button(get_string("swipe_save", "Save"), on_save)
         builder.set_negative_button(get_string("cancel", "Cancel"), on_cancel_click)
         
         dialog = builder.show()
