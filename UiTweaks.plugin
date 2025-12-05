@@ -1344,6 +1344,9 @@ class UiTweaksPlugin(BasePlugin):
         self.hook_send_message_params_ref = None
         
         self.hook_reactions_container_ref = None
+        
+        self.hook_unify_username_behavior_process_click_ref = None
+        self.hook_unify_username_behavior_bind_ref = None
 
     def log(self, message: str):
         if self.get_setting("show_logs", False):
@@ -2008,6 +2011,7 @@ class UiTweaksPlugin(BasePlugin):
         settings.extend([
             Header(text=get_string("profile", "Profile")),
             self.Quanta_switch("enable_contact_status_in_profile", get_string("contact_status_in_profile", "Mutual Contact in Profile"), False, lambda v: self._apply_hooks(), link_alias="enable_contact_status_in_profile"),
+            self.Quanta_switch("enable_unify_username_behavior", get_string("unify_username_behavior", "Unify Username Behavior"), False, lambda v: self._apply_hooks(), link_alias="enable_unify_username_behavior"),
         ])
         
         settings.extend([
@@ -2971,6 +2975,8 @@ class UiTweaksPlugin(BasePlugin):
             "hook_reactions_container_ref",
             "hook_share_alert_forward_open_ref",
             "hook_share_alert_forward_process_ref",
+            "hook_unify_username_behavior_process_click_ref",
+            "hook_unify_username_behavior_bind_ref",
         ):
             ref = getattr(self, ref_attr, None)
             if ref:
@@ -3110,6 +3116,9 @@ class UiTweaksPlugin(BasePlugin):
             
             if self.get_setting("enable_contact_status_in_profile", False):
                 self._hook_contact_status_in_profile()
+            
+            if self.get_setting("enable_unify_username_behavior", False):
+                self._hook_unify_username_behavior()
             
             if self.get_setting("enable_safe_mode", False):
                 self._hook_safe_mode()
@@ -4069,6 +4078,56 @@ class UiTweaksPlugin(BasePlugin):
             except Exception:
                 pass
 
+        except Exception:
+            pass
+    
+    def _hook_unify_username_behavior(self):
+        try:
+            ProfileActivityClass = find_class("org.telegram.ui.ProfileActivity")
+            if not ProfileActivityClass:
+                return
+            
+            ViewClass = find_class("android.view.View")
+            from java.lang import Integer, Float, Boolean
+            
+            try:
+                process_click_method = ProfileActivityClass.getClass().getDeclaredMethod(
+                    "processOnClickOrPress",
+                    Integer.TYPE,
+                    ViewClass,
+                    Float.TYPE,
+                    Float.TYPE,
+                    Boolean.TYPE
+                )
+                process_click_method.setAccessible(True)
+                self.hook_unify_username_behavior_process_click_ref = self.hook_method(
+                    process_click_method,
+                    UnifyUsernameProcessClickHook()
+                )
+            except Exception:
+                pass
+            
+            ListAdapterClass = find_class("org.telegram.ui.ProfileActivity$ListAdapter")
+            if not ListAdapterClass:
+                return
+            
+            RecyclerViewHolder = find_class("androidx.recyclerview.widget.RecyclerView$ViewHolder")
+            from java.lang import Integer
+            
+            try:
+                bind_method = ListAdapterClass.getClass().getDeclaredMethod(
+                    "onBindViewHolder",
+                    RecyclerViewHolder,
+                    Integer.TYPE
+                )
+                bind_method.setAccessible(True)
+                self.hook_unify_username_behavior_bind_ref = self.hook_method(
+                    bind_method,
+                    UnifyUsernameBindViewHook()
+                )
+            except Exception:
+                pass
+        
         except Exception:
             pass
     
@@ -12409,6 +12468,102 @@ class ProcessSelectedOptionHook(MethodHook):
             method.invoke(activity, False)
             
             param.setResult(None)
+
+
+class UnifyUsernameProcessClickHook(MethodHook):
+    def before_hooked_method(self, param):
+        try:
+            profile_activity = param.thisObject
+            position = param.args[0]
+            
+            username_row = get_private_field(profile_activity, "usernameRow")
+            set_username_row = get_private_field(profile_activity, "setUsernameRow")
+            
+            if position != username_row and position != set_username_row:
+                return
+            
+            user_id = get_private_field(profile_activity, "userId")
+            chat_id = get_private_field(profile_activity, "chatId")
+            
+            if user_id != 0:
+                return
+            
+            if chat_id == 0:
+                return
+            
+            from org.telegram.messenger import MessagesController, AndroidUtilities, ChatObject
+            
+            current_account = get_private_field(profile_activity, "currentAccount")
+            messages_controller = MessagesController.getInstance(current_account)
+            chat = messages_controller.getChat(chat_id)
+            
+            if not chat:
+                return
+            
+            username = ChatObject.getPublicUsername(chat)
+            if not username:
+                return
+            
+            text = "@" + username
+            AndroidUtilities.addToClipboard(text)
+            param.setResult(True)
+            
+        except:
+            pass
+
+
+class UnifyUsernameBindViewHook(MethodHook):
+    def after_hooked_method(self, param):
+        try:
+            list_adapter = param.thisObject
+            holder = param.args[0]
+            position = param.args[1]
+            
+            this_class = list_adapter.getClass()
+            outer_field = this_class.getDeclaredField("this$0")
+            outer_field.setAccessible(True)
+            profile_activity = outer_field.get(list_adapter)
+            
+            username_row = get_private_field(profile_activity, "usernameRow")
+            
+            if position != username_row:
+                return
+            
+            user_id = get_private_field(profile_activity, "userId")
+            chat_id = get_private_field(profile_activity, "chatId")
+            
+            if user_id != 0:
+                return
+            
+            if chat_id == 0:
+                return
+            
+            from org.telegram.messenger import MessagesController, ChatObject, LocaleController, R
+            
+            current_account = get_private_field(profile_activity, "currentAccount")
+            messages_controller = MessagesController.getInstance(current_account)
+            chat = messages_controller.getChat(chat_id)
+            
+            if not chat:
+                return
+            
+            username = ChatObject.getPublicUsername(chat)
+            if not username:
+                return
+            
+            view = holder.itemView
+            text_detail_cell_class = find_class("org.telegram.ui.Cells.TextDetailCell")
+            
+            if not text_detail_cell_class.getClass().isInstance(view):
+                return
+            
+            new_text = "@" + username
+            new_label = LocaleController.getString(R.string.Username)
+            
+            view.setTextAndValue(new_text, new_label, True)
+            
+        except:
+            pass
 
 
 class OpenForwardHook(MethodHook):
