@@ -1982,7 +1982,6 @@ class UiTweaksPlugin(BasePlugin):
             
             Header(text=get_string("account_and_display", "Account & Display")),
             self.Quanta_switch("enable_non_clickable_preview", get_string("non_clickable_preview", "Non-Clickable Chat Preview"), False, lambda v: self._apply_hooks(), link_alias="enable_non_clickable_preview"),
-            self.Quanta_switch("enable_contact_status_in_profile", get_string("contact_status_in_profile", "Mutual Contact in Profile"), False, lambda v: self._apply_hooks(), link_alias="enable_contact_status_in_profile"),
             self.Quanta_switch("enable_account_visibility", get_string("account_visibility", "Account Visibility"), False, lambda v: self._apply_hooks(), link_alias="enable_account_visibility"),
             Divider(text=get_string("account_visibility_subtext", "Hide/show accounts by long-pressing theme button")),
             
@@ -2004,6 +2003,11 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("hide_archived_chats", get_string("hide_archived_chats", "Hide Archived Chats"), False, lambda v: self._apply_hooks(), link_alias="hide_archived_chats"),
             self.Quanta_switch("hide_archived_from_drawer", get_string("hide_archived_from_drawer", "Hide from drawer"), False, lambda v: self._apply_hooks(), link_alias="hide_archived_from_drawer") if self.get_setting("hide_archived_chats", False) else None,
             Divider(text=get_string("hide_archived_chats_info", "This will remove archived chats cell from the chat list by filtering them out of the dialogs query.")),
+        ])
+
+        settings.extend([
+            Header(text=get_string("profile", "Profile")),
+            self.Quanta_switch("enable_contact_status_in_profile", get_string("contact_status_in_profile", "Mutual Contact in Profile"), False, lambda v: self._apply_hooks(), link_alias="enable_contact_status_in_profile"),
         ])
         
         settings.extend([
