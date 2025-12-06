@@ -245,7 +245,6 @@ class RecentChatsPopup:
     
     def __init__(self, plugin_instance):
         self.plugin = plugin_instance
-        self.recent_manager = RecentChatsManager(plugin_instance)
         self.current_popup = None
         self._save_debounce_timer = None
     
@@ -260,8 +259,8 @@ class RecentChatsPopup:
         if context is None or fragment_view is None:
             return
         
-        self.recent_manager.force_reload(current_account)
-        recent_dialogs = self.recent_manager.get_recent_dialogs(current_account)
+        self.plugin.recent_manager.force_reload(current_account)
+        recent_dialogs = self.plugin.recent_manager.get_recent_dialogs(current_account)
 
         if not recent_dialogs:
             return
@@ -399,7 +398,7 @@ class RecentChatsPopup:
         return clear_click_listener
     
     def _clear_recent_chats(self, current_account):
-        self.recent_manager.clear_recent_dialogs(current_account)
+        self.plugin.recent_manager.clear_recent_dialogs(current_account)
         
         if self.current_popup and self.current_popup.isShowing():
             self.current_popup.dismiss()
@@ -7099,15 +7098,29 @@ class UiTweaksPlugin(BasePlugin):
         if action_bar:
             back_button = action_bar.getBackButton()
             if back_button:
+                if hasattr(back_button, '_uitweaks_recent_listener_set'):
+                    return
+                
+                plugin_ref = weakref.ref(self)
+                activity_ref = weakref.ref(dialogs_activity)
+                
                 def long_click_handler(*args):
                     try:
+                        plugin = plugin_ref()
+                        activity = activity_ref()
+                        if plugin is None or activity is None:
+                            return False
+                        
                         view = args[0] if len(args) > 0 else back_button
-                        self._perform_haptic(dialogs_activity)
-                        return self._on_recent_chats_drawer_button_long_click(dialogs_activity, view)
+                        plugin._perform_haptic(activity)
+                        return plugin._on_recent_chats_drawer_button_long_click(activity, view)
                     except Exception as e:
                         return False
                 
-                back_button.setOnLongClickListener(OnLongClickListener(long_click_handler))
+                listener = OnLongClickListener(long_click_handler)
+                back_button.setOnLongClickListener(listener)
+                back_button._uitweaks_recent_listener_set = True
+                back_button._uitweaks_recent_listener_ref = listener
     
     def _on_recent_chats_drawer_button_long_click(self, dialogs_activity, drawer_button):
         if self._can_show_recent_menu(dialogs_activity):
@@ -7133,6 +7146,11 @@ class UiTweaksPlugin(BasePlugin):
 
 
     def _hook_recent_chats_activities(self):
+        if (hasattr(self, 'hook_recent_chats_activity_ref') and self.hook_recent_chats_activity_ref and
+            hasattr(self, 'hook_recent_profile_activity_ref') and self.hook_recent_profile_activity_ref and
+            hasattr(self, 'hook_recent_topics_fragment_ref') and self.hook_recent_topics_fragment_ref):
+            return
+        
         ChatActivity = find_class("org.telegram.ui.ChatActivity")
         if ChatActivity:
             method = ChatActivity.getClass().getDeclaredMethod("onResume")
@@ -8709,8 +8727,6 @@ class DialogsActivityHook:
             dialogs_activity = param.thisObject
             if dialogs_activity is None:
                 return
-                
-            activity_id = id(dialogs_activity)
             
             if self.plugin.get_setting("hide_bot_open", False):
                     try:
@@ -8739,8 +8755,26 @@ class DialogsActivityDestroyHook:
 
     def before_hooked_method(self, param):
         try:
+            dialogs_activity = param.thisObject
+            if dialogs_activity is None:
+                return
+            
             if hasattr(self.plugin, 'popup_manager') and self.plugin.popup_manager:
                 self.plugin.popup_manager.destroy()
+            
+            try:
+                action_bar = dialogs_activity.getActionBar()
+                if action_bar:
+                    back_button = action_bar.getBackButton()
+                    if back_button:
+                        back_button.setOnLongClickListener(None)
+                        if hasattr(back_button, '_uitweaks_recent_listener_set'):
+                            delattr(back_button, '_uitweaks_recent_listener_set')
+                        if hasattr(back_button, '_uitweaks_recent_listener_ref'):
+                            delattr(back_button, '_uitweaks_recent_listener_ref')
+            except Exception:
+                pass
+                
         except Exception:
             pass
 
