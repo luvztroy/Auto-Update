@@ -9910,24 +9910,8 @@ class GifSpoilerHook:
                 except:
                     pass
 
-            send_message_params = SendMessagesHelper.SendMessageParams.of(
-                document,
-                None,
-                None,
-                delegate.getDialogId(),
-                user_reply_to_msg,
-                topic_reply_to_msg if topic_reply_to_msg else user_reply_to_msg,
-                None,
-                None,
-                None,
-                None,
-                True,
-                0,
-                0,
-                parent,
-                None,
-                False,
-                True
+            send_message_params = self._create_send_message_params(
+                document, delegate, user_reply_to_msg, topic_reply_to_msg, None, parent, True
             )
 
             send_messages_helper.sendMessage(send_message_params)
@@ -10058,12 +10042,8 @@ class GifSpoilerHook:
                     pass
             
             SendMessagesHelper.getInstance(current_account).sendMessage(
-                SendMessagesHelper.SendMessageParams.of(
-                    document, None, None, delegate.getDialogId(), 
-                    user_reply_to_msg, 
-                    topic_reply_to_msg if topic_reply_to_msg else user_reply_to_msg, 
-                    caption,
-                    None, None, None, True, 0, 0, get_private_field(viewer, "parentObject"), None, False
+                self._create_send_message_params(
+                    document, delegate, user_reply_to_msg, topic_reply_to_msg, caption, get_private_field(viewer, "parentObject"), False
                 )
             )
             from org.telegram.messenger import MediaDataController
@@ -10094,6 +10074,33 @@ class GifSpoilerHook:
         except Exception as e:
             self.plugin.log(f"GIF Menu: Error dismissing popup: {e}")
             pass
+
+    def _create_send_message_params(self, document, delegate, user_reply_to_msg, topic_reply_to_msg, caption, parent, has_spoiler):
+        try:
+            return SendMessagesHelper.SendMessageParams.of(
+                document, None, None, delegate.getDialogId(), 
+                user_reply_to_msg, 
+                topic_reply_to_msg if topic_reply_to_msg else user_reply_to_msg, 
+                caption,
+                None, None, None, True, 0, 0, 
+                0,
+                parent, 
+                None, 
+                False, 
+                has_spoiler
+            )
+        except:
+            return SendMessagesHelper.SendMessageParams.of(
+                document, None, None, delegate.getDialogId(), 
+                user_reply_to_msg, 
+                topic_reply_to_msg if topic_reply_to_msg else user_reply_to_msg, 
+                caption,
+                None, None, None, True, 0, 0, 
+                parent, 
+                None, 
+                False, 
+                has_spoiler
+            )
 
 
 class GifDismissHook:
