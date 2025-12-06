@@ -299,7 +299,7 @@ class RecentChatsPopup:
         popup_y = back_button.getBottom() - AndroidUtilities.dp(8)
         self.current_popup = popup_window
         
-        OnDismissListenerInterface = find_class("android.widget.PopupWindow$OnDismissListener")
+        OnDismissListenerInterface = self.plugin._get_class("android.widget.PopupWindow$OnDismissListener")
         OnDismissListener = dynamic_proxy(OnDismissListenerInterface)
         class DismissListenerImpl(OnDismissListener):
             def __init__(self, callback_ref):
@@ -1186,6 +1186,8 @@ class ContactStatusListAdapterBindViewHolderHook:
 class UiTweaksPlugin(BasePlugin):
     def __init__(self):
         super().__init__()
+        
+        self._class_cache = {}
 
         self.hook_dialogs_ref = None
         self.hook_dialogs_destroy_ref = None
@@ -1505,7 +1507,6 @@ class UiTweaksPlugin(BasePlugin):
         self.custom_saved_chat_id = self.get_setting("custom_saved_chat_id", None)
         self.add_on_send_message_hook()
         self._load_hidden_folders()
-        self._apply_hooks()
         self._setup_quanta_file_hook()
         global uitweaks_plugin_instance
         uitweaks_plugin_instance = self
@@ -2794,6 +2795,10 @@ class UiTweaksPlugin(BasePlugin):
         
         if hasattr(self, 'contact_status_activity_state'):
             self.contact_status_activity_state.clear()
+        
+        if hasattr(self, '_class_cache'):
+            self._class_cache.clear()
+
 
 
     def on_send_message_hook(self, account: int, params: any):
@@ -2856,6 +2861,16 @@ class UiTweaksPlugin(BasePlugin):
                 self.log("Cleared hooked_activities set")
         except Exception as e:
             self.log(f"Error cleaning up activity resources: {e}")
+
+    def _get_class(self, class_name: str):
+        if class_name in self._class_cache:
+            return self._class_cache[class_name]
+        
+        cls = find_class(class_name)
+        if cls is not None:
+            self._class_cache[class_name] = cls
+        return cls
+
 
     def _open_archived_chats(self, context):
         from client_utils import get_last_fragment
@@ -3268,14 +3283,14 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_reply_in_another_chat(self):
         try:
-            LayoutClass = find_class("org.telegram.ui.Components.chat.layouts.ChatActivityActionsButtonsLayout")
+            LayoutClass = self._get_class("org.telegram.ui.Components.chat.layouts.ChatActivityActionsButtonsLayout")
             if LayoutClass is None:
                 return
             
-            ContextClass = find_class("android.content.Context")
-            ResourcesProviderClass = find_class("org.telegram.ui.ActionBar.Theme$ResourcesProvider")
-            ColorProviderClass = find_class("org.telegram.ui.Components.blur3.drawable.color.BlurredBackgroundColorProvider")
-            BlurredBackgroundDrawableViewFactoryClass = find_class("org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory")
+            ContextClass = self._get_class("android.content.Context")
+            ResourcesProviderClass = self._get_class("org.telegram.ui.ActionBar.Theme$ResourcesProvider")
+            ColorProviderClass = self._get_class("org.telegram.ui.Components.blur3.drawable.color.BlurredBackgroundColorProvider")
+            BlurredBackgroundDrawableViewFactoryClass = self._get_class("org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory")
             
             constructor = LayoutClass.getClass().getDeclaredConstructor(
                 ContextClass,
@@ -3286,11 +3301,11 @@ class UiTweaksPlugin(BasePlugin):
             constructor.setAccessible(True)
             self.hook_reply_in_another_chat_layout_ref = self.hook_method(constructor, ReplyInAnotherChatLayoutHook(self))
             
-            ChatActivity = find_class("org.telegram.ui.ChatActivity")
-            DialogsActivity = find_class("org.telegram.ui.DialogsActivity")
-            ArrayList = find_class("java.util.ArrayList")
-            CharSequence = find_class("java.lang.CharSequence")
-            TopicsFragment = find_class("org.telegram.ui.TopicsFragment")
+            ChatActivity = self._get_class("org.telegram.ui.ChatActivity")
+            DialogsActivity = self._get_class("org.telegram.ui.DialogsActivity")
+            ArrayList = self._get_class("java.util.ArrayList")
+            CharSequence = self._get_class("java.lang.CharSequence")
+            TopicsFragment = self._get_class("org.telegram.ui.TopicsFragment")
             
             boolean_type = jclass("java.lang.Boolean").TYPE
             int_type = jclass("java.lang.Integer").TYPE
@@ -3312,7 +3327,7 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_allow_reply_button(self):
         try:
-            ChatActivity = find_class("org.telegram.ui.ChatActivity")
+            ChatActivity = self._get_class("org.telegram.ui.ChatActivity")
             methods = ChatActivity.getClass().getDeclaredMethods()
             
             for method in methods:
@@ -3569,7 +3584,7 @@ class UiTweaksPlugin(BasePlugin):
                     
                     new_chat_activity = ChatActivity(args1)
                     
-                    ForumUtilities = find_class("org.telegram.ui.Components.Forum.ForumUtilities")
+                    ForumUtilities = plugin._get_class("org.telegram.ui.Components.Forum.ForumUtilities")
                     if ForumUtilities:
                         ForumUtilities.applyTopic(new_chat_activity, dids.get(0))
                     
@@ -3745,17 +3760,17 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_actions_buttons_layout(self):
         try:
-            ChatActivityActionsButtonsLayoutClass = find_class(
+            ChatActivityActionsButtonsLayoutClass = self._get_class(
                 "org.telegram.ui.Components.chat.layouts.ChatActivityActionsButtonsLayout"
             )
             
             if ChatActivityActionsButtonsLayoutClass is None:
                 return
             
-            ContextClass = find_class("android.content.Context")
-            ResourcesProviderClass = find_class("org.telegram.ui.ActionBar.Theme$ResourcesProvider")
-            ColorProviderClass = find_class("org.telegram.ui.Components.blur3.drawable.color.BlurredBackgroundColorProvider")
-            BlurredBackgroundDrawableViewFactoryClass = find_class("org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory")
+            ContextClass = self._get_class("android.content.Context")
+            ResourcesProviderClass = self._get_class("org.telegram.ui.ActionBar.Theme$ResourcesProvider")
+            ColorProviderClass = self._get_class("org.telegram.ui.Components.blur3.drawable.color.BlurredBackgroundColorProvider")
+            BlurredBackgroundDrawableViewFactoryClass = self._get_class("org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory")
             
             constructor = ChatActivityActionsButtonsLayoutClass.getClass().getDeclaredConstructor(
                 ContextClass,
@@ -3784,7 +3799,7 @@ class UiTweaksPlugin(BasePlugin):
     
     def _setup_forward_button(self, layout):
         try:
-            ViewOnClickListenerClass = find_class("android.view.View$OnClickListener")
+            ViewOnClickListenerClass = self._get_class("android.view.View$OnClickListener")
             setForwardButtonMethod = layout.getClass().getDeclaredMethod(
                 "setForwardButtonOnClickListener",
                 ViewOnClickListenerClass
@@ -3974,18 +3989,18 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_add_to_folder_all_tabs(self):
         try:
-            DialogsActivityClass = find_class("org.telegram.ui.DialogsActivity")
+            DialogsActivityClass = self._get_class("org.telegram.ui.DialogsActivity")
             if not DialogsActivityClass:
                 return
             
             try:
-                BooleanTYPE = find_class("java.lang.Boolean").TYPE
+                BooleanTYPE = self._get_class("java.lang.Boolean").TYPE
                 updateCountersMethod = DialogsActivityClass.getClass().getDeclaredMethod("updateCounters", BooleanTYPE)
             except:
                 try:
                     updateCountersMethod = DialogsActivityClass.getClass().getDeclaredMethod("updateCounters")
                 except:
-                    IntegerTYPE = find_class("java.lang.Integer").TYPE
+                    IntegerTYPE = self._get_class("java.lang.Integer").TYPE
                     updateCountersMethod = DialogsActivityClass.getClass().getDeclaredMethod("updateCounters", IntegerTYPE)
             
             updateCountersMethod.setAccessible(True)
@@ -4001,11 +4016,11 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_unread_count(self):
         try:
-            MessagesStorageClass = find_class("org.telegram.messenger.MessagesStorage")
+            MessagesStorageClass = self._get_class("org.telegram.messenger.MessagesStorage")
             if not MessagesStorageClass:
                 return
 
-            BooleanTYPE = find_class("java.lang.Boolean").TYPE
+            BooleanTYPE = self._get_class("java.lang.Boolean").TYPE
             calcUnreadCountersMethod = MessagesStorageClass.getClass().getDeclaredMethod("calcUnreadCounters", BooleanTYPE)
             calcUnreadCountersMethod.setAccessible(True)
 
@@ -4025,7 +4040,7 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_contact_status_in_profile(self):
         try:
-            ProfileActivity = find_class("org.telegram.ui.ProfileActivity")
+            ProfileActivity = self._get_class("org.telegram.ui.ProfileActivity")
             if not ProfileActivity:
                 return
 
@@ -4042,7 +4057,7 @@ class UiTweaksPlugin(BasePlugin):
             except Exception:
                 pass
 
-            ListAdapter = find_class("org.telegram.ui.ProfileActivity$ListAdapter")
+            ListAdapter = self._get_class("org.telegram.ui.ProfileActivity$ListAdapter")
             if not ListAdapter:
                 return
 
@@ -4092,11 +4107,11 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_unify_username_behavior(self):
         try:
-            ProfileActivityClass = find_class("org.telegram.ui.ProfileActivity")
+            ProfileActivityClass = self._get_class("org.telegram.ui.ProfileActivity")
             if not ProfileActivityClass:
                 return
             
-            ViewClass = find_class("android.view.View")
+            ViewClass = self._get_class("android.view.View")
             from java.lang import Integer, Float, Boolean
             
             try:
@@ -4116,11 +4131,11 @@ class UiTweaksPlugin(BasePlugin):
             except Exception:
                 pass
             
-            ListAdapterClass = find_class("org.telegram.ui.ProfileActivity$ListAdapter")
+            ListAdapterClass = self._get_class("org.telegram.ui.ProfileActivity$ListAdapter")
             if not ListAdapterClass:
                 return
             
-            RecyclerViewHolder = find_class("androidx.recyclerview.widget.RecyclerView$ViewHolder")
+            RecyclerViewHolder = self._get_class("androidx.recyclerview.widget.RecyclerView$ViewHolder")
             from java.lang import Integer
             
             try:
@@ -4132,7 +4147,7 @@ class UiTweaksPlugin(BasePlugin):
                 bind_method.setAccessible(True)
                 self.hook_unify_username_behavior_bind_ref = self.hook_method(
                     bind_method,
-                    UnifyUsernameBindViewHook()
+                    UnifyUsernameBindViewHook(self)
                 )
             except Exception:
                 pass
@@ -4356,7 +4371,7 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_safe_mode(self):
         try:
-            LaunchActivityClass = find_class("org.telegram.ui.LaunchActivity")
+            LaunchActivityClass = self._get_class("org.telegram.ui.LaunchActivity")
             if not LaunchActivityClass:
                 return
             
@@ -4399,7 +4414,7 @@ class UiTweaksPlugin(BasePlugin):
             PluginsController.getInstance().restart()
             
             try:
-                SafeModeBottomSheet = find_class("com.exteragram.messenger.plugins.ui.components.SafeModeBottomSheet")
+                SafeModeBottomSheet = self._get_class("com.exteragram.messenger.plugins.ui.components.SafeModeBottomSheet")
                 fragment = get_last_fragment()
                 if fragment and SafeModeBottomSheet:
                     SafeModeBottomSheet(fragment).show()
@@ -4580,19 +4595,19 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_search_by_user_id(self):
         try:
-            MentionsAdapterClass = find_class("org.telegram.ui.Adapters.MentionsAdapter")
+            MentionsAdapterClass = self._get_class("org.telegram.ui.Adapters.MentionsAdapter")
             if not MentionsAdapterClass:
                 return
             
-            IntegerClass = find_class("java.lang.Integer")
-            BooleanClass = find_class("java.lang.Boolean")
+            IntegerClass = self._get_class("java.lang.Integer")
+            BooleanClass = self._get_class("java.lang.Boolean")
             
             java_class = MentionsAdapterClass.getClass()
             search_method = java_class.getDeclaredMethod(
                 "searchUsernameOrHashtag",
-                find_class("java.lang.CharSequence"),
+                self._get_class("java.lang.CharSequence"),
                 IntegerClass.TYPE,
-                find_class("java.util.ArrayList"),
+                self._get_class("java.util.ArrayList"),
                 BooleanClass.TYPE,
                 BooleanClass.TYPE
             )
@@ -4662,8 +4677,8 @@ class UiTweaksPlugin(BasePlugin):
                             if chat_activity:
                                 search_user_method = chat_activity.getClass().getDeclaredMethod(
                                     "searchUserMessages",
-                                    find_class("org.telegram.tgnet.TLRPC$User"),
-                                    find_class("org.telegram.tgnet.TLRPC$Chat")
+                                    self.plugin._get_class("org.telegram.tgnet.TLRPC$User"),
+                                    self.plugin._get_class("org.telegram.tgnet.TLRPC$Chat")
                                 )
                                 search_user_method.setAccessible(True)
                                 
@@ -4690,7 +4705,7 @@ class UiTweaksPlugin(BasePlugin):
         try:
             NEW_LIMIT = 9999
             
-            CodepointsLengthInputFilterClass = find_class("org.telegram.ui.Components.CodepointsLengthInputFilter")
+            CodepointsLengthInputFilterClass = self._get_class("org.telegram.ui.Components.CodepointsLengthInputFilter")
             if not CodepointsLengthInputFilterClass:
                 return
             
@@ -4758,7 +4773,7 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_adaptive_audio_length(self):
         try:
-            ChatMessageCellClass = find_class("org.telegram.ui.Cells.ChatMessageCell")
+            ChatMessageCellClass = self._get_class("org.telegram.ui.Cells.ChatMessageCell")
             if not ChatMessageCellClass:
                 return
             
@@ -4773,7 +4788,7 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_music_speed_control(self):
         try:
-            FragmentContextViewClass = find_class("org.telegram.ui.Components.FragmentContextView")
+            FragmentContextViewClass = self._get_class("org.telegram.ui.Components.FragmentContextView")
             if not FragmentContextViewClass:
                 return
             
@@ -4786,7 +4801,7 @@ class UiTweaksPlugin(BasePlugin):
             pass
     
     def _hook_custom_saved_messages(self):
-        ChatActivityClass = find_class("org.telegram.ui.ChatActivity")
+        ChatActivityClass = self._get_class("org.telegram.ui.ChatActivity")
         if not ChatActivityClass:
             return
         
@@ -4879,7 +4894,7 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_disable_emoji_suggestions(self):
         try:
-            SuggestEmojiViewClass = find_class("org.telegram.ui.Components.SuggestEmojiView")
+            SuggestEmojiViewClass = self._get_class("org.telegram.ui.Components.SuggestEmojiView")
             if not SuggestEmojiViewClass:
                 return
             
@@ -4891,7 +4906,7 @@ class UiTweaksPlugin(BasePlugin):
             fire_update_method = JavaClass.getDeclaredMethod("fireUpdate")
             self.hook_method(fire_update_method, DisableFireUpdateHook())
             
-            StringClass = find_class("java.lang.String")
+            StringClass = self._get_class("java.lang.String")
             searchKeywords_method = JavaClass.getDeclaredMethod("searchKeywords", StringClass)
             self.hook_method(searchKeywords_method, DisableEmojiSuggestionsHook())
             
@@ -4902,8 +4917,8 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_message_swipe_action(self):
         try:
-            ChatActivityClass = find_class("org.telegram.ui.ChatActivity")
-            MessageObjectClass = find_class("org.telegram.messenger.MessageObject")
+            ChatActivityClass = self._get_class("org.telegram.ui.ChatActivity")
+            MessageObjectClass = self._get_class("org.telegram.messenger.MessageObject")
             
             show_reply_method = ChatActivityClass.getClass().getDeclaredMethod("showFieldPanelForReply", MessageObjectClass)
             show_reply_method.setAccessible(True)
@@ -4912,8 +4927,8 @@ class UiTweaksPlugin(BasePlugin):
             self.hook_message_swipe_action_ref = self.hook_method(show_reply_method, handler_instance, priority=10)
             
             try:
-                MotionEventClass = find_class("android.view.MotionEvent")
-                ViewClass = find_class("android.view.View")
+                MotionEventClass = self._get_class("android.view.MotionEvent")
+                ViewClass = self._get_class("android.view.View")
                 dispatch_touch_method = ViewClass.getClass().getDeclaredMethod("dispatchTouchEvent", MotionEventClass)
                 dispatch_touch_method.setAccessible(True)
                 
@@ -5061,7 +5076,7 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_play_in_chat_sound(self):
         try:
-            NotificationsController = find_class("org.telegram.messenger.NotificationsController")
+            NotificationsController = self._get_class("org.telegram.messenger.NotificationsController")
             if not NotificationsController:
                 return
             
@@ -5094,7 +5109,7 @@ class UiTweaksPlugin(BasePlugin):
                 return
             
             Vibrator = jclass("android.os.Vibrator")
-            ApplicationLoader = find_class("org.telegram.messenger.ApplicationLoader")
+            ApplicationLoader = self._get_class("org.telegram.messenger.ApplicationLoader")
             context = ApplicationLoader.applicationContext
             vibrator = context.getSystemService("vibrator")
             
@@ -5305,7 +5320,7 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_chat_activity_enter_view_constructor(self):
         try:
-            ChatActivityEnterView = find_class("org.telegram.ui.Components.ChatActivityEnterView")
+            ChatActivityEnterView = self._get_class("org.telegram.ui.Components.ChatActivityEnterView")
             if not ChatActivityEnterView:
                 return
             
@@ -5322,7 +5337,7 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_send_message_params_init(self):
         try:
-            SendMessagesHelper = find_class("org.telegram.messenger.SendMessagesHelper")
+            SendMessagesHelper = self._get_class("org.telegram.messenger.SendMessagesHelper")
             if not SendMessagesHelper:
                 return
             
@@ -5350,7 +5365,7 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_search_filter(self):
         try:
-            ChatActivityClass = find_class("org.telegram.ui.ChatActivity")
+            ChatActivityClass = self._get_class("org.telegram.ui.ChatActivity")
             if not ChatActivityClass:
                 return
             
@@ -5363,10 +5378,10 @@ class UiTweaksPlugin(BasePlugin):
             if open_search_method:
                 self.hook_search_filter_open_search_ref = self.hook_method(open_search_method, SearchFilterOpenSearchHook(self))
             
-            ConnectionsManagerClass = find_class("org.telegram.tgnet.ConnectionsManager")
+            ConnectionsManagerClass = self._get_class("org.telegram.tgnet.ConnectionsManager")
             if ConnectionsManagerClass:
-                TLObject_class = find_class("org.telegram.tgnet.TLObject")
-                RequestDelegate_class = find_class("org.telegram.tgnet.RequestDelegate")
+                TLObject_class = self._get_class("org.telegram.tgnet.TLObject")
+                RequestDelegate_class = self._get_class("org.telegram.tgnet.RequestDelegate")
                 int_type = jclass("java.lang.Integer").TYPE
                 
                 try:
@@ -5602,11 +5617,11 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_remove_greeting_sticker(self):
         try:
-            ChatActivityClass = find_class("org.telegram.ui.ChatActivity")
+            ChatActivityClass = self._get_class("org.telegram.ui.ChatActivity")
             if not ChatActivityClass:
                 return
             
-            BooleanTYPE = find_class("java.lang.Boolean").TYPE
+            BooleanTYPE = self._get_class("java.lang.Boolean").TYPE
             create_empty_view_method = ChatActivityClass.getClass().getDeclaredMethod(
                 "createEmptyView",
                 BooleanTYPE
@@ -5619,7 +5634,7 @@ class UiTweaksPlugin(BasePlugin):
     
     def _hook_select_all_media(self):
         try:
-            SharedMediaLayoutClass = find_class("org.telegram.ui.Components.SharedMediaLayout")
+            SharedMediaLayoutClass = self._get_class("org.telegram.ui.Components.SharedMediaLayout")
             if not SharedMediaLayoutClass:
                 return
             
@@ -6228,12 +6243,12 @@ class UiTweaksPlugin(BasePlugin):
             self.unhook_send_message = self.hook_method(send_message_method, self.hook_handler)
             pass
             
-            chat_enter_view_class = find_class("org.telegram.ui.Components.ChatActivityEnterView")
+            chat_enter_view_class = self._get_class("org.telegram.ui.Components.ChatActivityEnterView")
             set_command_method = chat_enter_view_class.getClass().getDeclaredMethod("setCommand", 
-                find_class("org.telegram.messenger.MessageObject").getClass(),
-                find_class("java.lang.String").getClass(),
-                find_class("java.lang.Boolean").TYPE,
-                find_class("java.lang.Boolean").TYPE)
+                self._get_class("org.telegram.messenger.MessageObject").getClass(),
+                self._get_class("java.lang.String").getClass(),
+                self._get_class("java.lang.Boolean").TYPE,
+                self._get_class("java.lang.Boolean").TYPE)
             set_command_method.setAccessible(True)
             
             self.unhook_set_command = self.hook_method(set_command_method, SetCommandHook(self))
@@ -6244,16 +6259,16 @@ class UiTweaksPlugin(BasePlugin):
     def _setup_deeplink_hooks(self):
         try:
             if self.get_setting("confirm_deeplinks", False) or self.get_setting("confirm_ayugram_deeplinks", False):
-                launch_activity_cls = find_class("org.telegram.ui.LaunchActivity")
+                launch_activity_cls = self._get_class("org.telegram.ui.LaunchActivity")
                 
                 method = launch_activity_cls.getClass().getDeclaredMethod("handleIntent", 
-                    find_class("android.content.Intent").getClass(),
-                    find_class("java.lang.Boolean").TYPE,
-                    find_class("java.lang.Boolean").TYPE,
-                    find_class("java.lang.Boolean").TYPE,
-                    find_class("org.telegram.messenger.browser.Browser$Progress").getClass(),
-                    find_class("java.lang.Boolean").TYPE,
-                    find_class("java.lang.Boolean").TYPE)
+                    self._get_class("android.content.Intent").getClass(),
+                    self._get_class("java.lang.Boolean").TYPE,
+                    self._get_class("java.lang.Boolean").TYPE,
+                    self._get_class("java.lang.Boolean").TYPE,
+                    self._get_class("org.telegram.messenger.browser.Browser$Progress").getClass(),
+                    self._get_class("java.lang.Boolean").TYPE,
+                    self._get_class("java.lang.Boolean").TYPE)
                 method.setAccessible(True)
                 
                 self.unhook_deeplink = self.hook_method(method, DeepLinkHook(self))
@@ -6265,7 +6280,7 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_dialogs_activity(self):
         try:
-            cls = find_class("org.telegram.ui.DialogsActivity")
+            cls = self._get_class("org.telegram.ui.DialogsActivity")
             method = cls.getClass().getDeclaredMethod("onResume")
             ref = self.hook_method(method, DialogsActivityHook(self))
             self.hook_dialogs_ref = ref
@@ -6282,8 +6297,8 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_dialog_cell(self):
         try:
-            cls = find_class("org.telegram.ui.Cells.DialogCell")
-            boolean_class = find_class("java.lang.Boolean").TYPE
+            cls = self._get_class("org.telegram.ui.Cells.DialogCell")
+            boolean_class = self._get_class("java.lang.Boolean").TYPE
             method = cls.getClass().getDeclaredMethod("setOpenBotButton", boolean_class)
             if method is not None:
                 ref = self.hook_method(method, DialogCellHook(self))
@@ -6306,10 +6321,10 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_swipe_prevention(self):
         try:
-            cls = find_class("org.telegram.ui.ChatActivity")
+            cls = self._get_class("org.telegram.ui.ChatActivity")
             if cls:
                 method = cls.getClass().getDeclaredMethod("isSwipeBackEnabled", 
-                    find_class("android.view.MotionEvent").getClass())
+                    self._get_class("android.view.MotionEvent").getClass())
                 method.setAccessible(True)
                 ref = self.hook_method(method, SwipePreventionHook(self))
                 self.hook_swipe_prevention_ref = ref
@@ -6368,7 +6383,7 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_webapp_swipe_prevention(self):
         try:
-            swipe_cls = find_class("org.telegram.ui.bots.ChatAttachAlertBotWebViewLayout$WebViewSwipeContainer")
+            swipe_cls = self._get_class("org.telegram.ui.bots.ChatAttachAlertBotWebViewLayout$WebViewSwipeContainer")
             context_class = jclass("android.content.Context")
             method = swipe_cls.getClass().getDeclaredConstructor(context_class)
             ref = self.hook_method(method, WebAppSwipePreventionHook(self))
@@ -6389,7 +6404,7 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_birthday_alert(self):
         try:
-            DialogsActivityClass = find_class("org.telegram.ui.DialogsActivity")
+            DialogsActivityClass = self._get_class("org.telegram.ui.DialogsActivity")
             if not DialogsActivityClass:
                 return
             
@@ -6414,24 +6429,24 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_star_reaction_menu(self):
         try:
-            reaction_menu_class = find_class("org.telegram.ui.Components.ReactionsContainerLayout")
+            reaction_menu_class = self._get_class("org.telegram.ui.Components.ReactionsContainerLayout")
             method = reaction_menu_class.getClass().getDeclaredMethod("setMessage", 
-                find_class("org.telegram.messenger.MessageObject").getClass(),
-                find_class("org.telegram.tgnet.TLRPC$ChatFull").getClass(),
-                find_class("java.lang.Boolean").TYPE)
+                self._get_class("org.telegram.messenger.MessageObject").getClass(),
+                self._get_class("org.telegram.tgnet.TLRPC$ChatFull").getClass(),
+                self._get_class("java.lang.Boolean").TYPE)
             method.setAccessible(True)
             ref = self.hook_method(method, StarReactionMenuHook(self))
             self.hook_star_reaction_menu_ref = ref
             
             method2 = reaction_menu_class.getClass().getDeclaredMethod("setVisibleReactionsList", 
-                find_class("java.util.List").getClass(),
-                find_class("java.lang.Boolean").TYPE)
+                self._get_class("java.util.List").getClass(),
+                self._get_class("java.lang.Boolean").TYPE)
             method2.setAccessible(True)
             ref2 = self.hook_method(method2, StarReactionVisibleListHook(self))
             self.hook_star_reaction_visible_list_ref = ref2
             
             method3 = reaction_menu_class.getClass().getDeclaredMethod("dispatchDraw", 
-                find_class("android.graphics.Canvas").getClass())
+                self._get_class("android.graphics.Canvas").getClass())
             method3.setAccessible(True)
             ref3 = self.hook_method(method3, StarReactionGradientHook(self))
             self.hook_star_reaction_gradient_ref = ref3
@@ -6442,12 +6457,12 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_star_reaction_layout(self):
         try:
-            reactions_layout_class = find_class("org.telegram.ui.Components.Reactions.ReactionsLayoutInBubble")
+            reactions_layout_class = self._get_class("org.telegram.ui.Components.Reactions.ReactionsLayoutInBubble")
             set_message_method = reactions_layout_class.getClass().getDeclaredMethod("setMessage", 
-                find_class("org.telegram.messenger.MessageObject").getClass(),
-                find_class("java.lang.Boolean").TYPE,
-                find_class("java.lang.Boolean").TYPE,
-                find_class("org.telegram.ui.ActionBar.Theme$ResourcesProvider").getClass())
+                self._get_class("org.telegram.messenger.MessageObject").getClass(),
+                self._get_class("java.lang.Boolean").TYPE,
+                self._get_class("java.lang.Boolean").TYPE,
+                self._get_class("org.telegram.ui.ActionBar.Theme$ResourcesProvider").getClass())
             set_message_method.setAccessible(True)
             ref = self.hook_method(set_message_method, StarReactionLayoutDrawHook(self))
             self.hook_star_reaction_layout_draw_ref = ref
@@ -6490,12 +6505,12 @@ class UiTweaksPlugin(BasePlugin):
 
     def _setup_open_link_internally_hook(self):
         try:
-            chat_activity_class = find_class("org.telegram.ui.ChatActivity")
-            chat_message_cell_class = find_class("org.telegram.ui.Cells.ChatMessageCell")
-            character_style_class = find_class("android.text.style.CharacterStyle")
+            chat_activity_class = self._get_class("org.telegram.ui.ChatActivity")
+            chat_message_cell_class = self._get_class("org.telegram.ui.Cells.ChatMessageCell")
+            character_style_class = self._get_class("android.text.style.CharacterStyle")
             
-            string_class = find_class("java.lang.String")
-            int_class = find_class("java.lang.Integer").TYPE
+            string_class = self._get_class("java.lang.String")
+            int_class = self._get_class("java.lang.Integer").TYPE
             
             try:
                 method = chat_activity_class.getClass().getDeclaredMethod(
@@ -6517,10 +6532,10 @@ class UiTweaksPlugin(BasePlugin):
 
     def _setup_browser_open_url_hook(self):
         try:
-            browser_class = find_class("org.telegram.messenger.browser.Browser")
-            context_class = find_class("android.content.Context")
-            uri_class = find_class("android.net.Uri")
-            progress_class = find_class("org.telegram.messenger.browser.Browser$Progress")
+            browser_class = self._get_class("org.telegram.messenger.browser.Browser")
+            context_class = self._get_class("android.content.Context")
+            uri_class = self._get_class("android.net.Uri")
+            progress_class = self._get_class("org.telegram.messenger.browser.Browser$Progress")
             method = browser_class.getClass().getDeclaredMethod(
                 "openUrl",
                 context_class.getClass(),
@@ -6677,13 +6692,13 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_delete_with_duration(self):
         try:
-            DeleteMessagesBottomSheet = find_class("org.telegram.ui.Components.DeleteMessagesBottomSheet")
-            ArrayList = find_class("java.util.ArrayList")
-            UniversalAdapter = find_class("org.telegram.ui.Components.UniversalAdapter")
-            UItem = find_class("org.telegram.ui.Components.UItem")
-            View = find_class("android.view.View")
-            Integer = find_class("java.lang.Integer")
-            Float = find_class("java.lang.Float")
+            DeleteMessagesBottomSheet = self._get_class("org.telegram.ui.Components.DeleteMessagesBottomSheet")
+            ArrayList = self._get_class("java.util.ArrayList")
+            UniversalAdapter = self._get_class("org.telegram.ui.Components.UniversalAdapter")
+            UItem = self._get_class("org.telegram.ui.Components.UItem")
+            View = self._get_class("android.view.View")
+            Integer = self._get_class("java.lang.Integer")
+            Float = self._get_class("java.lang.Float")
             
             if not DeleteMessagesBottomSheet:
                 self.log("Failed to find DeleteMessagesBottomSheet class")
@@ -6715,11 +6730,11 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_unread_badge(self):
         try:
-            ChatActivityClass = find_class("org.telegram.ui.ChatActivity")
+            ChatActivityClass = self._get_class("org.telegram.ui.ChatActivity")
             if not ChatActivityClass:
                 return
             
-            ContextClass = find_class("android.content.Context")
+            ContextClass = self._get_class("android.content.Context")
             create_view_method = ChatActivityClass.getClass().getDeclaredMethod(
                 "createView", 
                 ContextClass
@@ -6742,7 +6757,7 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_gif_spoiler(self):
         try:
-            SHOW_SHEET_RUNNABLE = find_class("org.telegram.ui.ContentPreviewViewer$1")
+            SHOW_SHEET_RUNNABLE = self._get_class("org.telegram.ui.ContentPreviewViewer$1")
             method = SHOW_SHEET_RUNNABLE.getClass().getDeclaredMethod("run")
             method.setAccessible(True)
             self.hook_gif_spoiler_ref = self.hook_method(method, GifSpoilerHook(self))
@@ -6758,15 +6773,15 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_process_external_url(self):
         try:
-            ChatActivityClass = find_class("org.telegram.ui.ChatActivity")
+            ChatActivityClass = self._get_class("org.telegram.ui.ChatActivity")
             method = ChatActivityClass.getClass().getDeclaredMethod(
                 "processExternalUrl", 
-                find_class("java.lang.Integer").TYPE,
-                find_class("java.lang.String").getClass(),
-                find_class("android.text.style.CharacterStyle").getClass(),
-                find_class("org.telegram.ui.Cells.ChatMessageCell").getClass(),
-                find_class("java.lang.Boolean").TYPE,
-                find_class("java.lang.Boolean").TYPE
+                self._get_class("java.lang.Integer").TYPE,
+                self._get_class("java.lang.String").getClass(),
+                self._get_class("android.text.style.CharacterStyle").getClass(),
+                self._get_class("org.telegram.ui.Cells.ChatMessageCell").getClass(),
+                self._get_class("java.lang.Boolean").TYPE,
+                self._get_class("java.lang.Boolean").TYPE
             )
             method.setAccessible(True)
             self.hook_process_external_url_ref = self.hook_method(method, ProcessExternalUrlHook(self))
@@ -6778,15 +6793,15 @@ class UiTweaksPlugin(BasePlugin):
         try:
             if getattr(self, 'hook_forward_confirmation_ref', None):
                 return
-            chat_cls = find_class("org.telegram.ui.ChatActivity")
+            chat_cls = self._get_class("org.telegram.ui.ChatActivity")
             method = chat_cls.getClass().getDeclaredMethod(
                 "forwardMessages",
-                find_class("java.util.ArrayList").getClass(),
-                find_class("java.lang.Boolean").TYPE,
-                find_class("java.lang.Boolean").TYPE,
-                find_class("java.lang.Boolean").TYPE,
-                find_class("java.lang.Integer").TYPE,
-                find_class("java.lang.Long").TYPE
+                self._get_class("java.util.ArrayList").getClass(),
+                self._get_class("java.lang.Boolean").TYPE,
+                self._get_class("java.lang.Boolean").TYPE,
+                self._get_class("java.lang.Boolean").TYPE,
+                self._get_class("java.lang.Integer").TYPE,
+                self._get_class("java.lang.Long").TYPE
             )
             method.setAccessible(True)
             self.hook_forward_confirmation_ref = self.hook_method(method, ForwardConfirmationHook(self, method))
@@ -6798,8 +6813,8 @@ class UiTweaksPlugin(BasePlugin):
         try:
             if getattr(self, 'hook_join_confirmation_ref', None):
                 return
-            chat_activity_class = find_class("org.telegram.ui.ChatActivity")
-            context_class = find_class("android.content.Context")
+            chat_activity_class = self._get_class("org.telegram.ui.ChatActivity")
+            context_class = self._get_class("android.content.Context")
             
             if not chat_activity_class or not context_class:
                 return
@@ -6812,25 +6827,25 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_code_formatting(self):
         try:
-            ChatActivity = find_class("org.telegram.ui.ChatActivity")
-            EditTextCaption = find_class("org.telegram.ui.Components.EditTextCaption")
+            ChatActivity = self._get_class("org.telegram.ui.ChatActivity")
+            EditTextCaption = self._get_class("org.telegram.ui.Components.EditTextCaption")
             
             if ChatActivity is None or EditTextCaption is None:
                 return
             
-            boolean_type = find_class("java.lang.Boolean").TYPE
+            boolean_type = self._get_class("java.lang.Boolean").TYPE
             fillActionModeMenu_method = None
             
             try:
                 fillActionModeMenu_method = ChatActivity.getClass().getDeclaredMethod("fillActionModeMenu", 
-                    find_class("android.view.Menu"), 
+                    self._get_class("android.view.Menu"), 
                     jclass("org.telegram.tgnet.TLRPC$EncryptedChat"), 
                     boolean_type,
                     boolean_type)
             except Exception:
                 try:
                     fillActionModeMenu_method = ChatActivity.getClass().getDeclaredMethod("fillActionModeMenu", 
-                        find_class("android.view.Menu"), 
+                        self._get_class("android.view.Menu"), 
                         jclass("org.telegram.tgnet.TLRPC$EncryptedChat"), 
                         boolean_type)
                 except Exception:
@@ -6841,7 +6856,7 @@ class UiTweaksPlugin(BasePlugin):
                 self.hook_fill_action_mode_menu_ref = self.hook_method(fillActionModeMenu_method, FillActionModeMenuHook(self))
             
             performMenuAction_method = EditTextCaption.getClass().getDeclaredMethod("performMenuAction", 
-                find_class("java.lang.Integer").TYPE)
+                self._get_class("java.lang.Integer").TYPE)
             performMenuAction_method.setAccessible(True)
             
             self.hook_perform_menu_action_ref = self.hook_method(performMenuAction_method, PerformMenuActionHook(self))
@@ -7151,19 +7166,19 @@ class UiTweaksPlugin(BasePlugin):
             hasattr(self, 'hook_recent_topics_fragment_ref') and self.hook_recent_topics_fragment_ref):
             return
         
-        ChatActivity = find_class("org.telegram.ui.ChatActivity")
+        ChatActivity = self._get_class("org.telegram.ui.ChatActivity")
         if ChatActivity:
             method = ChatActivity.getClass().getDeclaredMethod("onResume")
             method.setAccessible(True)
             self.hook_recent_chats_activity_ref = self.hook_method(method, self._create_recent_chats_chat_activity_hook())
         
-        ProfileActivity = find_class("org.telegram.ui.ProfileActivity")
+        ProfileActivity = self._get_class("org.telegram.ui.ProfileActivity")
         if ProfileActivity:
             method = ProfileActivity.getClass().getDeclaredMethod("onResume")
             method.setAccessible(True)
             self.hook_recent_profile_activity_ref = self.hook_method(method, self._create_recent_chats_profile_activity_hook())
         
-        TopicsFragment = find_class("org.telegram.ui.TopicsFragment")
+        TopicsFragment = self._get_class("org.telegram.ui.TopicsFragment")
         if TopicsFragment:
             method = TopicsFragment.getClass().getDeclaredMethod("onResume")
             method.setAccessible(True)
@@ -7234,15 +7249,15 @@ class UiTweaksPlugin(BasePlugin):
             if getattr(self, 'hook_message_preview_view_ref', None):
                 return
                 
-            cls = find_class("org.telegram.ui.Components.MessagePreviewView")
+            cls = self._get_class("org.telegram.ui.Components.MessagePreviewView")
             context_class = jclass("android.content.Context")
-            chat_activity_class = find_class("org.telegram.ui.ChatActivity")
-            params_class = find_class("org.telegram.messenger.MessagePreviewParams")
-            user_class = find_class("org.telegram.tgnet.TLRPC$User")
-            chat_class = find_class("org.telegram.tgnet.TLRPC$Chat")
+            chat_activity_class = self._get_class("org.telegram.ui.ChatActivity")
+            params_class = self._get_class("org.telegram.messenger.MessagePreviewParams")
+            user_class = self._get_class("org.telegram.tgnet.TLRPC$User")
+            chat_class = self._get_class("org.telegram.tgnet.TLRPC$Chat")
             int_class = jclass("java.lang.Integer").TYPE
             boolean_class = jclass("java.lang.Boolean").TYPE
-            resources_class = find_class("org.telegram.ui.Components.MessagePreviewView$ResourcesDelegate")
+            resources_class = self._get_class("org.telegram.ui.Components.MessagePreviewView$ResourcesDelegate")
             
             method = cls.getClass().getDeclaredConstructor(
                 context_class, chat_activity_class, params_class, user_class, 
@@ -7550,7 +7565,7 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_disable_auto_web_login(self):
         try:
-            BrowserClass = find_class("org.telegram.messenger.browser.Browser")
+            BrowserClass = self._get_class("org.telegram.messenger.browser.Browser")
             if not BrowserClass:
                 return
 
@@ -7558,16 +7573,16 @@ class UiTweaksPlugin(BasePlugin):
             
             try:
                 method = java_browser_class.getDeclaredMethod("openUrl",
-                    find_class("android.content.Context").getClass(),
-                    find_class("android.net.Uri").getClass(),
-                    find_class("java.lang.Boolean").TYPE,
-                    find_class("java.lang.Boolean").TYPE,
-                    find_class("java.lang.Boolean").TYPE,
-                    find_class("org.telegram.messenger.browser.Browser$Progress").getClass(),
-                    find_class("java.lang.String").getClass(),
-                    find_class("java.lang.Boolean").TYPE,
-                    find_class("java.lang.Boolean").TYPE,
-                    find_class("java.lang.Boolean").TYPE)
+                    self._get_class("android.content.Context").getClass(),
+                    self._get_class("android.net.Uri").getClass(),
+                    self._get_class("java.lang.Boolean").TYPE,
+                    self._get_class("java.lang.Boolean").TYPE,
+                    self._get_class("java.lang.Boolean").TYPE,
+                    self._get_class("org.telegram.messenger.browser.Browser$Progress").getClass(),
+                    self._get_class("java.lang.String").getClass(),
+                    self._get_class("java.lang.Boolean").TYPE,
+                    self._get_class("java.lang.Boolean").TYPE,
+                    self._get_class("java.lang.Boolean").TYPE)
                 method.setAccessible(True)
                 self.hook_disable_auto_web_login_ref = self.hook_method(method, DisableAutoWebLoginHook(self))
             except Exception as e:
@@ -7585,7 +7600,7 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_prefer_common_groups_tab(self):
         try:
-            SharedMediaLayoutClass = find_class("org.telegram.ui.Components.SharedMediaLayout")
+            SharedMediaLayoutClass = self._get_class("org.telegram.ui.Components.SharedMediaLayout")
             if not SharedMediaLayoutClass:
                 return
 
@@ -7593,7 +7608,7 @@ class UiTweaksPlugin(BasePlugin):
             
             try:
                 method = java_class.getDeclaredMethod("setUserInfo", 
-                    find_class("org.telegram.tgnet.TLRPC$UserFull").getClass())
+                    self._get_class("org.telegram.tgnet.TLRPC$UserFull").getClass())
                 method.setAccessible(True)
                 self.hook_prefer_common_groups_tab_ref = self.hook_method(method, PreferCommonGroupsTabHook(self))
             except Exception as e:
@@ -7604,7 +7619,7 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_sender_select_popup(self):
         try:
-            SenderSelectPopupClass = find_class("org.telegram.ui.Components.SenderSelectPopup")
+            SenderSelectPopupClass = self._get_class("org.telegram.ui.Components.SenderSelectPopup")
             if not SenderSelectPopupClass:
                 return
 
@@ -7619,7 +7634,7 @@ class UiTweaksPlugin(BasePlugin):
             constructor.setAccessible(True)
             self.hook_method(constructor, SendAsPopupHook(self))
 
-            MessagesControllerClass = find_class("org.telegram.messenger.MessagesController")
+            MessagesControllerClass = self._get_class("org.telegram.messenger.MessagesController")
             method = MessagesControllerClass.getClass().getDeclaredMethod("setDefaultSendAs", jclass("java.lang.Long").TYPE, jclass("java.lang.Long").TYPE)
             method.setAccessible(True)
             self.hook_method(method, SetDefaultSendAsHook(self))
@@ -7629,12 +7644,12 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_swipe_disable(self):
         try:
-            SwipeGestureSettingsViewClass = find_class("org.telegram.ui.Components.SwipeGestureSettingsView")
+            SwipeGestureSettingsViewClass = self._get_class("org.telegram.ui.Components.SwipeGestureSettingsView")
             if not SwipeGestureSettingsViewClass:
                 return
 
             try:
-                SharedConfigClass = find_class("org.telegram.messenger.SharedConfig")
+                SharedConfigClass = self._get_class("org.telegram.messenger.SharedConfig")
                 if SharedConfigClass:
                     getSwipeMethod = SharedConfigClass.getClass().getDeclaredMethod(
                         "getChatSwipeAction",
@@ -7779,11 +7794,11 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_share_sheet_folders(self):
         try:
-            share_alert_class = find_class("org.telegram.ui.Components.ShareAlert")
+            share_alert_class = self._get_class("org.telegram.ui.Components.ShareAlert")
             if not share_alert_class:
                 return
             
-            bottom_sheet_class = find_class("org.telegram.ui.ActionBar.BottomSheet")
+            bottom_sheet_class = self._get_class("org.telegram.ui.ActionBar.BottomSheet")
             if not bottom_sheet_class:
                 return
                 
@@ -8181,7 +8196,7 @@ class UiTweaksPlugin(BasePlugin):
 
     def _hook_disable_topic_swipe(self):
         try:
-            TouchHelperCallbackClass = find_class("org.telegram.ui.TopicsFragment$TouchHelperCallback")
+            TouchHelperCallbackClass = self._get_class("org.telegram.ui.TopicsFragment$TouchHelperCallback")
             if not TouchHelperCallbackClass:
                 return
             
@@ -8209,9 +8224,9 @@ class UiTweaksPlugin(BasePlugin):
         try:
             self.hidden_accounts = self.load_hidden_accounts()
             
-            if drawer_adapter_class := find_class("org.telegram.ui.Adapters.DrawerLayoutAdapter"):
+            if drawer_adapter_class := self._get_class("org.telegram.ui.Adapters.DrawerLayoutAdapter"):
                 self.hook_drawer_adapter(drawer_adapter_class)
-            if profile_cell_class := find_class("org.telegram.ui.Cells.DrawerProfileCell"):
+            if profile_cell_class := self._get_class("org.telegram.ui.Cells.DrawerProfileCell"):
                 self.hook_profile_cell(profile_cell_class)
         except Exception:
             pass
@@ -10211,7 +10226,7 @@ class CreateViewHook(MethodHook):
                     notification_center = chat_activity.getNotificationCenter()
                     
                     from java import dynamic_proxy
-                    NotificationCenterDelegate = find_class("org.telegram.messenger.NotificationCenter$NotificationCenterDelegate")
+                    NotificationCenterDelegate = self.plugin._get_class("org.telegram.messenger.NotificationCenter$NotificationCenterDelegate")
                     
                     ObserverProxy = dynamic_proxy(NotificationCenterDelegate)
                     
@@ -10237,7 +10252,7 @@ class CreateViewHook(MethodHook):
                                         from android_utils import run_on_ui_thread
                                         def update():
                                             try:
-                                                ViewClass = find_class("android.view.View")
+                                                ViewClass = self.plugin._get_class("android.view.View")
                                                 try:
                                                     in_preview = self.chat_activity.inPreviewMode
                                                 except:
@@ -10547,7 +10562,7 @@ class JoinConfirmationHook:
             if not chat_activity:
                 return
 
-            chat_activity_class = find_class("org.telegram.ui.ChatActivity")
+            chat_activity_class = self.plugin._get_class("org.telegram.ui.ChatActivity")
             overlay_field = chat_activity_class.getClass().getDeclaredField("bottomOverlayChatText")
             overlay_field.setAccessible(True)
             overlay_text_view = overlay_field.get(chat_activity)
@@ -10555,7 +10570,7 @@ class JoinConfirmationHook:
             if not overlay_text_view:
                 return
 
-            view_class = find_class("android.view.View")
+            view_class = self.plugin._get_class("android.view.View")
             listener_info_method = view_class.getClass().getDeclaredMethod("getListenerInfo")
             listener_info_method.setAccessible(True)
             listener_info = listener_info_method.invoke(overlay_text_view)
@@ -10620,12 +10635,12 @@ class DoNotSharePhoneNumberHook:
 
     def setup(self):
         try:
-            ContactAddActivity = find_class("org.telegram.ui.ContactAddActivity")
+            ContactAddActivity = self.plugin._get_class("org.telegram.ui.ContactAddActivity")
             if not ContactAddActivity:
                 return
             activity_class = ContactAddActivity.getClass()
             array_list_class = jclass("java.util.ArrayList")
-            universal_adapter = find_class("org.telegram.ui.Components.UniversalAdapter")
+            universal_adapter = self.plugin._get_class("org.telegram.ui.Components.UniversalAdapter")
             method = activity_class.getDeclaredMethod("fillItems", array_list_class, universal_adapter)
             method.setAccessible(True)
             self.fill_items_hook = self.plugin.hook_method(method, _ContactAddActivityFillItemsHook(), priority=0)
@@ -10751,7 +10766,7 @@ class ChatActionBarItemsHook:
     
     def add_summarize_menu_item(self, chat_activity):
         try:
-            AiController = find_class("com.exteragram.messenger.ai.AiController")
+            AiController = self.plugin._get_class("com.exteragram.messenger.ai.AiController")
             if not AiController:
                 return
 
@@ -10762,7 +10777,7 @@ class ChatActionBarItemsHook:
             if headerItem is None:
                 return
             
-            R = find_class("org.telegram.messenger.R")
+            R = self.plugin._get_class("org.telegram.messenger.R")
             if R is None:
                 return
             
@@ -10835,7 +10850,7 @@ class ChatActionBarItemsHook:
             if headerItem is None:
                 return
             
-            R = find_class("org.telegram.messenger.R")
+            R = self.plugin._get_class("org.telegram.messenger.R")
             if R is None:
                 return
             
@@ -10963,12 +10978,12 @@ class ChatActionBarMenuItemClickHook:
             self.plugin.log(f"Error in Chat Action Bar Menu Item Click Hook: {e}")
     
     def open_summarize_view(self, chat_activity):
-        GenerateFromMessageBottomSheet = find_class("com.exteragram.messenger.ai.ui.GenerateFromMessageBottomSheet")
+        GenerateFromMessageBottomSheet = self.plugin._get_class("com.exteragram.messenger.ai.ui.GenerateFromMessageBottomSheet")
         if not GenerateFromMessageBottomSheet:
             return
         
-        LocaleController = find_class("org.telegram.messenger.LocaleController")
-        R = find_class("org.telegram.messenger.R")
+        LocaleController = self.plugin._get_class("org.telegram.messenger.LocaleController")
+        R = self.plugin._get_class("org.telegram.messenger.R")
         
         if LocaleController and R:
             getStringMethod = LocaleController.getClass().getDeclaredMethod("getString", jclass("java.lang.Integer").TYPE)
@@ -11044,14 +11059,14 @@ class ChatActionBarMenuItemClickHook:
     
     def show_alert(self, chat_activity, messages):
         try:
-            AiConfig = find_class("com.exteragram.messenger.ai.AiConfig")
+            AiConfig = self.plugin._get_class("com.exteragram.messenger.ai.AiConfig")
             if AiConfig:
                 AiConfig.showResponseOnly = True
             
             context = self.build_message_context(messages)
             full_prompt = context
             
-            AiController = find_class("com.exteragram.messenger.ai.AiController")
+            AiController = self.plugin._get_class("com.exteragram.messenger.ai.AiController")
             controller = AiController.getInstance()
             
             summarizer_role = None
@@ -11063,7 +11078,7 @@ class ChatActionBarMenuItemClickHook:
                         summarizer_role = role
                         break
             
-            client_builder = find_class("com.exteragram.messenger.ai.network.Client").Builder()
+            client_builder = self.plugin._get_class("com.exteragram.messenger.ai.network.Client").Builder()
             if summarizer_role:
                 client_builder.roleOverride(summarizer_role)
             client = client_builder.build()
@@ -11072,7 +11087,7 @@ class ChatActionBarMenuItemClickHook:
                 return
             
             current_chat = get_private_field(chat_activity, "currentChat")
-            no_forwards = find_class("org.telegram.messenger.MessagesController").getInstance(0).isChatNoForwards(current_chat) if current_chat else False
+            no_forwards = self.plugin._get_class("org.telegram.messenger.MessagesController").getInstance(0).isChatNoForwards(current_chat) if current_chat else False
             
             setText = jclass("android.widget.TextView").getClass().getDeclaredMethod("setText", jclass("java.lang.CharSequence"))
             
@@ -11248,18 +11263,31 @@ class ChatActionBarMenuItemClickHook:
 
 RIGHT_DURATION = 20
 
-def show_duration_selector_sheet(context, on_duration_selected):
-    BottomSheet = find_class("org.telegram.ui.ActionBar.BottomSheet")
-    LinearLayout = find_class("android.widget.LinearLayout")
-    HeaderCell = find_class("org.telegram.ui.Cells.HeaderCell")
-    Theme = find_class("org.telegram.ui.ActionBar.Theme")
-    LayoutHelper = find_class("org.telegram.ui.Components.LayoutHelper")
-    LocaleController = find_class("org.telegram.messenger.LocaleController")
-    R_string = find_class("org.telegram.messenger.R$string")
-    ConnectionsManager = find_class("org.telegram.tgnet.ConnectionsManager")
-    AlertsCreator = find_class("org.telegram.ui.Components.AlertsCreator")
-    UserConfig = find_class("org.telegram.messenger.UserConfig")
-    AndroidUtilities = find_class("org.telegram.messenger.AndroidUtilities")
+def show_duration_selector_sheet(context, on_duration_selected, plugin=None):
+    if plugin:
+        BottomSheet = plugin._get_class("org.telegram.ui.ActionBar.BottomSheet")
+        LinearLayout = plugin._get_class("android.widget.LinearLayout")
+        HeaderCell = plugin._get_class("org.telegram.ui.Cells.HeaderCell")
+        Theme = plugin._get_class("org.telegram.ui.ActionBar.Theme")
+        LayoutHelper = plugin._get_class("org.telegram.ui.Components.LayoutHelper")
+        LocaleController = plugin._get_class("org.telegram.messenger.LocaleController")
+        R_string = plugin._get_class("org.telegram.messenger.R$string")
+        ConnectionsManager = plugin._get_class("org.telegram.tgnet.ConnectionsManager")
+        AlertsCreator = plugin._get_class("org.telegram.ui.Components.AlertsCreator")
+        UserConfig = plugin._get_class("org.telegram.messenger.UserConfig")
+        AndroidUtilities = plugin._get_class("org.telegram.messenger.AndroidUtilities")
+    else:
+        BottomSheet = find_class("org.telegram.ui.ActionBar.BottomSheet")
+        LinearLayout = find_class("android.widget.LinearLayout")
+        HeaderCell = find_class("org.telegram.ui.Cells.HeaderCell")
+        Theme = find_class("org.telegram.ui.ActionBar.Theme")
+        LayoutHelper = find_class("org.telegram.ui.Components.LayoutHelper")
+        LocaleController = find_class("org.telegram.messenger.LocaleController")
+        R_string = find_class("org.telegram.messenger.R$string")
+        ConnectionsManager = find_class("org.telegram.tgnet.ConnectionsManager")
+        AlertsCreator = find_class("org.telegram.ui.Components.AlertsCreator")
+        UserConfig = find_class("org.telegram.messenger.UserConfig")
+        AndroidUtilities = find_class("org.telegram.messenger.AndroidUtilities")
     
     builder = BottomSheet.Builder(context)
     builder.setApplyTopPadding(False)
@@ -11298,7 +11326,7 @@ def show_duration_selector_sheet(context, on_duration_selected):
                 if is_custom:
                     current_time = ConnectionsManager.getInstance(current_account).getCurrentTime()
                     
-                    ScheduleDatePickerDelegate = find_class("org.telegram.ui.Components.AlertsCreator$ScheduleDatePickerDelegate")
+                    ScheduleDatePickerDelegate = plugin._get_class("org.telegram.ui.Components.AlertsCreator$ScheduleDatePickerDelegate") if plugin else find_class("org.telegram.ui.Components.AlertsCreator$ScheduleDatePickerDelegate")
                     DateDelegateProxy = dynamic_proxy(ScheduleDatePickerDelegate)
                     
                     class DateDelegate(DateDelegateProxy):
@@ -11347,9 +11375,9 @@ class DeleteWithDurationFillItemsHook:
             if banOrRestrict and bannedRights:
                 checks = get_private_field(banOrRestrict, 'checks')
                 if checks and (checks[0] or restrict):
-                    UItem = find_class("org.telegram.ui.Components.UItem")
-                    LocaleController = find_class("org.telegram.messenger.LocaleController")
-                    R_string = find_class("org.telegram.messenger.R$string")
+                    UItem = self.plugin._get_class("org.telegram.ui.Components.UItem")
+                    LocaleController = self.plugin._get_class("org.telegram.messenger.LocaleController")
+                    R_string = self.plugin._get_class("org.telegram.messenger.R$string")
                     
                     if bannedRights.until_date == 0 or abs(bannedRights.until_date - int(time.time())) > 10 * 365 * 24 * 60 * 60:
                         value = LocaleController.getString("UserRestrictionsUntilForever", R_string.UserRestrictionsUntilForever)
@@ -11387,7 +11415,7 @@ class DeleteWithDurationOnClickHook:
                         if adapter:
                             adapter.update(True)
                 
-                show_duration_selector_sheet(context, on_duration_selected)
+                show_duration_selector_sheet(context, on_duration_selected, self.plugin)
                 param.setResult(None)
                 return
                 
@@ -11857,8 +11885,8 @@ class AllowReplyButtonHook:
     
     def _can_post(self, chat):
         try:
-            ChatObject = find_class("org.telegram.messenger.ChatObject")
-            Chat = find_class("org.telegram.tgnet.TLRPC$Chat")
+            ChatObject = self.plugin._get_class("org.telegram.messenger.ChatObject")
+            Chat = self.plugin._get_class("org.telegram.tgnet.TLRPC$Chat")
             canPost_method = ChatObject.getClass().getMethod("canPost", Chat)
             can_post = canPost_method.invoke(None, chat)
             return can_post
@@ -12127,7 +12155,7 @@ class PlaySoundHook:
         if vibrate_setting != 0:
             try:
                 Vibrator = jclass("android.os.Vibrator")
-                ApplicationLoader = find_class("org.telegram.messenger.ApplicationLoader")
+                ApplicationLoader = self.plugin._get_class("org.telegram.messenger.ApplicationLoader")
                 context = ApplicationLoader.applicationContext
                 vibrator = context.getSystemService("vibrator")
                 
@@ -12771,6 +12799,9 @@ class UnifyUsernameProcessClickHook(MethodHook):
 
 
 class UnifyUsernameBindViewHook(MethodHook):
+    def __init__(self, plugin):
+        self.plugin = plugin
+
     def after_hooked_method(self, param):
         try:
             list_adapter = param.thisObject
@@ -12810,7 +12841,7 @@ class UnifyUsernameBindViewHook(MethodHook):
                 return
             
             view = holder.itemView
-            text_detail_cell_class = find_class("org.telegram.ui.Cells.TextDetailCell")
+            text_detail_cell_class = self.plugin._get_class("org.telegram.ui.Cells.TextDetailCell")
             
             if not text_detail_cell_class.getClass().isInstance(view):
                 return
