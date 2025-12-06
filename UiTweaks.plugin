@@ -2009,7 +2009,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("hide_hd_icon", get_string("hide_hd_icon", "HD icon in media picker"), False, lambda v: self._apply_hooks(), link_alias="hide_hd_icon"),
             Divider(text=get_string("hide_hd_icon_info", "This will only remove the HD icon from the media picker. It will not affect the quality of the media.")),
             self.Quanta_switch("hide_archived_chats", get_string("hide_archived_chats", "Hide Archived Chats"), False, lambda v: self._apply_hooks(), link_alias="hide_archived_chats"),
-            self.Quanta_switch("hide_archived_from_drawer", get_string("hide_archived_from_drawer", "Hide from drawer"), False, lambda v: self._apply_hooks(), link_alias="hide_archived_from_drawer") if self.get_setting("hide_archived_chats", False) else None,
+            self.Quanta_switch("hide_archived_from_drawer", get_string("hide_archived_from_drawer", "Hide from drawer"), False, lambda v: self._on_hide_archived_from_drawer_change(v), link_alias="hide_archived_from_drawer") if self.get_setting("hide_archived_chats", False) else None,
             Divider(text=get_string("hide_archived_chats_info", "This will remove archived chats cell from the chat list by filtering them out of the dialogs query.")),
         ])
 
@@ -2279,6 +2279,15 @@ class UiTweaksPlugin(BasePlugin):
             BulletinHelper.show_success(get_string("branch_selector_enabled", "Branch selector enabled!"))
         else:
             BulletinHelper.show_info(get_string("branch_selector_disabled", "Branch selector hidden"))
+    
+
+    
+    def _on_hide_archived_from_drawer_change(self, value):
+        if value:
+            self.set_setting("fab_action_selector", 1)
+        else:
+            self.set_setting("fab_action_selector", 0)
+        self._apply_hooks()
     
     def _setup_quanta_file_hook(self):
         try:
