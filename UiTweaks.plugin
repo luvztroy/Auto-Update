@@ -868,6 +868,7 @@ class UiTweaksPlugin(BasePlugin):
         
 
         self.hooked_activities = set()
+        self.hook_chat_activity_cleanup_ref = None
         self.memory_check_running = False
         
        
@@ -2443,9 +2444,31 @@ class UiTweaksPlugin(BasePlugin):
 
     def _cleanup_activity_resources(self):
         try:
-            if hasattr(self, 'hooked_activities'):
-                self.hooked_activities.clear()
-                self.log("Cleared hooked_activities set")
+            sets_to_clear = [
+                'hooked_activities',
+                'added_send_media_buttons',
+                '_no_quote_buttons_created',
+                '_select_all_added_modes',
+                '_goto_items_added',
+                'ai_summarize_hooked_activities',
+                'chat_action_bar_hooked_activities',
+            ]
+            for set_name in sets_to_clear:
+                if hasattr(self, set_name):
+                    s = getattr(self, set_name)
+                    if s:
+                        s.clear()
+            
+            dicts_to_clear = [
+                '_no_quote_button_cache',
+                'search_filter_buttons',
+                'contact_status_activity_state',
+            ]
+            for dict_name in dicts_to_clear:
+                if hasattr(self, dict_name):
+                    d = getattr(self, dict_name)
+                    if d:
+                        d.clear()
         except Exception as e:
             self.log(f"Error cleaning up activity resources: {e}")
 
@@ -2606,9 +2629,29 @@ class UiTweaksPlugin(BasePlugin):
         if self._unhook_layout:
             self.unhook_method(self._unhook_layout)
             self._unhook_layout = None
+        if hasattr(self, 'hook_chat_activity_cleanup_ref') and self.hook_chat_activity_cleanup_ref:
+            self.unhook_method(self.hook_chat_activity_cleanup_ref)
+            self.hook_chat_activity_cleanup_ref = None
+
+    def _hook_chat_activity_cleanup(self):
+        try:
+            if self.hook_chat_activity_cleanup_ref:
+                return
+            ChatActivityClass = self._get_class("org.telegram.ui.ChatActivity")
+            if not ChatActivityClass:
+                return
+            destroy_method = ChatActivityClass.getClass().getDeclaredMethod("onFragmentDestroy")
+            destroy_method.setAccessible(True)
+            self.hook_chat_activity_cleanup_ref = self.hook_method(
+                destroy_method,
+                ChatActivityCleanupHook(self)
+            )
+        except Exception:
+            pass
 
     def _apply_hooks(self):
         self._unhook_all()
+        self._hook_chat_activity_cleanup()
         try:
             if (self.get_setting("hide_bot_open", False) or 
                 self.get_setting("fab_settings_shortcut", False)):
@@ -7004,10 +7047,33 @@ class UiTweaksPlugin(BasePlugin):
     
     def cleanup_activity_references(self, activity_id):
         try:
-            if hasattr(self, '_goto_items_added'):
-                self._goto_items_added.discard(activity_id)
+            sets_to_check = [
+                '_goto_items_added',
+                'hooked_activities',
+                'added_send_media_buttons',
+                '_no_quote_buttons_created',
+                '_select_all_added_modes',
+                'ai_summarize_hooked_activities',
+                'chat_action_bar_hooked_activities',
+            ]
+            for set_name in sets_to_check:
+                if hasattr(self, set_name):
+                    s = getattr(self, set_name)
+                    if s and activity_id in s:
+                        s.discard(activity_id)
+            
+            dicts_to_check = [
+                '_no_quote_button_cache',
+                'search_filter_buttons',
+                'contact_status_activity_state',
+            ]
+            for dict_name in dicts_to_check:
+                if hasattr(self, dict_name):
+                    d = getattr(self, dict_name)
+                    if d and activity_id in d:
+                        del d[activity_id]
         except Exception as e:
-            uitweaks_log(f"Error in cleanup_activity_references: {e}")
+            self.log(f"Error in cleanup_activity_references: {e}")
 
     
     def _create_summarizer_role(self):
@@ -8266,10 +8332,30 @@ class DialogsActivityDestroyHook:
             if dialogs_activity is None:
                 return
             
-
-                
+            activity_id = id(dialogs_activity)
+            self.plugin.cleanup_activity_references(activity_id)
         except Exception:
             pass
+
+
+class ChatActivityCleanupHook:
+    def __init__(self, plugin):
+        self.plugin_ref = weakref.ref(plugin)
+    
+    def after_hooked_method(self, param):
+        try:
+            plugin = self.plugin_ref()
+            if plugin is None:
+                return
+            chat_activity = param.thisObject
+            if chat_activity is None:
+                return
+            
+            activity_id = id(chat_activity)
+            plugin.cleanup_activity_references(activity_id)
+        except Exception:
+            pass
+
 
 class DialogCellHook:
     def __init__(self, plugin: UiTweaksPlugin):
