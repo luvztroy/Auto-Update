@@ -8,7 +8,7 @@ import base64
 import weakref
 import threading
 import time
-from collections import deque
+
 
 from typing import Set, Any, Optional, List, Dict
 from base_plugin import BasePlugin, MenuItemData, MenuItemType, HookResult, HookStrategy, MethodReplacement, AppEvent, MethodHook
@@ -121,425 +121,6 @@ TL_documentAttributeSticker = jclass('org.telegram.tgnet.TLRPC$TL_documentAttrib
 TL_documentAttributeAudio = jclass('org.telegram.tgnet.TLRPC$TL_documentAttributeAudio')
 TL_documentAttributeVideo = jclass('org.telegram.tgnet.TLRPC$TL_documentAttributeVideo')
 TL_documentAttributeAnimated = jclass('org.telegram.tgnet.TLRPC$TL_documentAttributeAnimated')
-
-class RecentChatsManager:
-    
-    MAX_RECENT_DIALOGS = 25
-    
-    def __init__(self, plugin_instance):
-        self.plugin_ref = weakref.ref(plugin_instance)
-        self.recent_dialogs = {}
-        self.clearing = False
-        self.clear_timestamp = 0
-        self.add_disabled = False
-        self._save_timers = {}
-    
-    def get_recent_dialogs(self, account_id: int) -> List[int]:
-        plugin = self.plugin_ref()
-        if plugin is None:
-            return []
-        if account_id not in self.recent_dialogs:
-            try:
-                saved_data = plugin.get_setting(f"recents_{account_id}", "")
-                if saved_data is not None and saved_data != "" and saved_data.strip():
-                    try:
-                        decoded_data = base64.b64decode(saved_data)
-                        dialog_ids = json.loads(decoded_data.decode('utf-8'))
-                        self.recent_dialogs[account_id] = deque(dialog_ids)
-                    except:
-                        self.recent_dialogs[account_id] = deque()
-                else:
-                    self.recent_dialogs[account_id] = deque()
-            except:
-                self.recent_dialogs[account_id] = deque()
-        
-        return list(self.recent_dialogs[account_id])
-    
-    def add_to_recent_dialogs(self, account_id: int, dialog_id: int):
-        import time
-        
-        plugin = self.plugin_ref()
-        if plugin is None:
-            return
-        
-        if self.clearing:
-            return
-        
-        clear_timestamp = float(plugin.get_setting(f"clear_timestamp_{account_id}", "0"))
-        if clear_timestamp > 0 and time.time() - clear_timestamp < 3:
-            return
-        
-        if clear_timestamp > 0:
-            plugin.set_setting(f"clear_timestamp_{account_id}", "0")
-            self.recent_dialogs[account_id] = deque()
-            
-        if account_id not in self.recent_dialogs:
-            self.recent_dialogs[account_id] = deque()
-        
-        if dialog_id in self.recent_dialogs[account_id]:
-            self.recent_dialogs[account_id].remove(dialog_id)
-        
-        self.recent_dialogs[account_id].appendleft(dialog_id)
-        
-        while len(self.recent_dialogs[account_id]) > self.MAX_RECENT_DIALOGS:
-            self.recent_dialogs[account_id].pop()
-        
-        self._debounced_save_recent_dialogs(account_id)
-    
-    def clear_recent_dialogs(self, account_id: int):
-        import time
-        
-        plugin = self.plugin_ref()
-        if plugin is None:
-            return
-        
-        self.clearing = True
-        plugin.set_setting(f"clear_timestamp_{account_id}", str(time.time()))
-        self.recent_dialogs[account_id] = deque()
-        plugin.set_setting(f"recents_{account_id}", "")
-        self.clearing = False
-    
-    def _debounced_save_recent_dialogs(self, account_id: int):
-        if account_id in self._save_timers:
-            timer = self._save_timers[account_id]
-            if timer:
-                timer.cancel()
-        
-        def timer_callback():
-            try:
-                if account_id in self.recent_dialogs:
-                    self._save_recent_dialogs(account_id)
-            finally:
-                if account_id in self._save_timers:
-                    del self._save_timers[account_id]
-        
-        timer = threading.Timer(0.5, timer_callback)
-        self._save_timers[account_id] = timer
-        timer.start()
-    
-    def _save_recent_dialogs(self, account_id: int):
-        try:
-            plugin = self.plugin_ref()
-            if plugin is None:
-                return
-            dialog_ids = list(self.recent_dialogs[account_id])
-            json_data = json.dumps(dialog_ids)
-            encoded_data = base64.b64encode(json_data.encode('utf-8')).decode('utf-8')
-            plugin.set_setting(f"recents_{account_id}", encoded_data)
-        except Exception as e:
-            pass
-        finally:
-            if account_id in self._save_timers:
-                del self._save_timers[account_id]
-    
-    def force_reload(self, account_id: int):
-        if account_id in self.recent_dialogs:
-            del self.recent_dialogs[account_id]
-    
-    def cleanup(self):
-        for timer in self._save_timers.values():
-            timer.cancel()
-        self._save_timers.clear()
-
-class RecentChatsPopup:
-    
-    def __init__(self, plugin_instance):
-        self.plugin = plugin_instance
-        self.current_popup = None
-        self._save_debounce_timer = None
-    
-    def show(self, current_account: int, fragment: BaseFragment, back_button: View):
-        from org.telegram.messenger import AndroidUtilities
-        
-        if fragment is None:
-            return
-        
-        context = fragment.getParentActivity()
-        fragment_view = fragment.getFragmentView()
-        if context is None or fragment_view is None:
-            return
-        
-        self.plugin.recent_manager.force_reload(current_account)
-        recent_dialogs = self.plugin.recent_manager.get_recent_dialogs(current_account)
-
-        if not recent_dialogs:
-            return
-        
-        layout = self._create_popup_layout(context, fragment, recent_dialogs, current_account)
-        
-        popup_window = ActionBarPopupWindow(
-            layout, 
-            -2,
-            -2
-        )
-        
-        popup_window.setPauseNotifications(True)
-        popup_window.setDismissAnimationDuration(220)
-        popup_window.setOutsideTouchable(True)
-        popup_window.setClippingEnabled(True)
-        popup_window.setAnimationStyle(R_tg.style.PopupContextAnimation)
-        popup_window.setFocusable(True)
-        
-        layout.measure(
-            View.MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(1000), View.MeasureSpec.AT_MOST),
-            View.MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(1000), View.MeasureSpec.AT_MOST)
-        )
-        
-        popup_window.setInputMethodMode(ActionBarPopupWindow.INPUT_METHOD_NOT_NEEDED)
-        popup_window.setSoftInputMode(0)
-        popup_window.getContentView().setFocusableInTouchMode(True)
-        layout.setFitItems(True)
-        
-        popup_x = AndroidUtilities.dp(8)
-        if AndroidUtilities.isTablet():
-            location = [0, 0]
-            fragment_view.getLocationInWindow(location)
-            popup_x += location[0]
-        
-        popup_y = back_button.getBottom() - AndroidUtilities.dp(8)
-        self.current_popup = popup_window
-        
-        OnDismissListenerInterface = self.plugin._get_class("android.widget.PopupWindow$OnDismissListener")
-        OnDismissListener = dynamic_proxy(OnDismissListenerInterface)
-        class DismissListenerImpl(OnDismissListener):
-            def __init__(self, callback_ref):
-                super().__init__()
-                self.callback_ref = callback_ref
-            def onDismiss(self):
-                callback = self.callback_ref()
-                if callback:
-                    callback()
-        popup_window.setOnDismissListener(DismissListenerImpl(weakref.ref(self._on_popup_dismissed)))
-        
-        popup_window.showAtLocation(fragment_view, Gravity.LEFT | Gravity.TOP, popup_x, popup_y)
-        popup_window.dimBehind()
-    
-    def _on_popup_dismissed(self):
-        self.current_popup = None
-    
-    def _create_popup_layout(self, context, fragment, recent_dialogs, current_account):
-        layout = ActionBarPopupWindow.ActionBarPopupWindowLayout(context)
-        layout.setBackgroundColor(Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground))
-        
-        header_view = self._create_header(context, fragment, current_account)
-        layout.addView(header_view, LayoutHelper.createLinear(
-            -1, -2, 4, 4, 4, 4
-        ))
-        
-        for dialog_id in recent_dialogs:
-            chat_item = self._create_chat_item(context, fragment, dialog_id, current_account)
-            if chat_item is not None:
-                layout.addView(chat_item, LayoutHelper.createLinear(
-                    -1, 48
-                ))
-        
-        return layout
-    
-    def _create_header(self, context, fragment, current_account):
-        from org.telegram.messenger import AndroidUtilities
-        
-        header_view = FrameLayout(context)
-        header_view.setBackgroundColor(Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground))
-        
-        title_text_view = TextView(context)
-        title_text_view.setTextColor(Theme.getColor(Theme.key_dialogTextBlue))
-        title_text_view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16)
-        title_text_view.setText(get_string("recent_chats", "Recent Chats"))
-        title_text_view.setTypeface(AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM))
-        header_view.addView(title_text_view, LayoutHelper.createFrame(
-            -2, 24, Gravity.LEFT
-        ))
-        
-        clear_image_view = ImageView(context)
-        clear_image_view.setScaleType(ImageView.ScaleType.CENTER)
-        clear_image_view.setColorFilter(Theme.getColor(Theme.key_actionBarDefaultSubmenuItemIcon))
-        clear_image_view.setImageResource(R_tg.drawable.msg_close)
-        clear_image_view.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector)))
-        clear_click_listener = self._create_clear_click_listener(fragment, current_account)
-        OnClickInterface = find_class("android.view.View$OnClickListener")
-        OnClick = dynamic_proxy(OnClickInterface)
-        class ClearClickImpl(OnClick):
-            def __init__(self, listener, fragment_ref):
-                super().__init__()
-                self.listener = listener
-                self.fragment_ref = fragment_ref
-            def onClick(self, v):
-                if self.fragment_ref and self.fragment_ref():
-                    self.listener(v)
-        clear_image_view.setOnClickListener(ClearClickImpl(clear_click_listener, weakref.ref(fragment)))
-        header_view.addView(clear_image_view, LayoutHelper.createFrame(
-            24, 24, Gravity.RIGHT | Gravity.CENTER_VERTICAL
-        ))
-        
-        header_view.setPadding(AndroidUtilities.dp(9), AndroidUtilities.dp(8), AndroidUtilities.dp(8), AndroidUtilities.dp(8))
-        return header_view
-    
-    def _create_clear_click_listener(self, fragment, current_account):
-        fragment_ref = weakref.ref(fragment)
-        popup_ref = weakref.ref(self)
-        def clear_click_listener(*args):
-            fragment = fragment_ref()
-            popup = popup_ref()
-            if fragment is None or popup is None:
-                return
-                
-            view = args[0] if len(args) > 0 else None
-            activity = fragment.getParentActivity()
-            if activity is None:
-                return
-                
-            builder = AlertDialogBuilder(activity)
-            builder.set_title(get_string("clear_recent_chats", "Clear Recent Chats"))
-            builder.set_message(get_string("clear_recent_chats_confirm", "Are you sure you want to clear all recent chats?"))
-            builder.set_positive_button(get_string("clear", "Clear"), lambda dialog, which: popup._clear_recent_chats(current_account))
-            builder.set_negative_button(get_string("cancel", "Cancel"), None)
-            builder.show()
-        
-        return clear_click_listener
-    
-    def _clear_recent_chats(self, current_account):
-        self.plugin.recent_manager.clear_recent_dialogs(current_account)
-        
-        if self.current_popup and self.current_popup.isShowing():
-            self.current_popup.dismiss()
-            self.current_popup = None
-    
-    def destroy(self):
-        try:
-            if self.current_popup and self.current_popup.isShowing():
-                self.current_popup.dismiss()
-        except Exception:
-            pass
-        finally:
-            self.current_popup = None
-    
-    def _create_chat_item(self, context, fragment, dialog_id, current_account):
-        from org.telegram.messenger import AndroidUtilities
-        
-        cell = FrameLayout(context)
-        cell.setMinimumWidth(AndroidUtilities.dp(200))
-        
-        chat = None
-        user = None
-        if dialog_id < 0:
-            chat = MessagesController.getInstance(current_account).getChat(-dialog_id)
-        else:
-            user = MessagesController.getInstance(current_account).getUser(dialog_id)
-        
-        if chat is None and user is None:
-            return None
-        
-        image_view = BackupImageView(context)
-        if chat is not None and chat.forum:
-            image_view.setRoundRadius(AndroidUtilities.dp(8))
-        else:
-            image_view.setRoundRadius(AndroidUtilities.dp(16))
-        cell.addView(image_view, LayoutHelper.createFrameRelatively(
-            32, 32, Gravity.START | Gravity.CENTER_VERTICAL, 13, 0, 0, 0
-        ))
-        
-        title_view = TextView(context)
-        title_view.setLines(1)
-        title_view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16)
-        title_view.setTextColor(Theme.getColor(Theme.key_actionBarDefaultSubmenuItem))
-        title_view.setEllipsize(TextUtils.TruncateAt.END)
-        cell.addView(title_view, LayoutHelper.createFrameRelatively(
-            -1, -2,
-            Gravity.START | Gravity.CENTER_VERTICAL, 59, 0, 12, 0
-        ))
-        
-        avatar_drawable = AvatarDrawable()
-        avatar_drawable.setScaleSize(0.8)
-        
-        if chat is not None:
-            avatar_drawable.setInfo(chat)
-            if chat.photo is not None and chat.photo.strippedBitmap is not None:
-                image_view.setImage(ImageLocation.getForChat(chat, ImageLocation.TYPE_SMALL), "50_50", chat.photo.strippedBitmap, chat)
-            else:
-                image_view.setImageDrawable(avatar_drawable)
-            title_view.setText(chat.title)
-        else:
-            if UserObject.isReplyUser(user):
-                name = get_string("replies", "Replies")
-                avatar_drawable.setInfo(user)
-                image_view.setImageDrawable(avatar_drawable)
-            elif UserObject.isDeleted(user):
-                name = get_string("hidden_name", "Hidden Name")
-                avatar_drawable.setInfo(user)
-                image_view.setImage(ImageLocation.getForUser(user, ImageLocation.TYPE_SMALL), "50_50", avatar_drawable, user)
-            else:
-                name = UserObject.getUserName(user)
-                avatar_drawable.setInfo(user)
-                if user.photo is not None and user.photo.strippedBitmap is not None:
-                    image_view.setImage(ImageLocation.getForUser(user, ImageLocation.TYPE_SMALL), "50_50", user.photo.strippedBitmap, user)
-                else:
-                    image_view.setImageDrawable(avatar_drawable)
-            title_view.setText(name)
-        
-        cell.setBackground(Theme.getSelectorDrawable(Theme.getColor(Theme.key_listSelector), False))
-        chat_click_listener = self._create_chat_click_listener(fragment, dialog_id)
-        chat_long_click_listener = self._create_chat_long_click_listener(fragment, dialog_id)
-        cell.setOnClickListener(OnClickListener(chat_click_listener))
-        cell.setOnLongClickListener(OnLongClickListener(chat_long_click_listener))
-        
-        return cell
-    
-    def _create_chat_click_listener(self, fragment, dialog_id):
-        fragment_ref = weakref.ref(fragment)
-        popup_ref = weakref.ref(self)
-        def chat_click_listener(*args):
-            fragment = fragment_ref()
-            popup = popup_ref()
-            if fragment is None or popup is None:
-                return
-                
-            view = args[0] if len(args) > 0 else None
-            if popup.current_popup and popup.current_popup.isShowing():
-                popup.current_popup.dismiss()
-                popup.current_popup = None
-            
-            if dialog_id < 0:
-                if MessagesController.getInstance(fragment.getCurrentAccount()).isForum(dialog_id):
-                    bundle = Bundle()
-                    bundle.putLong("chat_id", -dialog_id)
-                    fragment.presentFragment(TopicsFragment(bundle))
-                else:
-                    bundle = Bundle()
-                    bundle.putLong("chat_id", -dialog_id)
-                    fragment.presentFragment(ChatActivity(bundle))
-            else:
-                bundle = Bundle()
-                bundle.putLong("user_id", dialog_id)
-                fragment.presentFragment(ChatActivity(bundle))
-        
-        return chat_click_listener
-    
-    def _create_chat_long_click_listener(self, fragment, dialog_id):
-        fragment_ref = weakref.ref(fragment)
-        popup_ref = weakref.ref(self)
-        plugin_ref = weakref.ref(self.plugin)
-        def chat_long_click_listener(*args):
-            fragment = fragment_ref()
-            popup = popup_ref()
-            plugin = plugin_ref()
-            if fragment is None or popup is None or plugin is None:
-                return True
-                
-            view = args[0] if len(args) > 0 else None
-            plugin._perform_haptic(fragment)
-            if popup.current_popup and popup.current_popup.isShowing():
-                popup.current_popup.dismiss()
-                popup.current_popup = None
-            
-            bundle = Bundle()
-            if dialog_id < 0:
-                bundle.putLong("chat_id", -dialog_id)
-            else:
-                bundle.putLong("user_id", dialog_id)
-            fragment.presentFragment(ProfileActivity(bundle))
-            return True
-        
-        return chat_long_click_listener
 
 
 class NonClickablePreviewDispatchTouchHook:
@@ -1252,9 +833,7 @@ class UiTweaksPlugin(BasePlugin):
         self.hook_join_confirmation_ref = None
         self.hook_send_typing_refs = None
         self.hook_open_link_internally_ref = None
-        self.hook_recent_chats_activity_ref = None
-        self.hook_recent_profile_activity_ref = None
-        self.hook_recent_topics_fragment_ref = None
+
         self.hook_browser_open_url_ref = None
         self.hook_code_formatting_ref = None
         self.hook_sender_select_popup_ref = None
@@ -1287,8 +866,7 @@ class UiTweaksPlugin(BasePlugin):
         
         self._goto_items_added = set()
         
-        self.recent_manager = RecentChatsManager(self)
-        self.popup_manager = RecentChatsPopup(self)
+
         self.hooked_activities = set()
         self.memory_check_running = False
         
@@ -1663,7 +1241,8 @@ class UiTweaksPlugin(BasePlugin):
         if self.get_setting("enable_select_all_dialogs", False):
             self._setup_select_all_dialogs()
         
-        self._preload_recent_chats()
+
+
         
         try:
             run_on_queue(self._perform_heavy_operations, PLUGINS_QUEUE, 2000)
@@ -2029,9 +1608,8 @@ class UiTweaksPlugin(BasePlugin):
         settings.extend([
             Header(text=get_string("Indicators", "Indicators")),
             self.Quanta_switch("unread_badge_on_back_button", get_string("unread_badge_on_back_button", "Unread Badge on Back Button"), False, lambda v: self._apply_hooks(), link_alias="unread_badge_on_back_button"),
-            self.Quanta_switch("enable_recent_chats_menu", get_string("enable_recent_chats_menu", "Enable Recent Chats Menu"), False, lambda v: self._apply_hooks(), link_alias="enable_recent_chats_menu"),
-            Divider(text=get_string("recent_chats_menu_info", "Shows recent chats when long-pressing the drawer icon in chat list. Stores up to 20 chats.")),
         ])
+
         
         settings.extend([
             Header(text=get_string("manage_folders", "Manage Folders")),
@@ -2936,10 +2514,8 @@ class UiTweaksPlugin(BasePlugin):
             "hook_process_external_url_ref",
             "hook_fill_action_mode_menu_ref",
             "hook_perform_menu_action_ref",
-            "hook_recent_chats_activity_ref",
-            "hook_recent_profile_activity_ref",
-            "hook_recent_topics_fragment_ref",
             "hook_drawer_icon_ref",
+
             "hook_call_buttons_ref",
             "hook_group_voice_chat_icon_ref",
             "hook_message_preview_view_ref",
@@ -3035,7 +2611,6 @@ class UiTweaksPlugin(BasePlugin):
         self._unhook_all()
         try:
             if (self.get_setting("hide_bot_open", False) or 
-                self.get_setting("enable_recent_chats_menu", False) or
                 self.get_setting("fab_settings_shortcut", False)):
                 self._hook_dialogs_activity()
                 if self.get_setting("hide_bot_open", False):
@@ -3099,8 +2674,7 @@ class UiTweaksPlugin(BasePlugin):
                 self._hook_actions_buttons_layout()
             if self.get_setting("typing_instead_sticker", False):
                 self._hook_send_typing_method()
-            if self.get_setting("enable_recent_chats_menu", False):
-                self._hook_recent_chats_activities()
+
             if self.get_setting("hide_birthday_alert", False):
                 self._hook_birthday_alert()
             
@@ -7110,148 +6684,7 @@ class UiTweaksPlugin(BasePlugin):
         except Exception as e:
             traceback.print_exc()
 
-    def _preload_recent_chats(self):
-        current_account = UserConfig.selectedAccount
-        self.recent_manager.get_recent_dialogs(current_account)
-    
-    def refresh_recent_chats(self, account_id: int):
-        self.recent_manager.force_reload(account_id)
 
-    def _setup_recent_chats_back_button_listener(self, dialogs_activity):
-        action_bar = dialogs_activity.getActionBar()
-        if action_bar:
-            back_button = action_bar.getBackButton()
-            if back_button:
-                if hasattr(back_button, '_uitweaks_recent_listener_set'):
-                    return
-                
-                plugin_ref = weakref.ref(self)
-                activity_ref = weakref.ref(dialogs_activity)
-                
-                def long_click_handler(*args):
-                    try:
-                        plugin = plugin_ref()
-                        activity = activity_ref()
-                        if plugin is None or activity is None:
-                            return False
-                        
-                        view = args[0] if len(args) > 0 else back_button
-                        plugin._perform_haptic(activity)
-                        return plugin._on_recent_chats_drawer_button_long_click(activity, view)
-                    except Exception as e:
-                        return False
-                
-                listener = OnLongClickListener(long_click_handler)
-                back_button.setOnLongClickListener(listener)
-                back_button._uitweaks_recent_listener_set = True
-                back_button._uitweaks_recent_listener_ref = listener
-    
-    def _on_recent_chats_drawer_button_long_click(self, dialogs_activity, drawer_button):
-        if self._can_show_recent_menu(dialogs_activity):
-            current_account = dialogs_activity.getCurrentAccount()
-            self.popup_manager.show(current_account, dialogs_activity, drawer_button)
-            return True
-        return False
-    
-    def _can_show_recent_menu(self, dialogs_activity):
-        searching = get_private_field(dialogs_activity, "searching")
-        if searching:
-            return False
-        
-        filter_tabs_view = get_private_field(dialogs_activity, "filterTabsView")
-        if filter_tabs_view and filter_tabs_view.isEditing():
-            return False
-        
-        action_bar = dialogs_activity.getActionBar()
-        if action_bar and action_bar.isActionModeShowed():
-            return False
-        
-        return True
-
-
-    def _hook_recent_chats_activities(self):
-        if (hasattr(self, 'hook_recent_chats_activity_ref') and self.hook_recent_chats_activity_ref and
-            hasattr(self, 'hook_recent_profile_activity_ref') and self.hook_recent_profile_activity_ref and
-            hasattr(self, 'hook_recent_topics_fragment_ref') and self.hook_recent_topics_fragment_ref):
-            return
-        
-        ChatActivity = self._get_class("org.telegram.ui.ChatActivity")
-        if ChatActivity:
-            method = ChatActivity.getClass().getDeclaredMethod("onResume")
-            method.setAccessible(True)
-            self.hook_recent_chats_activity_ref = self.hook_method(method, self._create_recent_chats_chat_activity_hook())
-        
-        ProfileActivity = self._get_class("org.telegram.ui.ProfileActivity")
-        if ProfileActivity:
-            method = ProfileActivity.getClass().getDeclaredMethod("onResume")
-            method.setAccessible(True)
-            self.hook_recent_profile_activity_ref = self.hook_method(method, self._create_recent_chats_profile_activity_hook())
-        
-        TopicsFragment = self._get_class("org.telegram.ui.TopicsFragment")
-        if TopicsFragment:
-            method = TopicsFragment.getClass().getDeclaredMethod("onResume")
-            method.setAccessible(True)
-            self.hook_recent_topics_fragment_ref = self.hook_method(method, self._create_recent_chats_topics_fragment_hook())
-    
-    def _create_recent_chats_chat_activity_hook(self):
-        class ChatActivityHook:
-            def __init__(self, plugin_instance):
-                self.plugin_ref = weakref.ref(plugin_instance)
-            
-            def after_hooked_method(self, param):
-                try:
-                    plugin = self.plugin_ref()
-                    if plugin is None:
-                        return
-                    chat_activity = param.thisObject
-                    if chat_activity:
-                        dialog_id = chat_activity.getDialogId()
-                        current_account = chat_activity.getCurrentAccount()
-                        plugin.recent_manager.add_to_recent_dialogs(current_account, dialog_id)
-                except:
-                    pass
-        
-        return ChatActivityHook(self)
-    
-    def _create_recent_chats_profile_activity_hook(self):
-        class ProfileActivityHook:
-            def __init__(self, plugin_instance):
-                self.plugin_ref = weakref.ref(plugin_instance)
-            
-            def after_hooked_method(self, param):
-                try:
-                    plugin = self.plugin_ref()
-                    if plugin is None:
-                        return
-                    profile_activity = param.thisObject
-                    if profile_activity:
-                        dialog_id = profile_activity.getDialogId()
-                        current_account = profile_activity.getCurrentAccount()
-                        plugin.recent_manager.add_to_recent_dialogs(current_account, dialog_id)
-                except:
-                    pass
-        
-        return ProfileActivityHook(self)
-    
-    def _create_recent_chats_topics_fragment_hook(self):
-        class TopicsFragmentHook:
-            def __init__(self, plugin_instance):
-                self.plugin_ref = weakref.ref(plugin_instance)
-            
-            def after_hooked_method(self, param):
-                try:
-                    plugin = self.plugin_ref()
-                    if plugin is None:
-                        return
-                    topics_fragment = param.thisObject
-                    if topics_fragment:
-                        chat_id = topics_fragment.getChatId()
-                        current_account = topics_fragment.getCurrentAccount()
-                        plugin.recent_manager.add_to_recent_dialogs(current_account, -chat_id)
-                except:
-                    pass
-        
-        return TopicsFragmentHook(self)
 
     def _hook_message_preview_view(self):
         try:
@@ -8812,11 +8245,7 @@ class DialogsActivityHook:
                     except Exception as e:
                         pass
             
-            if self.plugin.get_setting("enable_recent_chats_menu", False):
-                try:
-                    self.plugin._setup_recent_chats_back_button_listener(dialogs_activity)
-                except Exception as e:
-                    pass
+
             
             if self.plugin.get_setting("fab_settings_shortcut", False):
                 try:
@@ -8837,21 +8266,7 @@ class DialogsActivityDestroyHook:
             if dialogs_activity is None:
                 return
             
-            if hasattr(self.plugin, 'popup_manager') and self.plugin.popup_manager:
-                self.plugin.popup_manager.destroy()
-            
-            try:
-                action_bar = dialogs_activity.getActionBar()
-                if action_bar:
-                    back_button = action_bar.getBackButton()
-                    if back_button:
-                        back_button.setOnLongClickListener(None)
-                        if hasattr(back_button, '_uitweaks_recent_listener_set'):
-                            delattr(back_button, '_uitweaks_recent_listener_set')
-                        if hasattr(back_button, '_uitweaks_recent_listener_ref'):
-                            delattr(back_button, '_uitweaks_recent_listener_ref')
-            except Exception:
-                pass
+
                 
         except Exception:
             pass
