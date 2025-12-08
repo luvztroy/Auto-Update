@@ -11167,6 +11167,7 @@ class MusicSpeedControlHook:
         self.plugin = plugin
         self._is_music_field = None
         self._playback_button_field = None
+        self._title_text_view_field = None
     
     def after_hooked_method(self, param):
         try:
@@ -11177,12 +11178,32 @@ class MusicSpeedControlHook:
                 self._is_music_field.setAccessible(True)
                 self._playback_button_field = c.getDeclaredField("playbackSpeedButton")
                 self._playback_button_field.setAccessible(True)
+                try:
+                    self._title_text_view_field = c.getDeclaredField("titleTextView")
+                    self._title_text_view_field.setAccessible(True)
+                except Exception:
+                    pass
             is_music = self._is_music_field.getBoolean(instance)
             btn = self._playback_button_field.get(instance)
             if is_music and btn is not None:
                 btn.setVisibility(0)
                 btn.setAlpha(1.0)
                 btn.setEnabled(True)
+                try:
+                    if self._title_text_view_field is not None:
+                        title_view = self._title_text_view_field.get(instance)
+                        if title_view is not None:
+                            speed_btn_width = AndroidUtilities.dp(36)
+                            current_right = title_view.getPaddingRight()
+                            if current_right < speed_btn_width:
+                                title_view.setPadding(
+                                    title_view.getPaddingLeft(),
+                                    title_view.getPaddingTop(),
+                                    current_right + speed_btn_width,
+                                    title_view.getPaddingBottom()
+                                )
+                except Exception:
+                    pass
                 try:
                     methods = instance.getClass().getDeclaredMethods()
                     target = None
