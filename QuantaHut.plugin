@@ -47,7 +47,10 @@ __priority__ = 1
 
 DEFAULT_SHOW_LOGS = False
 DEFAULT_SHOW_RESTART_MENU = False
-DEFAULT_BRANCH = 0  
+DEFAULT_BRANCH = 0
+RunnableClass = jclass("java.lang.Runnable")
+RunnableProxy = dynamic_proxy(RunnableClass)
+MAX_HISTORY = 5  
 setting_getter = None
 
 
@@ -65,6 +68,13 @@ class QuantaHut(BasePlugin):
         self.pills_container = None
         self.stored_context = None
         self.stored_activity = None
+
+        self._search_state = {}
+        self._all_items_cache = {}
+        self._search_history = {}
+        self._activity_refs = {}
+        self.settings_search_create_view_hook = None
+        self.settings_search_fill_items_hook = None
 
     
     def log(self, message: str):
@@ -131,6 +141,7 @@ class QuantaHut(BasePlugin):
         
         self._setup_deeplink_handling()
         self._setup_enhanced_plugin_search()
+        self._setup_plugin_settings_search()
         
         self._check_language_availability_on_load()
         self._load_available_languages()
@@ -443,45 +454,11 @@ class QuantaHut(BasePlugin):
         try:
             _ensure_message_menu_hooks(self)
             self._setup_custom_badges_hooks()
-            self._setup_plugin_settings_search()
+            self._setup_custom_badges_hooks()
             
         except Exception as e:
             self.log(f"setup_hooks error: {str(e)}")
 
-    def _setup_plugin_settings_search(self):
-        try:
-            plugin_settings_class = find_class("com.exteragram.messenger.plugins.ui.PluginSettingsActivity")
-            if not plugin_settings_class:
-                return
-            
-            context_class = find_class("android.content.Context")
-            if context_class:
-                try:
-                    create_view_method = plugin_settings_class.getClass().getDeclaredMethod("createView", context_class.getClass())
-                    create_view_method.setAccessible(True)
-                    self.hook_refs.append(self.hook_method(create_view_method, _PluginSearchCreateViewHook(self)))
-                except:
-                    pass
-            
-            try:
-                ArrayList = jclass("java.util.ArrayList")
-                UniversalAdapter = jclass("org.telegram.ui.Components.UniversalAdapter")
-                fill_items_method = plugin_settings_class.getClass().getDeclaredMethod("fillItems", ArrayList, UniversalAdapter)
-                fill_items_method.setAccessible(True)
-                self.hook_refs.append(self.hook_method(fill_items_method, _PluginSearchFillItemsHook(self)))
-            except:
-                pass
-            
-            try:
-                UItem = jclass("org.telegram.ui.Components.UItem")
-                View = jclass("android.view.View")
-                on_long_click_method = plugin_settings_class.getClass().getDeclaredMethod("onLongClick", UItem, View, jclass("java.lang.Integer").TYPE, jclass("java.lang.Float").TYPE, jclass("java.lang.Float").TYPE)
-                on_long_click_method.setAccessible(True)
-                self.hook_refs.append(self.hook_method(on_long_click_method, _PluginSettingsLongClickHook(self)))
-            except:
-                pass
-        except:
-            pass
 
     def _clear_file_cache(self, view):
         github_localization.localization_cache.wipe()
@@ -728,6 +705,19 @@ class QuantaHut(BasePlugin):
         if self.extera_hook_ref:
             self.unhook_method(self.extera_hook_ref)
             self.extera_hook_ref = None
+            
+        if self.settings_search_create_view_hook:
+            self.unhook_method(self.settings_search_create_view_hook)
+            self.settings_search_create_view_hook = None
+            
+        if self.settings_search_fill_items_hook:
+            self.unhook_method(self.settings_search_fill_items_hook)
+            self.settings_search_fill_items_hook = None
+            
+        self._search_state.clear()
+        self._all_items_cache.clear()
+        self._search_history.clear()
+        self._activity_refs.clear()
         
         self.log("Plugin unloading...")
 
@@ -1787,6 +1777,295 @@ class QuantaHut(BasePlugin):
         
         run_on_queue(do_import)
 
+    def _setup_plugin_settings_search(self):
+        try:
+            PluginSettingsActivity = find_class("com.exteragram.messenger.plugins.ui.PluginSettingsActivity")
+            if not PluginSettingsActivity:
+                return
+
+            Context = jclass("android.content.Context")
+            create_view_method = PluginSettingsActivity.getClass().getDeclaredMethod("createView", Context.getClass())
+            create_view_method.setAccessible(True)
+            self.settings_search_create_view_hook = self.hook_method(create_view_method, _PluginSettingsSearchCreateViewHook(self))
+
+            ArrayList = jclass("java.util.ArrayList")
+            UniversalAdapter = jclass("org.telegram.ui.Components.UniversalAdapter")
+            fill_items_method = PluginSettingsActivity.getClass().getDeclaredMethod("fillItems", ArrayList, UniversalAdapter)
+            fill_items_method.setAccessible(True)
+            self.settings_search_fill_items_hook = self.hook_method(fill_items_method, _PluginSettingsSearchFillItemsHook(self))
+
+        except Exception as e:
+            pass
+
+    def get_search_state(self, activity_id):
+        if activity_id not in self._search_state:
+            self._search_state[activity_id] = {"query": "", "active": False, "reset_hidden": False, "show_history": False}
+        return self._search_state[activity_id]
+
+    def get_search_history(self, plugin_id):
+        if plugin_id not in self._search_history:
+            history_str = self.get_setting(f"search_history_{plugin_id}", "")
+            if history_str:
+                try:
+                    self._search_history[plugin_id] = json.loads(history_str)
+                except:
+                    self._search_history[plugin_id] = []
+            else:
+                self._search_history[plugin_id] = []
+        return self._search_history[plugin_id]
+
+    def add_to_history(self, plugin_id, query):
+        query = query.strip()
+        if not query or len(query) < 2:
+            return
+        
+        history = self.get_search_history(plugin_id)
+        if query in history:
+            history.remove(query)
+        history.insert(0, query)
+        
+        while len(history) > MAX_HISTORY:
+            history.pop()
+        
+        self._search_history[plugin_id] = history
+        self.set_setting(f"search_history_{plugin_id}", json.dumps(history))
+
+    def _matches_query(self, item, query):
+        if getattr(item, "viewType", -1) in (0, 7):
+            return False
+
+        if query in str(getattr(item, "object2", "") or "").lower():
+            return True
+
+        setting = getattr(item, "settingItem", None)
+        if setting:
+            for attr in ["text", "hint", "key"]:
+                val = getattr(setting, attr, None)
+                if val and query in str(val).lower():
+                    return True
+
+        for attr in ["text", "subtext", "textValue", "animatedText"]:
+            val = getattr(item, attr, None)
+            if val and query in str(val).lower():
+                return True
+
+        return False
+
+    def _create_uitem_from_py_object(self, py_obj, plugin):
+        try:
+            UItem = jclass("org.telegram.ui.Components.UItem")
+            PC = jclass("com.exteragram.messenger.plugins.PluginsController")
+            AppLoader = jclass("org.telegram.messenger.ApplicationLoader")
+            
+            TextSetting = jclass("com.exteragram.messenger.plugins.models.TextSetting")
+            SwitchSetting = jclass("com.exteragram.messenger.plugins.models.SwitchSetting")
+            SelectorSetting = jclass("com.exteragram.messenger.plugins.models.SelectorSetting")
+            InputSetting = jclass("com.exteragram.messenger.plugins.models.InputSetting")
+            HeaderSetting = jclass("com.exteragram.messenger.plugins.models.HeaderSetting")
+            DividerSetting = jclass("com.exteragram.messenger.plugins.models.DividerSetting")
+            EditTextSetting = jclass("com.exteragram.messenger.plugins.models.EditTextSetting")
+
+            cls_name = py_obj.__class__.__name__
+            key = getattr(py_obj, 'key', None)
+            text = getattr(py_obj, 'text', None)
+            
+            icon = getattr(py_obj, 'icon', None)
+            icon_res = 0
+            if icon:
+                ctx = AppLoader.applicationContext
+                icon_res = ctx.getResources().getIdentifier(icon, "drawable", ctx.getPackageName())
+
+            on_long_click = getattr(py_obj, 'on_long_click', None)
+            link_alias = getattr(py_obj, 'link_alias', None)
+
+            item = None
+            setting = None
+
+            if cls_name == 'Header':
+                if text:
+                    setting = HeaderSetting(text)
+                    item = UItem.asHeader(text)
+
+            elif cls_name == 'Switch':
+                if key and text:
+                    default = getattr(py_obj, 'default', False) or False
+                    subtext = getattr(py_obj, 'subtext', None)
+                    on_change = getattr(py_obj, 'on_change', None)
+                    
+                    setting = SwitchSetting(key, text, default, subtext, icon, on_change, on_long_click, link_alias)
+                    
+                    val = PC.getInstance().getPluginSettingBoolean(plugin.getId(), key, default)
+                    if subtext:
+                        item = UItem.asButtonCheck(0, text, subtext, icon_res) if icon_res else UItem.asButtonCheck(0, text, subtext)
+                    else:
+                        item = UItem.asCheck(0, text, icon_res)
+                    
+                    if item:
+                        item.setChecked(val)
+
+            elif cls_name == 'EditText':
+                if key:
+                    hint = getattr(py_obj, 'hint', "")
+                    default = getattr(py_obj, 'default', "")
+                    multiline = getattr(py_obj, 'multiline', False)
+                    max_len = int(getattr(py_obj, 'max_length', 0) or 0)
+                    mask = getattr(py_obj, 'mask', None)
+                    on_change = getattr(py_obj, 'on_change', None)
+                    
+                    setting = EditTextSetting(key, hint, default, multiline, max_len, mask, on_change)
+                    val = PC.getInstance().getPluginSettingString(plugin.getId(), key, default)
+
+                    try:
+                        EditTextCell = jclass("org.telegram.ui.Cells.EditTextCell")
+                        Theme = jclass("org.telegram.ui.ActionBar.Theme")
+                        TextWatcher = jclass("android.text.TextWatcher")
+                        
+                        cell = EditTextCell(AppLoader.applicationContext, hint, multiline, False, max_len, None)
+                        cell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite))
+                        cell.setText(val)
+                        
+                        class TextWatcherImpl(dynamic_proxy(TextWatcher)):
+                            def __init__(self, cb, k, pid):
+                                super().__init__()
+                                self.cb = cb
+                                self.key = k
+                                self.pid = pid
+                                self.old = ""
+                                self.updating = False
+
+                            def beforeTextChanged(self, s, start, count, after):
+                                if self.updating: return
+                                self.old = str(s)
+
+                            def onTextChanged(self, s, start, before, count): pass
+
+                            def afterTextChanged(self, s):
+                                if self.updating: return
+                                new_txt = str(s)
+                                if new_txt == self.old: return
+                                
+                                PC.getInstance().setPluginSetting(self.pid, self.key, new_txt)
+                                if self.cb:
+                                    try: self.cb(new_txt)
+                                    except: pass
+
+                        watcher = TextWatcherImpl(on_change, key, plugin.getId())
+                        cell.editText.addTextChangedListener(watcher)
+                        item = UItem.asCustom(cell)
+                            
+                    except:
+                        pass
+
+            elif cls_name == 'Input':
+                if key and text:
+                    default = getattr(py_obj, 'default', "")
+                    subtext = getattr(py_obj, 'subtext', None)
+                    on_change = getattr(py_obj, 'on_change', None)
+                    
+                    setting = InputSetting(key, text, default, subtext, icon, on_change, on_long_click, link_alias)
+                    val = PC.getInstance().getPluginSettingString(plugin.getId(), key, default)
+                    
+                    item = UItem.asButton(0, text, val)
+                    if icon_res and item: item.iconResId = icon_res
+
+            elif cls_name == 'Selector':
+                if key and text:
+                    items = getattr(py_obj, 'items', None)
+                    if items:
+                        default = getattr(py_obj, 'default', 0)
+                        on_change = getattr(py_obj, 'on_change', None)
+                        items_list = list(items)
+                        
+                        setting = SelectorSetting(key, text, default, items_list, icon, on_change, on_long_click, link_alias)
+                        val = PC.getInstance().getPluginSettingInt(plugin.getId(), key, default)
+                        
+                        if val < 0 or val >= len(items): val = 0
+                        item = UItem.asButton(0, text, items[val])
+                        if icon_res and item: item.iconResId = icon_res
+
+            elif cls_name == 'Text':
+                if text:
+                    accent = getattr(py_obj, 'accent', False) or False
+                    red = getattr(py_obj, 'red', False) or False
+                    on_click = getattr(py_obj, 'on_click', None)
+                    create_sub = getattr(py_obj, 'create_sub_fragment', None)
+                    
+                    setting = TextSetting(text, icon, accent, red, on_click, create_sub, on_long_click, link_alias)
+                    item = UItem.asButton(0, text)
+                    if icon_res and item: item.iconResId = icon_res
+                    if item:
+                        if accent: item = item.accent()
+                        if red: item = item.red()
+
+            elif cls_name == 'Divider':
+                txt = getattr(py_obj, 'text', "") or ""
+                setting = DividerSetting(txt)
+                item = UItem.asShadow(txt)
+
+            if item and setting:
+                item.settingItem = setting
+                if key: item.object2 = key
+
+            return item
+
+        except Exception as e:
+            return None
+
+    def _collect_all_items(self, activity, plugin, items):
+        all_items = []
+        
+        try:
+            for i in range(items.size()):
+                item = items.get(i)
+                if item:
+                    all_items.append(item)
+
+            PC = jclass("com.exteragram.messenger.plugins.PluginsController")
+            main_settings = PC.getInstance().getPluginSettingsList(plugin.getId())
+
+            if main_settings:
+                for idx in range(main_settings.size()):
+                    setting = main_settings.get(idx)
+                    if setting is None:
+                        continue
+
+                    if hasattr(setting, 'createSubFragmentCallback') and setting.createSubFragmentCallback:
+                        sub_items = self._collect_sub_items(setting.createSubFragmentCallback, plugin)
+                        all_items.extend(sub_items)
+
+        except Exception as e:
+            pass
+
+        return all_items
+
+    def _collect_sub_items(self, callback, plugin):
+        sub_items = []
+
+        try:
+            py_result = callback()
+            if not py_result:
+                return sub_items
+
+            for py_item in py_result:
+                if py_item is None:
+                    continue
+
+                try:
+                    item = self._create_uitem_from_py_object(py_item, plugin)
+                    if item:
+                        sub_items.append(item)
+
+                    if hasattr(py_item, 'create_sub_fragment') and py_item.create_sub_fragment:
+                        nested_items = self._collect_sub_items(py_item.create_sub_fragment, plugin)
+                        sub_items.extend(nested_items)
+
+                except Exception as e:
+                    pass
+
+        except Exception as e:
+            pass
+
+        return sub_items
 
 class CustomBadgeHook:
     def __init__(self, plugin):
@@ -3499,326 +3778,6 @@ def showupdatebottomsheet(title, subtitle=None, description=None, github_url=Non
     except Exception as e:
         quantahut_log(f"Error in showupdatebottomsheet: {str(e)}")
 
-class _PluginSearchCreateViewHook:
-    def __init__(self, plugin):
-        self.plugin = plugin
-    
-    def after_hooked_method(self, param):
-        try:
-            activity = param.thisObject
-            action_bar = get_private_field(activity, "actionBar")
-            if not action_bar:
-                return
-            
-            menu = action_bar.menu if action_bar.menu else action_bar.createMenu()
-            
-            R = jclass("org.telegram.messenger.R")
-            LocaleController = jclass("org.telegram.messenger.LocaleController")
-            R_string = jclass("org.telegram.messenger.R$string")
-            
-            search_item = menu.addItem(0, R.drawable.ic_ab_search)
-            search_item.setIsSearchField(True)
-            search_item.setSearchFieldHint(LocaleController.getString(R_string.Search))
-            set_private_field(activity, "searchItem", search_item)
-            
-            from android.os import Handler, Looper
-            handler = Handler(Looper.getMainLooper())
-            runnable = _PluginSearchUpdateRunnable(activity, search_item, handler)
-            handler.post(runnable.get_runnable())
-        except:
-            pass
-
-
-class _PluginSearchUpdateRunnable:
-    def __init__(self, activity, search_item, handler):
-        self.activity = activity
-        self.search_item = search_item
-        self.handler = handler
-        self.last_query = ""
-        self.reset_hidden = False
-        
-        from android_utils import R
-        self._runnable = R(self._run_impl)
-    
-    def _run_impl(self):
-        try:
-            if self.search_item.isSearchFieldVisible():
-                if not self.reset_hidden:
-                    reset_item = get_private_field(self.activity, "resetItem")
-                    if reset_item:
-                        reset_item.setVisibility(8)
-                        self.reset_hidden = True
-                
-                search_field = self.search_item.getSearchField()
-                if search_field:
-                    current_query = str(search_field.getText().toString())
-                    if current_query != self.last_query:
-                        self.last_query = current_query
-                        list_view = get_private_field(self.activity, "listView")
-                        if list_view and list_view.adapter:
-                            list_view.adapter.update(True)
-                self.handler.postDelayed(self._runnable, 300)
-            else:
-                if self.reset_hidden:
-                    reset_item = get_private_field(self.activity, "resetItem")
-                    if reset_item:
-                        reset_item.setVisibility(0)
-                        self.reset_hidden = False
-                
-                if self.last_query != "":
-                    self.last_query = ""
-                    list_view = get_private_field(self.activity, "listView")
-                    if list_view and list_view.adapter:
-                        list_view.adapter.update(True)
-                self.handler.postDelayed(self._runnable, 1000)
-        except:
-            pass
-    
-    def get_runnable(self):
-        return self._runnable
-
-
-class _PluginSearchFillItemsHook:
-    def __init__(self, plugin):
-        self.plugin = plugin
-        self.collected_items_cache = {}
-    
-    def after_hooked_method(self, param):
-        try:
-            activity = param.thisObject
-            items_list = param.args[0]
-            
-            if not items_list or items_list.size() == 0:
-                return
-            
-            action_bar = get_private_field(activity, "actionBar")
-            if not action_bar or not action_bar.menu:
-                return
-            
-            search_item = None
-            menu = action_bar.menu
-            for i in range(menu.getChildCount()):
-                child = menu.getChildAt(i)
-                if child and hasattr(child, 'isSearchField') and child.isSearchField():
-                    search_item = child
-                    break
-            
-            if not search_item:
-                return
-            
-            if not search_item.isSearchFieldVisible():
-                return
-            
-            reset_item = get_private_field(activity, "resetItem")
-            if reset_item and reset_item.getVisibility() != 8:
-                reset_item.setVisibility(8)
-            
-            search_field = search_item.getSearchField()
-            if not search_field:
-                return
-            
-            search_query = str(search_field.getText().toString()).strip()
-            if not search_query:
-                return
-            
-            query = search_query.lower()
-            
-            create_sub_fragment_callback = get_private_field(activity, "createSubFragmentCallback")
-            if create_sub_fragment_callback is not None:
-                items_to_remove = []
-                
-                for i in range(items_list.size()):
-                    item = items_list.get(i)
-                    if item is None:
-                        continue
-                    
-                    matches = False
-                    
-                    if hasattr(item, "text") and item.text:
-                        text = str(item.text).lower()
-                        if query in text:
-                            matches = True
-                    
-                    if not matches:
-                        if hasattr(item, "subText") and item.subText:
-                            subtext = str(item.subText).lower()
-                            if query in subtext:
-                                matches = True
-                    
-                    if not matches:
-                        items_to_remove.append(i)
-                
-                for i in reversed(items_to_remove):
-                    items_list.remove(i)
-                return
-            
-            plugin_obj = get_private_field(activity, "plugin")
-            if not plugin_obj:
-                return
-            
-            plugin_id = plugin_obj.getId()
-            
-            if plugin_id not in self.collected_items_cache:
-                self.collected_items_cache[plugin_id] = self._collect_all_items(activity, plugin_obj, items_list)
-            
-            all_items = self.collected_items_cache[plugin_id]
-            
-            items_list.clear()
-            
-            for item in all_items:
-                matches = False
-                
-                if hasattr(item, "text") and item.text:
-                    text = str(item.text).lower()
-                    if query in text:
-                        matches = True
-                
-                if not matches and hasattr(item, "subText") and item.subText:
-                    subtext = str(item.subText).lower()
-                    if query in subtext:
-                        matches = True
-                
-                if matches:
-                    items_list.add(item)
-            
-        except:
-            pass
-    
-    def _collect_all_items(self, activity, plugin_obj, items_list):
-        all_items = []
-        
-        try:
-            for i in range(items_list.size()):
-                item = items_list.get(i)
-                if item:
-                    view_type = item.viewType
-                    if view_type not in [0, 1, 7, 8, 38]:
-                        all_items.append(item)
-            
-            from com.exteragram.messenger.plugins import PluginsController
-            
-            main_settings = PluginsController.getInstance().getPluginSettingsList(plugin_obj.getId())
-            
-            if main_settings:
-                settings_count = main_settings.size()
-                for idx in range(settings_count):
-                    setting = main_settings.get(idx)
-                    if setting is None:
-                        continue
-                    
-                    if hasattr(setting, 'createSubFragmentCallback') and setting.createSubFragmentCallback:
-                        sub_items = self._collect_sub_items(setting.createSubFragmentCallback, plugin_obj)
-                        all_items.extend(sub_items)
-        except:
-            pass
-        
-        return all_items
-    
-    def _collect_sub_items(self, callback, plugin_obj):
-        sub_items = []
-        
-        try:
-            from com.exteragram.messenger.plugins import PluginsController
-            from org.telegram.ui.Components import UItem
-            from org.telegram.messenger import ApplicationLoader
-            
-            py_result = callback()
-            if not py_result:
-                return sub_items
-            
-            for py_item in py_result:
-                if py_item is None:
-                    continue
-                
-                try:
-                    class_name = py_item.__class__.__name__
-                    
-                    icon_res_id = 0
-                    if hasattr(py_item, 'icon') and py_item.icon:
-                        context = ApplicationLoader.applicationContext
-                        icon_res_id = context.getResources().getIdentifier(py_item.icon, "drawable", context.getPackageName())
-                    
-                    item = None
-                    
-                    if class_name == 'Header':
-
-                        pass
-                    
-                    elif class_name == 'Switch':
-                        if hasattr(py_item, 'key') and py_item.key and hasattr(py_item, 'text') and py_item.text:
-                            current_value = PluginsController.getInstance().getPluginSettingBoolean(
-                                plugin_obj.getId(), py_item.key, py_item.default if hasattr(py_item, 'default') else False
-                            )
-                            if hasattr(py_item, 'subtext') and py_item.subtext:
-                                item = UItem.asButtonCheck(0, py_item.text, py_item.subtext, icon_res_id) if icon_res_id != 0 else UItem.asButtonCheck(0, py_item.text, py_item.subtext)
-                            else:
-                                item = UItem.asCheck(0, py_item.text, icon_res_id)
-                            if item:
-                                item.setChecked(current_value)
-                                item.object2 = py_item.key
-                    
-                    elif class_name == 'Input':
-                        if hasattr(py_item, 'key') and py_item.key and hasattr(py_item, 'text') and py_item.text:
-                            current_value = PluginsController.getInstance().getPluginSettingString(
-                                plugin_obj.getId(), py_item.key, py_item.default if hasattr(py_item, 'default') else ""
-                            )
-                            item = UItem.asButton(0, py_item.text, current_value)
-                            if icon_res_id != 0 and item:
-                                item.iconResId = icon_res_id
-                            if item:
-                                item.object2 = py_item.key
-                    
-                    elif class_name == 'Selector':
-                        if hasattr(py_item, 'key') and py_item.key and hasattr(py_item, 'text') and py_item.text and hasattr(py_item, 'items') and py_item.items:
-                            current_value = PluginsController.getInstance().getPluginSettingInt(
-                                plugin_obj.getId(), py_item.key, py_item.default if hasattr(py_item, 'default') else 0
-                            )
-                            if current_value < 0 or current_value >= len(py_item.items):
-                                current_value = 0
-                            item = UItem.asButton(0, py_item.text, py_item.items[current_value])
-                            if icon_res_id != 0 and item:
-                                item.iconResId = icon_res_id
-                            if item:
-                                item.object2 = py_item.key
-                                item.texts = py_item.items
-                                item.intValue = current_value
-                    
-                    elif class_name == 'Text':
-                        if hasattr(py_item, 'text') and py_item.text:
-                            item = UItem.asButton(0, py_item.text)
-                            if icon_res_id != 0 and item:
-                                item.iconResId = icon_res_id
-                            if item:
-                                pass
-                    
-                    elif class_name == 'Divider':
-                        pass
-                    
-                    if item:
-                        sub_items.append(item)
-                    
-                    if hasattr(py_item, 'create_sub_fragment') and py_item.create_sub_fragment:
-                        nested_items = self._collect_sub_items(py_item.create_sub_fragment, plugin_obj)
-                        sub_items.extend(nested_items)
-                except:
-                    pass
-        except:
-            pass
-        
-        return sub_items
-
-
-class _PluginSettingsLongClickHook:
-    def __init__(self, plugin):
-        self.plugin = plugin
-    
-    def before_hooked_method(self, param):
-        try:
-            item = param.args[0]
-            if item and (not hasattr(item, 'settingItem') or item.settingItem is None):
-                param.setResult(False)
-        except:
-            pass
 
 
 def quantahut_log(string: str):
@@ -3843,3 +3802,208 @@ __all__ = [
     'QuantaHutPlugin',
     'cleanup_quantahut_hooks'
 ]
+
+
+class _SearchPollingRunnable(RunnableProxy):
+    def __init__(self, plugin, activity, search_item, handler):
+        super().__init__()
+        self.plugin = plugin
+        self.activity = activity
+        self.search_item = search_item
+        self.handler = handler
+        self.aid = id(activity)
+        self.last_query = ""
+        self.was_active = False
+
+    def run(self):
+        try:
+            state = self.plugin.get_search_state(self.aid)
+            
+            if self.search_item.isSearchFieldVisible():
+                if not state["reset_hidden"]:
+                    reset_item = get_private_field(self.activity, "resetItem")
+                    if reset_item:
+                        reset_item.setVisibility(8)
+                        state["reset_hidden"] = True
+
+                state["active"] = True
+                search_field = self.search_item.getSearchField()
+                if search_field:
+                    query = str(search_field.getText().toString())
+                    
+                    show_history = (query == "")
+                    if show_history != state.get("show_history", False):
+                        state["show_history"] = show_history
+                        list_view = get_private_field(self.activity, "listView")
+                        if list_view and list_view.adapter:
+                            list_view.adapter.update(True)
+                    
+                    if query != self.last_query:
+                        if self.last_query and len(self.last_query) >= 2 and query == "":
+                            plugin = get_private_field(self.activity, "plugin")
+                            if plugin:
+                                self.plugin.add_to_history(plugin.getId(), self.last_query)
+                        
+                        self.last_query = query
+                        state["query"] = query
+                        list_view = get_private_field(self.activity, "listView")
+                        if list_view and list_view.adapter:
+                            list_view.adapter.update(True)
+
+                self.was_active = True
+                self.handler.postDelayed(self, 200)
+            else:
+                if state["reset_hidden"]:
+                    reset_item = get_private_field(self.activity, "resetItem")
+                    if reset_item:
+                        PC = jclass("com.exteragram.messenger.plugins.PluginsController")
+                        plugin = get_private_field(self.activity, "plugin")
+                        if plugin and PC.getInstance().hasPluginSettingsPreferences(plugin.getId()):
+                            reset_item.setVisibility(0)
+                    state["reset_hidden"] = False
+
+                if state["active"]:
+                    if self.last_query and len(self.last_query) >= 2:
+                        plugin = get_private_field(self.activity, "plugin")
+                        if plugin:
+                            self.plugin.add_to_history(plugin.getId(), self.last_query)
+                    
+                    state["active"] = False
+                    state["query"] = ""
+                    state["show_history"] = False
+                    self.last_query = ""
+                    list_view = get_private_field(self.activity, "listView")
+                    if list_view and list_view.adapter:
+                        list_view.adapter.update(True)
+
+                self.was_active = False
+                self.handler.postDelayed(self, 500)
+
+        except Exception as e:
+            pass
+
+
+class _PluginSettingsSearchCreateViewHook:
+    def __init__(self, plugin):
+        self.plugin = plugin
+
+    def after_hooked_method(self, param):
+        try:
+            activity = param.thisObject
+            aid = id(activity)
+
+            action_bar = get_private_field(activity, "actionBar")
+            if not action_bar:
+                return
+
+            menu = action_bar.menu if action_bar.menu else action_bar.createMenu()
+            if not menu:
+                return
+
+            R = jclass("org.telegram.messenger.R")
+            LocaleController = jclass("org.telegram.messenger.LocaleController")
+            R_string = jclass("org.telegram.messenger.R$string")
+
+            search_item = menu.addItem(0, R.drawable.ic_ab_search)
+            search_item.setIsSearchField(True)
+            search_item.setSearchFieldHint(LocaleController.getString(R_string.Search))
+            set_private_field(activity, "searchItem", search_item)
+
+            self.plugin._activity_refs[aid] = {"activity": activity, "search_item": search_item}
+
+            from android.os import Handler, Looper
+            handler = Handler(Looper.getMainLooper())
+            runnable = _SearchPollingRunnable(self.plugin, activity, search_item, handler)
+            handler.post(runnable)
+
+        except Exception as e:
+            pass
+
+
+class _PluginSettingsSearchFillItemsHook:
+    def __init__(self, plugin):
+        self.plugin = plugin
+
+    def after_hooked_method(self, param):
+        try:
+            activity = param.thisObject
+            aid = id(activity)
+            items = param.args[0]
+
+            if not items:
+                return
+
+            state = self.plugin.get_search_state(aid)
+            if not state["active"]:
+                return
+
+            sub_callback = get_private_field(activity, "createSubFragmentCallback")
+            if sub_callback is not None:
+                query = state["query"].strip().lower()
+                if query:
+                    to_remove = []
+                    for i in range(items.size()):
+                        item = items.get(i)
+                        if item is None:
+                            continue
+                        if not self.plugin._matches_query(item, query):
+                            to_remove.append(i)
+                    for i in reversed(to_remove):
+                        items.remove(i)
+                return
+
+            plugin = get_private_field(activity, "plugin")
+            if not plugin:
+                return
+
+            pid = plugin.getId()
+
+            query = state["query"].strip().lower()
+            
+            if not query and state.get("show_history", False):
+                history = self.plugin.get_search_history(pid)
+                if history:
+                    items.clear()
+                    
+                    UItem = jclass("org.telegram.ui.Components.UItem")
+                    TextSetting = jclass("com.exteragram.messenger.plugins.models.TextSetting")
+                    items.add(UItem.asHeader("Recent searches"))
+                    
+                    for qt in history:
+                        def make_cb(q, a):
+                            def cb(*args):
+                                try:
+                                    if a in self.plugin._activity_refs:
+                                        si = self.plugin._activity_refs[a].get("search_item")
+                                        if si:
+                                            sf = si.getSearchField()
+                                            if sf:
+                                                sf.setText(q)
+                                                sf.setSelection(len(q))
+                                except: pass
+                            return cb
+                        
+                        callback = make_cb(qt, aid)
+                        setting = TextSetting(qt, None, False, False, callback, None, None, None)
+                        
+                        h_item = UItem.asButton(0, qt)
+                        h_item.settingItem = setting
+                        items.add(h_item)
+                return
+            
+            if not query:
+                return
+            
+            if pid not in self.plugin._all_items_cache:
+                self.plugin._all_items_cache[pid] = self.plugin._collect_all_items(activity, plugin, items)
+
+            all_items = self.plugin._all_items_cache[pid]
+
+            items.clear()
+
+            for item in all_items:
+                if self.plugin._matches_query(item, query):
+                    items.add(item)
+
+        except Exception as e:
+            pass
