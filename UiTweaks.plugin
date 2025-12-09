@@ -3815,6 +3815,11 @@ class UiTweaksPlugin(BasePlugin):
                 selected_files = get_private_field(current_layout, "selectedFilesOrder")
                 return selected_files is not None and not selected_files.isEmpty()
             
+            audio_layout_class = find_class("org.telegram.ui.Components.ChatAttachAlertAudioLayout")
+            if audio_layout_class and isinstance(current_layout, audio_layout_class):
+                selected_audios = get_private_field(current_layout, "selectedAudiosOrder")
+                return selected_audios is not None and not selected_audios.isEmpty()
+            
             return False
             
         except Exception:
@@ -3838,22 +3843,35 @@ class UiTweaksPlugin(BasePlugin):
             if chat_attach_alert is None:
                 return
             
-            document_layout = get_private_field(chat_attach_alert, "currentAttachLayout")
-            if document_layout is None:
+            current_layout = get_private_field(chat_attach_alert, "currentAttachLayout")
+            if current_layout is None:
                 return
             
-            selected_files_order = get_private_field(document_layout, "selectedFilesOrder")
-            if selected_files_order is None or selected_files_order.isEmpty():
-                return
+            file_path = None
             
-            file_path = selected_files_order.get(0)
+            document_layout_class = find_class("org.telegram.ui.Components.ChatAttachAlertDocumentLayout")
+            if document_layout_class and isinstance(current_layout, document_layout_class):
+                selected_files_order = get_private_field(current_layout, "selectedFilesOrder")
+                if selected_files_order is not None and not selected_files_order.isEmpty():
+                    file_path = selected_files_order.get(0)
+            
+            if file_path is None:
+                audio_layout_class = find_class("org.telegram.ui.Components.ChatAttachAlertAudioLayout")
+                if audio_layout_class and isinstance(current_layout, audio_layout_class):
+                    selected_audios_order = get_private_field(current_layout, "selectedAudiosOrder")
+                    if selected_audios_order is not None and not selected_audios_order.isEmpty():
+                        audio_entry = selected_audios_order.get(0)
+                        if audio_entry is not None:
+                            file_path = audio_entry.path
+            
             if file_path is None:
                 return
+            
             import os
             filename = os.path.basename(file_path)
             
             def show_dialog():
-                self._show_filename_edit_dialog(filename, file_path, document_layout)
+                self._show_filename_edit_dialog(filename, file_path, current_layout)
             
             run_on_ui_thread(show_dialog)
             
@@ -3946,7 +3964,7 @@ class UiTweaksPlugin(BasePlugin):
         
         run_on_ui_thread(apply_layout_params, 100)
     
-    def _apply_filename_change(self, new_filename, old_path, document_layout, dialog):
+    def _apply_filename_change(self, new_filename, old_path, current_layout, dialog):
         try:
             if not new_filename or len(new_filename.strip()) == 0:
                 dialog.dismiss()
@@ -3956,39 +3974,87 @@ class UiTweaksPlugin(BasePlugin):
             
             import os
             import shutil
+            from file_utils import get_cache_dir, ensure_dir_exists
             
-            old_dir = os.path.dirname(old_path)
-            new_path = os.path.join(old_dir, new_filename)
+            cache_dir = get_cache_dir()
+            temp_dir = os.path.join(cache_dir, "renamed_files")
+            ensure_dir_exists(temp_dir)
+            new_path = os.path.join(temp_dir, new_filename)
             
             if os.path.exists(old_path):
                 shutil.copy2(old_path, new_path)
                 
-                selected_files_order = get_private_field(document_layout, "selectedFilesOrder")
-                selected_files = get_private_field(document_layout, "selectedFiles")
+                document_layout_class = find_class("org.telegram.ui.Components.ChatAttachAlertDocumentLayout")
+                audio_layout_class = find_class("org.telegram.ui.Components.ChatAttachAlertAudioLayout")
                 
-                if selected_files_order and selected_files:
-                    selected_files_order.set(0, new_path)
+                if document_layout_class and isinstance(current_layout, document_layout_class):
+                    selected_files_order = get_private_field(current_layout, "selectedFilesOrder")
+                    selected_files = get_private_field(current_layout, "selectedFiles")
                     
-                    old_list_item = selected_files.get(old_path)
-                    if old_list_item:
-                        selected_files.remove(old_path)
+                    if selected_files_order and selected_files:
+                        selected_files_order.set(0, new_path)
                         
-                        from java.io import File
-                        new_file = File(new_path)
-                        old_list_item.file = new_file
-                        old_list_item.title = new_filename
+                        old_list_item = selected_files.get(old_path)
+                        if old_list_item:
+                            selected_files.remove(old_path)
+                            
+                            from java.io import File
+                            new_file = File(new_path)
+                            old_list_item.file = new_file
+                            old_list_item.title = new_filename
+                            
+                            selected_files.put(new_path, old_list_item)
+                            
+                            def refresh_list():
+                                try:
+                                    list_adapter = get_private_field(current_layout, "listAdapter")
+                                    if list_adapter:
+                                        list_adapter.notifyDataSetChanged()
+                                except Exception:
+                                    pass
+                            
+                            run_on_ui_thread(refresh_list)
+                
+                elif audio_layout_class and isinstance(current_layout, audio_layout_class):
+                    selected_audios_order = get_private_field(current_layout, "selectedAudiosOrder")
+                    
+                    if selected_audios_order and not selected_audios_order.isEmpty():
+                        audio_entry = selected_audios_order.get(0)
                         
-                        selected_files.put(new_path, old_list_item)
-                        
-                        def refresh_list():
-                            try:
-                                list_adapter = get_private_field(document_layout, "listAdapter")
-                                if list_adapter:
-                                    list_adapter.notifyDataSetChanged()
-                            except Exception:
-                                pass
-                        
-                        run_on_ui_thread(refresh_list)
+                        if audio_entry:
+                            audio_entry.path = new_path
+                            audio_entry.title = new_filename
+                            
+                            msg_obj = audio_entry.messageObject
+                            if msg_obj:
+                                msg = msg_obj.messageOwner
+                                if msg:
+                                    msg.attachPath = new_path
+                                    
+                                    if msg.media and msg.media.document and msg.media.document.attributes:
+                                        attrs = msg.media.document.attributes
+                                        for i in range(attrs.size()):
+                                            attr = attrs.get(i)
+                                            attr_class_name = type(attr).__name__
+                                            
+                                            if "TL_documentAttributeFilename" in attr_class_name:
+                                                attr.file_name = new_filename
+                                            
+                                            if "TL_documentAttributeAudio" in attr_class_name:
+                                                name_without_ext = new_filename
+                                                if "." in name_without_ext:
+                                                    name_without_ext = name_without_ext.rsplit(".", 1)[0]
+                                                attr.title = name_without_ext
+                            
+                            def refresh_list():
+                                try:
+                                    list_adapter = get_private_field(current_layout, "listAdapter")
+                                    if list_adapter:
+                                        list_adapter.notifyDataSetChanged()
+                                except Exception:
+                                    pass
+                            
+                            run_on_ui_thread(refresh_list)
             
             dialog.dismiss()
             
