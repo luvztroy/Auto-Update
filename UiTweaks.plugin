@@ -894,6 +894,7 @@ class UiTweaksPlugin(BasePlugin):
         self.hook_ai_role_limit_settext_ref = None
         
         self.hook_sleep_timer_ref = None
+        self.hook_sleep_timer_click_ref = None
         self.sleep_timer_active = False
         self._sleep_handler = None
         self._sleep_runnable = None
@@ -2579,6 +2580,7 @@ class UiTweaksPlugin(BasePlugin):
             "hook_remove_greeting_sticker_ref",
             "hook_remove_https_from_links_ref",
             "hook_sleep_timer_ref",
+            "hook_sleep_timer_click_ref",
             "hook_adaptive_audio_ref",
             "hook_music_speed_control_ref",
             "hook_custom_saved_messages_ref",
@@ -4454,6 +4456,7 @@ class UiTweaksPlugin(BasePlugin):
                 StringClass = find_class("java.lang.String")
                 setText_method = OutlineTextContainerViewClass.getClass().getDeclaredMethod("setText", StringClass)
                 self.hook_ai_role_limit_settext_ref = self.hook_method(setText_method, SetTextHook())
+                logging.info(f"Hook registered: _hook_ai_role_limit_settext")
             
         except:
             pass
@@ -4468,9 +4471,13 @@ class UiTweaksPlugin(BasePlugin):
             
             constructor = AudioPlayerAlert.getClass().getDeclaredConstructor(Context, Theme_ResourcesProvider)
             constructor.setAccessible(True)
+            self.hook_sleep_timer_ref = self.hook_method(constructor, SleepTimerConstructorHook(self))
             
-            self.hook_sleep_timer_ref = self.hook_method(constructor, SleepTimerHook(self))
-        except:
+            from java.lang import Integer
+            onSubItemClick = AudioPlayerAlert.getClass().getDeclaredMethod("onSubItemClick", Integer.TYPE)
+            onSubItemClick.setAccessible(True)
+            self.hook_sleep_timer_click_ref = self.hook_method(onSubItemClick, SleepTimerClickHook(self))
+        except Exception as e:
             pass
     
     def _hook_adaptive_audio_length(self):
@@ -4485,6 +4492,8 @@ class UiTweaksPlugin(BasePlugin):
                 AdaptiveAudioHook(self),
                 priority=50
             )
+            logging.info(f"Hook registered: _hook_adaptive_audio")
+            
         except:
             pass
     
@@ -4498,6 +4507,7 @@ class UiTweaksPlugin(BasePlugin):
             for m in methods:
                 if m.getName() == "checkPlayer" and len(m.getParameterTypes()) == 1:
                     self.hook_music_speed_control_ref = self.hook_method(m, MusicSpeedControlHook(self))
+                    logging.info(f"Hook registered: _hook_music_speed_control")
                     break
         except:
             pass
@@ -11043,8 +11053,9 @@ class DeleteWithDurationOnClickHook:
             self.plugin.log(f"Error handling duration click: {e}")
 
 
-class SleepTimerHook:
+class SleepTimerConstructorHook(MethodHook):
     def __init__(self, plugin):
+        super().__init__()
         self.plugin = plugin
     
     def after_hooked_method(self, param):
@@ -11055,20 +11066,24 @@ class SleepTimerHook:
                 return
             
             options_button.addSubItem(1390, R_tg.drawable.menu_premium_clock, get_string("sleep_timer_menu", "Sleep Timer"))
-            ActionBarMenuItem_ActionBarMenuItemDelegate = jclass("org.telegram.ui.ActionBar.ActionBarMenuItem$ActionBarMenuItemDelegate")
-            DelegateProxy = dynamic_proxy(ActionBarMenuItem_ActionBarMenuItemDelegate)
-            hook_instance = self
+        except Exception as e:
+            pass
+
+
+class SleepTimerClickHook(MethodHook):
+    def __init__(self, plugin):
+        super().__init__()
+        self.plugin = plugin
+    
+    def before_hooked_method(self, param):
+        try:
+            item_id = param.args[0]
+            if item_id != 1390:
+                return
             
-            class SleepTimerDelegate(DelegateProxy):
-                def onItemClick(self, id):
-                    if id == 1390:
-                        hook_instance._show_sleep_timer_dialog(alert)
-                    else:
-                        if hasattr(alert, 'onSubItemClick'):
-                            alert.onSubItemClick(id)
-            
-            options_button.setDelegate(SleepTimerDelegate())
-        except:
+            alert = param.thisObject
+            self._show_sleep_timer_dialog(alert)
+        except Exception as e:
             pass
     
     def _show_sleep_timer_dialog(self, alert):
