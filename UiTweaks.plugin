@@ -6587,7 +6587,7 @@ class UiTweaksPlugin(BasePlugin):
             context = edit_text.getContext()
             
             language_edit_text = EditTextBoldCursor(context)
-            language_edit_text.setHint("Language")
+            language_edit_text.setHint(get_string("Language", "Language"))
             language_edit_text.setInputType(InputType.TYPE_CLASS_TEXT)
             language_edit_text.setMaxLines(1)
             language_edit_text.setSingleLine(True)
