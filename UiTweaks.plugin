@@ -4013,6 +4013,9 @@ class UiTweaksPlugin(BasePlugin):
                             run_on_ui_thread(refresh_list)
             
             elif audio_layout_class and isinstance(current_layout, audio_layout_class):
+
+                # Fuck android storage access restrictions (we must copy the file to cache dir for renaming)
+                
                 from file_utils import get_cache_dir, ensure_dir_exists
                 
                 cache_dir = get_cache_dir()
