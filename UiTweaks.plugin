@@ -1561,7 +1561,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("enable_share_sheet_folders", get_string("add_folders_to_share_sheet", "Folders in direct share sheet"), False, lambda v: self._apply_hooks(), link_alias="enable_share_sheet_folders"),
             self.Quanta_switch("enable_sender_select_enhancement", get_string("sender_select_improvements", "Send message as menu improvements"), False, lambda v: self._apply_hooks(), link_alias="enable_sender_select_enhancement"),
             Divider(text=get_string("sender_select_subtext", "Show personal account in \"send message as\" menu where you are the owner of the group")),
-            self.Quanta_switch("enable_join_request_direct_profile", get_string("join_request_direct_profile", "Join Request Direct Profile"), False, lambda v: self._apply_hooks(), link_alias="enable_join_request_direct_profile"),
+            self.Quanta_switch("enable_join_request_direct_profile", get_string("join_request_direct_profile", "Open user profile directly from join requests"), False, lambda v: self._apply_hooks(), link_alias="enable_join_request_direct_profile"),
 
             Header(text=get_string("chat_list", "Chat List")),
             self.Quanta_switch("enable_select_all_dialogs", get_string("select_all_dialogs_menu", "Select All Chats"), False, lambda v: self._apply_hooks(), link_alias="enable_select_all_dialogs"),
@@ -1620,16 +1620,10 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("exclude_archived_from_count", get_string("exclude_archived_from_count", "Exclude Archived Chats from Count"), False, lambda v: self._apply_hooks(), link_alias="exclude_archived_from_count"),
             Divider(text=get_string("unread_count_info", "Adjust how unread counters behave in folders. When both are enabled, only non-muted chats are counted.")),
             self.Quanta_switch("hidefolders_enabled", get_string("hide_folders", "Hide Folders"), False, lambda v: self._toggle_hide_folders(v), link_alias="hide_folders"),
-            self.Quanta_text(
-                text=get_string("select_folders", "Select Folders"),
-                on_click=lambda v: self._show_folder_selector(),
-                link_alias="select_folders"
-            ) if self.get_setting("hidefolders_enabled", False) else None,
+            self.Quanta_text(text=get_string("select_folders", "Select Folders"), on_click=lambda v: self._show_folder_selector(), link_alias="select_folders") if self.get_setting("hidefolders_enabled", False) else None,
             Divider(text=get_string("hide_folders_info", "Hide specific folders from the folder list. Select which folders to hide.")) if self.get_setting("hidefolders_enabled", False) else None,
         ])
-        
-        
-        
+
         return settings
 
     def _create_chats_settings(self):
@@ -1695,11 +1689,7 @@ class UiTweaksPlugin(BasePlugin):
         
         if self.get_setting("enable_custom_saved_messages", False):
             settings.append(
-                Text(
-                    text=get_string("selected_chat", "Selected Chat") + f": {self._get_custom_saved_chat_name()}",
-                    on_click=lambda v: self._select_custom_saved_chat(),
-                    link_alias="select_custom_saved_chat"
-                )
+                self.Quanta_text(text=get_string("selected_chat", "Selected Chat") + f": {self._get_custom_saved_chat_name()}", on_click=lambda v: self._select_custom_saved_chat(), link_alias="select_custom_saved_chat")
             )
         
         settings.extend([
