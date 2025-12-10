@@ -11259,6 +11259,7 @@ class MusicSpeedControlHook:
         self._is_music_field = None
         self._playback_button_field = None
         self._title_text_view_field = None
+        self._subtitle_text_view_field = None
     
     def after_hooked_method(self, param):
         try:
@@ -11274,17 +11275,22 @@ class MusicSpeedControlHook:
                     self._title_text_view_field.setAccessible(True)
                 except Exception:
                     pass
+                try:
+                    self._subtitle_text_view_field = c.getDeclaredField("subtitleTextView")
+                    self._subtitle_text_view_field.setAccessible(True)
+                except Exception:
+                    pass
             is_music = self._is_music_field.getBoolean(instance)
             btn = self._playback_button_field.get(instance)
             if is_music and btn is not None:
                 btn.setVisibility(0)
                 btn.setAlpha(1.0)
                 btn.setEnabled(True)
+                speed_btn_width = AndroidUtilities.dp(36)
                 try:
                     if self._title_text_view_field is not None:
                         title_view = self._title_text_view_field.get(instance)
                         if title_view is not None:
-                            speed_btn_width = AndroidUtilities.dp(36)
                             current_right = title_view.getPaddingRight()
                             if current_right < speed_btn_width:
                                 title_view.setPadding(
@@ -11292,6 +11298,20 @@ class MusicSpeedControlHook:
                                     title_view.getPaddingTop(),
                                     current_right + speed_btn_width,
                                     title_view.getPaddingBottom()
+                                )
+                except Exception:
+                    pass
+                try:
+                    if self._subtitle_text_view_field is not None:
+                        subtitle_view = self._subtitle_text_view_field.get(instance)
+                        if subtitle_view is not None:
+                            current_right = subtitle_view.getPaddingRight()
+                            if current_right < speed_btn_width:
+                                subtitle_view.setPadding(
+                                    subtitle_view.getPaddingLeft(),
+                                    subtitle_view.getPaddingTop(),
+                                    current_right + speed_btn_width,
+                                    subtitle_view.getPaddingBottom()
                                 )
                 except Exception:
                     pass
