@@ -1646,18 +1646,8 @@ class UiTweaksPlugin(BasePlugin):
         settings.extend([
             Header(text=get_string("message_reactions", "Message Reactions")),
             self.Quanta_switch("hide_star_reaction", get_string("hide_star_reaction", "Hide Star Reaction"), False, lambda v: self._apply_hooks(), link_alias="hide_star_reaction"),
-            self.Quanta_text(
-                text=get_string("star_reaction_hide_location", "Select from where"),
-                on_click=lambda v: self._show_star_reaction_selector(),
-                link_alias="star_reaction_hide_location"
-            ) if self.get_setting("hide_star_reaction", False) else None,
-            
-            Header(text=get_string("pinned_reactions", "Pinned Reactions")),
-            self.Quanta_text(
-                text=get_string("configure_pinned_reactions", "Configure Pinned Reactions"),
-                on_click=lambda v: self._open_pinned_reactions_settings_ui(),
-                link_alias="configure_pinned_reactions"
-            ),
+            self.Quanta_text(text=get_string("star_reaction_hide_location", "Select from where"),on_click=lambda v: self._show_star_reaction_selector(),link_alias="star_reaction_hide_location") if self.get_setting("hide_star_reaction", False) else None,
+            self.Quanta_text(text=get_string("pinned_reactions", "Pinned Reactions"),on_click=lambda v: self._open_pinned_reactions_settings_ui(),link_alias="pinned_reactions"),
         ])
         
         settings.extend([
