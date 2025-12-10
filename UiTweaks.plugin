@@ -1124,100 +1124,7 @@ class UiTweaksPlugin(BasePlugin):
         except Exception as e:
             self.log(f"[Diag] failed to apply stored preference override: {e}")
         
-        def check_and_download_localization():
-            try:
-                if current_language == "en":
-                    self.log("Skipping localization download for English language")
-                    return
-                
-                continue_english_key = f"continue_english_{current_language}"
-                if self.get_setting(continue_english_key, False):
-                    self.log(f"User already chose to continue in English for {current_language}")
-                    return
-                
-                if hasattr(QuantaHut, 'github_localization'):
-                    cache_timestamp_key = f"UiTweaks_{current_language}_timestamp"
-                    has_cached_localization = cache_timestamp_key in QuantaHut.github_localization.localization_cache.content
-                    if has_cached_localization:
-                        self.log(f"Localization already cached for {current_language}")
-                        return
-                    else:
-                        self.log(f"No cached localization found for {current_language}, will show download bottom sheet")
-                
-                try:
-                    from java.util import Locale
-                    locale = Locale(current_language)
-                    language_name = locale.getDisplayLanguage(locale)
-                except:
-                    language_name = current_language.title()
-                
-                def check_localization_availability():
-                    try:
-                        import time
-                        time.sleep(2)
-                        
-                        import urllib.request
-                        branch_index = self.get_setting("localization_branch", 0)
-                        branch = "main" if branch_index == 0 else "Beta"
-                        self.log(f"Checking localization availability for {current_language} in branch: {branch}")
-                        github_url = f"https://raw.githubusercontent.com/luvztroy/UiTweaks/refs/heads/{branch}/UiTweaks%20{current_language}.json"
-                        self.log(f"GitHub URL: {github_url}")
-                        
-                        try:
-                            with urllib.request.urlopen(github_url) as response:
-                                if response.getcode() == 200:
-                                    self.log(f"Language {current_language} found in {branch} branch")
-                                    def show_available_sheet():
-                                        showupdatebottomsheet(
-                                            title=get_string("download_localization_title", "Download Localization"),
-                                            subtitle=get_string("current_language_detected", "Current language detected: {language}").format(language=current_language.lower()),
-                                            description=get_string("unlock_uitweaks_description", "Unlock UiTweaks in {language} for a seamless experience.").format(language=language_name),
-                                            github_url=github_url,
-                                            plugin_name="UiTweaks_Localization",
-                                            sticker_pack="luvztroyIcons",
-                                            sticker_index=13,
-                                            bottom_text=get_string("localization_bottom_text", "This process only happens once. After downloading, the files are saved locally to give you seamless access to UiTweaks in your language anytime."),
-                                            show_language_selector=False,
-                                            available_languages=quantahut.available_languages,
-                                            show_user_avatar=False,
-                                            description_centered=True
-                                        )
-                                    run_on_ui_thread(show_available_sheet)
-                                else:
-                                    raise Exception("Not found")
-                        except Exception as e:
-                            self.log(f"Language {current_language} not found in {branch} branch: {e}")
-                            def show_unavailable_sheet():
-                                showupdatebottomsheet(
-                                    title=get_string("localization_not_available", "Localization Not Available"),
-                                    subtitle=get_string("current_language_detected", "Current language detected: {language}").format(language=current_language.lower()),
-                                    description=get_string("localization_not_available_description", "UiTweaks localization for {language} is not available yet.").format(language=language_name),
-                                    github_url=None,
-                                    plugin_name="UiTweaks_Localization",
-                                    sticker_pack="luvztroyIcons",
-                                    sticker_index=13,
-                                    button_text=get_string("continue", "Continue"),
-                                    bottom_text=get_string("localization_continue_text", "The plugin will continue to work in English. Check back later for localization updates."),
-                                    show_language_selector=False,
-                                    available_languages=quantahut.available_languages,
-                                    show_user_avatar=False,
-                                    description_centered=True
-                                )
-                            run_on_ui_thread(show_unavailable_sheet)
-                    except Exception as e:
-                        self.log(f"Error checking localization availability: {e}")
-                
-                import threading
-                thread = threading.Thread(target=check_localization_availability)
-                thread.daemon = True
-                thread.start()
-                
-            except Exception as e:
-                self.log(f"Error checking localization: {e}")
         
-        localization_thread = threading.Thread(target=check_and_download_localization)
-        localization_thread.daemon = True
-        localization_thread.start()
         
         self.hook_handler = ConfirmationHook(self)
         self.add_hook("TL_messages_forwardMessages")
@@ -2074,10 +1981,169 @@ class UiTweaksPlugin(BasePlugin):
             self.log(f"Error opening tips: {e}")
     
     def _open_translation(self):
-        from android.content import Intent
-        from android.net import Uri
-        intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/luvztroy/UiTweaks"))
-        get_last_fragment().getParentActivity().startActivity(intent)
+        try:
+            from com.exteragram.messenger.plugins.ui.components.templates import UniversalFragment
+            from java import dynamic_proxy
+            from org.telegram.ui.Components import UItem
+            from org.telegram.messenger import R
+            from ui.bulletin import BulletinHelper
+            from base_plugin import PluginsController
+            from hook_utils import get_private_field
+            
+            plugin = self
+            
+            class LanguageSelectorDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentDelegate)):
+                def __init__(self):
+                    super().__init__()
+                    self.fragment = None
+                    try:
+                        prefs = get_private_field(PluginsController.getInstance(), "preferences")
+                        self.selected_language = prefs.getString("plugin_setting_ui_tweaks_selected_language", None) or "en"
+                    except:
+                        self.selected_language = "en"
+                
+                def getTitle(self):
+                    return get_string("select_language", "Select Language")
+                
+                def beforeCreateView(self):
+                    return None
+                
+                def afterCreateView(self, view):
+                    return view
+                
+                def onFragmentCreate(self):
+                    pass
+                
+                def onFragmentDestroy(self):
+                    pass
+                
+                def onMenuItemClick(self, id):
+                    pass
+                
+                def fillItems(self, items, adapter):
+                    items.add(UItem.asHeader(get_string("available_languages", "Available Languages")))
+                    
+                    default_item = UItem.asRadio(-1, get_string("default", "Default"), get_string("english", "English"))
+                    default_item.checked = (self.selected_language == "en" or not self.selected_language)
+                    items.add(default_item)
+                    
+                    languages = quantahut.available_languages if quantahut and hasattr(quantahut, 'available_languages') else []
+                    if not languages:
+                        items.add(UItem.asButton(-2, get_string("loading", "Loading...")))
+                    else:
+                        for i, lang in enumerate(languages):
+                            lang_code = lang.get("code", "")
+                            
+                            if lang_code == "en":
+                                continue
+                            
+                            native_name = lang.get("display_name", lang_code)
+
+                            try:
+                                from java.util import Locale
+                                clean_code = lang_code.replace("-raw", "")
+                                parts = clean_code.split("-")
+                                if len(parts) == 1:
+                                    locale = Locale(parts[0])
+                                else:
+                                    locale = Locale(parts[0], parts[1] if len(parts) > 1 else "")
+                                english_name = locale.getDisplayLanguage(Locale.ENGLISH)
+                            except:
+                                english_name = lang_code.replace("-raw", "").title()
+                            
+                            item = UItem.asRadio(i, english_name, native_name)
+                            item.checked = (lang_code == self.selected_language)
+                            items.add(item)
+                    items.add(UItem.asShadow(None))
+                
+                def onClick(self, item, view, position, x, y):
+                    item_id = item.id
+                    
+                    if item_id == -1:
+                        self.selected_language = "en"
+                        try:
+                            prefs = get_private_field(PluginsController.getInstance(), "preferences")
+                            prefs.edit().putString("plugin_setting_ui_tweaks_selected_language", "en").apply()
+                        except Exception as e:
+                            plugin.log(f"Error saving default language: {e}")
+                        
+                        if self.fragment:
+                            try:
+                                self.fragment.listView.getAdapter().update(False)
+                            except:
+                                pass
+                        return
+                    
+                    languages = quantahut.available_languages if quantahut and hasattr(quantahut, 'available_languages') else []
+                    if item_id >= 0 and item_id < len(languages):
+                        lang = languages[item_id]
+                        lang_code = lang.get("code")
+                        lang_display = lang.get("display_name", lang_code)
+                        self.selected_language = lang_code
+                        
+                        try:
+                            prefs = get_private_field(PluginsController.getInstance(), "preferences")
+                            prefs.edit().putString("plugin_setting_ui_tweaks_selected_language", lang_code).apply()
+                        except Exception as e:
+                            plugin.log(f"Error saving language preference: {e}")
+                        
+                        if self.fragment:
+                            try:
+                                self.fragment.listView.getAdapter().update(False)
+                            except:
+                                pass
+                        
+                        def download_lang():
+                            try:
+                                quantahut.github_localization.download_localization("UiTweaks", lang_code)
+                                plugin.log(f"Downloaded localization for {lang_code}")
+                                def apply_and_refresh():
+                                    try:
+                                        PluginsController.getInstance().loadPluginSettings("ui_tweaks")
+                                        PluginsController.getInstance().loadPluginSettings("quantahut")
+                                        NotificationCenter.getGlobalInstance().postNotificationName(
+                                            NotificationCenter.pluginSettingsRegistered,
+                                            "ui_tweaks"
+                                        )
+                                        NotificationCenter.getGlobalInstance().postNotificationName(
+                                            NotificationCenter.pluginSettingsRegistered,
+                                            "quantahut"
+                                        )
+                                        if self.fragment:
+                                            self.fragment.finishFragment()
+                                        BulletinHelper.show_simple(
+                                            get_string("language_changed_to", "Language changed to") + f" {lang_display}",
+                                            R.raw.contact_check,
+                                            get_last_fragment()
+                                        )
+                                    except Exception as e:
+                                        plugin.log(f"Error refreshing: {e}")
+                                run_on_ui_thread(apply_and_refresh)
+                            except Exception as e:
+                                plugin.log(f"Error downloading localization: {e}")
+                                run_on_ui_thread(lambda: BulletinHelper.show_simple(
+                                    get_string("download_failed", "Download failed"),
+                                    R.raw.error,
+                                    self.fragment
+                                ))
+                        
+                        import threading
+                        threading.Thread(target=download_lang, daemon=True).start()
+                
+                def onLongClick(self, item, view, position, x, y):
+                    return False
+                
+                def onBackPressed(self):
+                    return None
+            
+            delegate = LanguageSelectorDelegate()
+            fragment = UniversalFragment(delegate)
+            delegate.fragment = fragment
+            last_fragment = get_last_fragment()
+            if last_fragment:
+                last_fragment.presentFragment(fragment)
+        except Exception as e:
+            self.log(f"Error opening language selector: {e}")
     
     def _show_donation_info(self):
         showupdatebottomsheet(
@@ -2091,7 +2157,6 @@ class UiTweaksPlugin(BasePlugin):
             sticker_index=15,
             button_text=get_string("understood", "Understood"),
             bottom_text=get_string("donation_info_footer", "Thank you for considering supporting the development of UiTweaks!"),
-            show_language_selector=False,
             show_user_avatar=False,
             description_centered=True
         )
@@ -5831,7 +5896,6 @@ class UiTweaksPlugin(BasePlugin):
                 on_sticker_long_click=on_sticker_long_click,
                 bottom_text=get_string("performance_warning_footer", 
                     "For optimal performance, consider reviewing your enabled features regularly and keeping only what you need active."),
-                show_language_selector=False,
                 show_user_avatar=False,
                 description_centered=True
             )
