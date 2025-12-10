@@ -90,13 +90,11 @@ class QuantaHut(BasePlugin):
             Switch(key="show_restart_menu", text=get_string("quantahut_show_restart", "Show Restart in Drawer"), default=DEFAULT_SHOW_RESTART_MENU, icon="msg_retry", on_change=self._on_restart_toggle_changed),
             Header(text=get_string("updates", "Updates")),
 
-            Text(text=get_string("localization_update", "Update Localization"), accent=True, icon="msg_download_solar", on_click=lambda v: self._show_quanta_bottom_sheet()),
             Text(text=get_string("check_update", "Check for Plugin Updates"), accent=True, icon="msg_download_solar", on_click=lambda v: check_quanta_updates()),
         ]
         
         if show_branch_selector:
             settings.extend([
-                Selector(key="localization_branch", text=get_string("localization_branch", "Localization Branch"), items=[get_string("branch_main", "Main"), get_string("branch_beta", "Beta")], default=DEFAULT_BRANCH, icon="msg_folders"),                
                 Selector(key="update_branch", text=get_string("update_branch", "Update Branch"), items=[get_string("branch_main", "Main"), get_string("branch_beta", "Beta")], default=DEFAULT_BRANCH, icon="msg_folders"),
                 Divider(text=get_string("update_branch_info", "Select which branch to receive updates and download localization files from. Beta may contain experimental features and newer translations.")),
             ])
@@ -358,7 +356,7 @@ class QuantaHut(BasePlugin):
             return False
     
     def _get_selected_branch(self):
-        branch_index = self.get_setting("localization_branch", DEFAULT_BRANCH)
+        branch_index = self.get_setting("update_branch", DEFAULT_BRANCH)
         return "main" if branch_index == 0 else "Beta"
     
     def _on_restart_toggle_changed(self, enabled):
@@ -396,59 +394,8 @@ class QuantaHut(BasePlugin):
             quantahut_log(f"Error restarting app: {e}")
 
 
-    def _show_quanta_bottom_sheet(self):
-        try:
-            quantahut_log("Showing Quanta bottom sheet...")
-            
-            try:
-                from org.telegram.messenger import LocaleController
-                current_language = LocaleController.getInstance().getCurrentLocaleInfo().getLangCode()
-            except:
-                current_language = "en"
-            
-            try:
-                from java.util import Locale
-                locale = Locale(current_language)
-                language_name = locale.getDisplayLanguage(locale)
-            except:
-                language_name = current_language.title()
-            
-            quantahut_log(f"Language detected: {current_language}")
-            
-            if hasattr(self, 'language_available') and self.language_available:
-                branch = self._get_selected_branch()
-                showupdatebottomsheet(
-                    title=get_string("download_localization", "Download Localization"),
-                    subtitle=get_string("current_language_detected", "Current language detected: {language}").format(language=current_language.lower()) if get_string("current_language_detected") else f"Current language detected: {current_language.lower()}",
-                    description=get_string("unlock_uitweaks_description", "Unlock UiTweaks in {language} for a seamless experience.").format(language=language_name) if get_string("unlock_uitweaks_description") else f"Unlock UiTweaks in {language_name} for a seamless experience.",
-                    github_url=f"https://raw.githubusercontent.com/luvztroy/UiTweaks/refs/heads/{branch}/UiTweaks%20{current_language}.json",
-                    plugin_name="UiTweaks_Localization",
-                    sticker_pack="luvztroyIcons",
-                    sticker_index=13,
-                    button_text=get_string("download", "Download"),
-                    bottom_text=get_string("localization_bottom_text", "This process only happens once. After downloading, the files are saved locally to give you seamless access to UiTweaks in your language anytime."),
-                    show_language_selector=False,
-                    available_languages=self.available_languages,
-                    description_centered=True
-                )
-            else:
-                showupdatebottomsheet(
-                    title=get_string("localization_not_available", "Localization Not Available"),
-                    subtitle=get_string("current_language_detected", "Current language detected: {language}").format(language=current_language.lower()) if get_string("current_language_detected") else f"Current language detected: {current_language.lower()}",
-                    description=get_string("localization_not_available_description", "UiTweaks localization for {language} is not available yet.").format(language=language_name) if get_string("localization_not_available_description") else f"UiTweaks localization for {language_name} is not available yet.",
-                    github_url=None,
-                    plugin_name="UiTweaks_Localization",
-                    sticker_pack="luvztroyIcons",
-                    sticker_index=13,
-                    button_text=get_string("continue", "Continue"),
-                    bottom_text=get_string("localization_continue_text", "You can still use UiTweaks in English, or select a different language from the language selector button."),
-                    show_language_selector=True,
-                    available_languages=self.available_languages,
-                    description_centered=True
-                )
-            
-        except Exception as e:
-            quantahut_log(f"Error in _show_quanta_bottom_sheet: {e}")
+
+
 
     def setup_hooks(self):
         try:
@@ -2730,7 +2677,7 @@ class UpdateBottomSheet:
         
     def _get_selected_branch(self):
         try:
-            branch_index = setting_getter("localization_branch", DEFAULT_BRANCH) if setting_getter else DEFAULT_BRANCH
+            branch_index = setting_getter("update_branch", DEFAULT_BRANCH) if setting_getter else DEFAULT_BRANCH
             return "main" if branch_index == 0 else "Beta"
         except:
             return "main"
@@ -2753,158 +2700,7 @@ class UpdateBottomSheet:
         except Exception as e:
             pass
    
-    def _create_language_selector(self, frame_layout):
-        try:
-            from org.telegram.ui.Components import BackupImageView, LayoutHelper, ScaleStateListAnimator
-            from org.telegram.ui.ActionBar import Theme
-            from org.telegram.messenger import AndroidUtilities
-            from android.widget import ImageView, FrameLayout
-            from android.view import Gravity
-            from android.graphics import PorterDuff, PorterDuffColorFilter
-            from java import dynamic_proxy
-            
-            self.language_selector_layout = FrameLayout(self.context)
-            self.language_selector_inner_layout = FrameLayout(self.context)
-            
-            self.language_avatar_view = BackupImageView(self.context)
-            self.language_avatar_view.setRoundRadius(AndroidUtilities.dp(14))
-            self.language_avatar_view.getImageReceiver().setCrossfadeWithOldImage(True)
-            
-            self.language_selector_icon_view = ImageView(self.context)
-            self.language_selector_icon_view.setScaleType(ImageView.ScaleType.CENTER)
-            self.language_selector_icon_view.setColorFilter(PorterDuffColorFilter(Theme.getColor(Theme.key_dialogTextGray3), PorterDuff.Mode.SRC_IN))
-            self.language_selector_icon_view.setImageResource(R_tg.drawable.arrows_select)
-            
-            self.language_selector_inner_layout.addView(self.language_avatar_view, LayoutHelper.createFrame(20, 20, Gravity.LEFT | Gravity.CENTER_VERTICAL, 10, 0, 0, 0))
-            self.language_selector_inner_layout.addView(self.language_selector_icon_view, LayoutHelper.createFrame(14, 14, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 6, 0))
-            
-            self.language_selector_layout.addView(self.language_selector_inner_layout, LayoutHelper.createFrame(60, 32, Gravity.CENTER))
-            self.language_selector_layout.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(8), AndroidUtilities.dp(12), AndroidUtilities.dp(4))
-            
-            self._update_language_display()
-            
-            OnClickInterface = find_class("android.view.View$OnClickListener")
-            OnClick = dynamic_proxy(OnClickInterface)
-            class LanguageClickImpl(OnClick):
-                def __init__(self, bottom_sheet_instance):
-                    super().__init__()
-                    self.bottom_sheet_instance = bottom_sheet_instance
-                def onClick(self, v):
-                    self.bottom_sheet_instance._show_language_menu()
-            
-            self.language_selector_layout.setOnClickListener(LanguageClickImpl(self))
-            frame_layout.addView(self.language_selector_layout, LayoutHelper.createFrame(68, 40, Gravity.TOP | Gravity.START, 12, 12, 0, 0))
-            ScaleStateListAnimator.apply(self.language_selector_layout)
-        except Exception as e:
-            quantahut_log(f"Error creating language selector: {e}")
-            import traceback
-            quantahut_log(f"Traceback: {traceback.format_exc()}")
 
-    def _update_language_display(self):
-        try:
-            from org.telegram.ui.Components import AvatarDrawable
-            from org.telegram.messenger import UserConfig
-            
-            current_user = UserConfig.getInstance(0).getCurrentUser()
-            avatar_drawable = AvatarDrawable()
-            avatar_drawable.setInfo(current_user)
-            self.language_avatar_view.setForUserOrChat(current_user, avatar_drawable)
-            quantahut_log("User avatar set in language selector")
-        except Exception as e:
-            quantahut_log(f"Error updating language display: {e}")
-
-    def _show_language_menu(self):
-        try:
-            from android_utils import run_on_ui_thread
-            def show_menu():
-                try:
-                    if not self.available_languages:
-                        return
-                    from org.telegram.ui.Components import ItemOptions, LayoutHelper
-                    from android.view import Gravity, View
-                    from java import dynamic_proxy
-                    from org.telegram.messenger import R as R_tg
-                    from org.telegram.messenger import AndroidUtilities
-                    from org.telegram.ui.ActionBar import ActionBarPopupWindow, ActionBarMenuSubItem, Theme
-
-                    i = ItemOptions.makeOptions(self.bottom_sheet.containerView, self.fragment.getResourceProvider(), self.language_selector_inner_layout, False)
-                    try:
-                        i.useScrollView = True
-                    except Exception:
-                        pass
-                    popup_layout = ActionBarPopupWindow.ActionBarPopupWindowLayout(self.context, R_tg.drawable.popup_fixed_alert2, self.fragment.getResourceProvider())
-                    try:
-                        popup_layout.setFitItems(True)
-                    except Exception:
-                        pass
-
-                    popup_window = ActionBarPopupWindow(popup_layout, -2, -2)
-                    popup_window.setOutsideTouchable(True)
-                    popup_window.setClippingEnabled(False)
-                    popup_window.setAnimationStyle(R_tg.style.PopupContextAnimation)
-                    popup_window.setFocusable(True)
-                    popup_window.setInputMethodMode(ActionBarPopupWindow.INPUT_METHOD_NOT_NEEDED)
-                    popup_window.setSoftInputMode(0)
-                    try:
-                        popup_window.setHeight(AndroidUtilities.dp(300))
-                    except Exception:
-                        pass
-
-                    for lang_info in self.available_languages:
-                        sub_item = ActionBarMenuSubItem(self.context, False, False, self.fragment.getResourceProvider())
-                        sub_item.setPadding(AndroidUtilities.dp(18), 0, AndroidUtilities.dp(18), 0)
-                        sub_item.setText(str(lang_info['display_name']))
-                        sub_item.setColors(Theme.getColor(Theme.key_actionBarDefaultSubmenuItem), Theme.getColor(Theme.key_actionBarDefaultSubmenuItemIcon))
-                        sub_item.setSelectorColor(Theme.multAlpha(Theme.getColor(Theme.key_actionBarDefaultSubmenuItem), 0.12))
-
-                        from android_utils import R
-                        
-                        def create_language_callback(bottom_sheet_instance, lang_code, lang_display):
-                            def callback():
-                                bottom_sheet_instance._select_language(lang_code, lang_display)
-                            return R(callback)
-                        
-                        callback = create_language_callback(self, lang_info['code'], lang_info['display_name'])
-
-                        from android_utils import OnClickListener
-                        sub_item.setOnClickListener(OnClickListener(lambda *args, cb=callback, pw=popup_window: (pw.dismiss(), cb.run())))
-                        popup_layout.addView(sub_item, LayoutHelper.createLinear(-1, -2))
-
-                    popup_window.showAsDropDown(self.language_selector_inner_layout, 0, -AndroidUtilities.dp(6))
-                except Exception as e:
-                    quantahut_log(f"Error showing language menu: {e}")
-            run_on_ui_thread(show_menu)
-        except Exception as e:
-            quantahut_log(f"Error in _show_language_menu: {e}")
-
-    def _select_language(self, lang_code, lang_display):
-        try:
-            from android_utils import run_on_ui_thread
-            def update_language():
-                try:
-                    self.current_language = lang_code
-                    branch = self._get_selected_branch()
-                    self.selected_github_url = f"https://raw.githubusercontent.com/luvztroy/UiTweaks/refs/heads/{branch}/UiTweaks%20{lang_code}.json"
-                    self._update_language_display()
-                    self._store_selected_language_preference(lang_code)
-                    if self.download_button:
-                        self.download_button.setText(f"Download {lang_display}")
-                    quantahut_log(f"Selected language: {lang_code} ({lang_display})")
-                except Exception as e:
-                    quantahut_log(f"Error updating language UI: {e}")
-            run_on_ui_thread(update_language)
-        except Exception as e:
-            quantahut_log(f"Error in _select_language: {e}")
-    
-    def _store_selected_language_preference(self, lang_code):
-        try:
-            from base_plugin import PluginsController
-            from hook_utils import get_private_field
-            prefs = get_private_field(PluginsController.getInstance(), "preferences")
-            prefs.edit().putString("plugin_setting_ui_tweaks_selected_language", lang_code).apply()
-            quantahut_log(f"Stored selected language preference: {lang_code}")
-        except Exception as e:
-            quantahut_log(f"Error storing language preference: {e}")
 
     def _load_sticker_avatar(self, avatar_image_view, sticker_pack_name: str, sticker_index_to_use: int):
         try:
@@ -2948,7 +2744,7 @@ class UpdateBottomSheet:
         except Exception as e:
             quantahut_log(f"Error in _load_sticker_avatar: {e}")
 
-    def create_bottom_sheet(self, title, subtitle=None, description=None, github_url=None, plugin_name=None, sticker_pack=None, sticker_index=None, raw_resource=None, button_text="Download", button2_text=None, bottom_text=None, show_close_button=True, show_language_selector=False, show_user_avatar=False, sticker_circle=True, sticker_size=90, description_centered=False, on_button_click=None, on_button2_click=None, on_sticker_long_click=None):
+    def create_bottom_sheet(self, title, subtitle=None, description=None, github_url=None, plugin_name=None, sticker_pack=None, sticker_index=None, raw_resource=None, button_text="Download", button2_text=None, bottom_text=None, show_close_button=True, show_user_avatar=False, sticker_circle=True, sticker_size=90, description_centered=False, on_button_click=None, on_button2_click=None, on_sticker_long_click=None):
         from org.telegram.ui.ActionBar import BottomSheet
         from org.telegram.ui.Components import LayoutHelper
         from org.telegram.messenger import AndroidUtilities
@@ -3001,9 +2797,8 @@ class UpdateBottomSheet:
             close_view.setPadding(close_padding, close_padding, close_padding, close_padding)
             frame_layout.addView(close_view, LayoutHelper.createFrame(36, 36, Gravity.TOP | Gravity.END, 6, 8, 8, 0))
         
-        if show_language_selector:
-            self._create_language_selector(frame_layout)
         
+
         from org.telegram.ui.Components import BackupImageView
         avatar_image_view = BackupImageView(self.context)
         if sticker_circle:
@@ -3750,7 +3545,7 @@ hut = utilities
 available_languages = []
 
 
-def showupdatebottomsheet(title, subtitle=None, description=None, github_url=None, plugin_name=None, sticker_pack=None, sticker_index=None, raw_resource=None, button_text="Download", button2_text=None, bottom_text=None, show_close_button=True, show_language_selector=False, available_languages=None, show_user_avatar=False, sticker_circle=True, sticker_size=90, description_centered=False, on_button_click=None, on_button2_click=None, on_sticker_long_click=None):
+def showupdatebottomsheet(title, subtitle=None, description=None, github_url=None, plugin_name=None, sticker_pack=None, sticker_index=None, raw_resource=None, button_text="Download", button2_text=None, bottom_text=None, show_close_button=True, show_user_avatar=False, sticker_circle=True, sticker_size=90, description_centered=False, on_button_click=None, on_button2_click=None, on_sticker_long_click=None):
     try:
         from android_utils import run_on_ui_thread
         
@@ -3766,8 +3561,8 @@ def showupdatebottomsheet(title, subtitle=None, description=None, github_url=Non
                     quantahut_log("Cannot show bottom sheet, no activity.")
                     return
                 
-                bottom_sheet = UpdateBottomSheet(activity, activity, current_fragment, available_languages, github_localization.localization_cache)
-                bottom_sheet.create_bottom_sheet(title, subtitle, description, github_url, plugin_name, sticker_pack, sticker_index, raw_resource, button_text, button2_text, bottom_text, show_close_button, show_language_selector, show_user_avatar, sticker_circle, sticker_size, description_centered, on_button_click, on_button2_click, on_sticker_long_click)
+                bottom_sheet = UpdateBottomSheet(activity, activity, current_fragment, github_localization.localization_cache)
+                bottom_sheet.create_bottom_sheet(title, subtitle, description, github_url, plugin_name, sticker_pack, sticker_index, raw_resource, button_text, button2_text, bottom_text, show_close_button, show_user_avatar, sticker_circle, sticker_size, description_centered, on_button_click, on_button2_click, on_sticker_long_click)
                 bottom_sheet.show()
                 
             except Exception as e:
