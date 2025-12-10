@@ -9071,42 +9071,31 @@ class PhoneFormatHook:
 class MessagesControllerGetDialogsHook:
     def __init__(self, plugin: UiTweaksPlugin):
         self.plugin = plugin
-        self.removed_archive = {}
+
+    def _remove_folder_dialog(self, dialog_list, dialog_object):
+        if dialog_list is None:
+            return
+        for i in range(dialog_list.size() - 1, -1, -1):
+            if dialog_object.isFolderDialogId(dialog_list.get(i).id):
+                dialog_list.remove(i)
+                return
 
     def before_hooked_method(self, param):
         try:
             if not self.plugin.get_setting("hide_archived_chats", False):
                 return
 
-            try:
-                messages_controller = param.thisObject
-                account_id = messages_controller.currentAccount
-                
-                if self.removed_archive.get(account_id, False):
-                    return
-                
-                dialogs_dict = messages_controller.dialogs_dict
-                dialog_object = jclass("org.telegram.messenger.DialogObject")
-                archive_dialog_id = dialog_object.makeFolderDialogId(1)
-                
-                archive_dialog = dialogs_dict.get(archive_dialog_id)
-                if archive_dialog is not None:
-                    dialogs_dict.remove(archive_dialog_id)
-                    
-                    all_dialogs = messages_controller.allDialogs
-                    try:
-                        for i in range(all_dialogs.size()):
-                            if all_dialogs.get(i) == archive_dialog:
-                                all_dialogs.remove(i)
-                                break
-                    except Exception:
-                        pass
-                    
-                    self.removed_archive[account_id] = True
-                    
-            except Exception:
-                pass
+            mc = param.thisObject
+            dialog_object = jclass("org.telegram.messenger.DialogObject")
+            archive_id = dialog_object.makeFolderDialogId(1)
             
+            if mc.dialogs_dict.get(archive_id) is not None:
+                mc.dialogs_dict.remove(archive_id)
+            
+            self._remove_folder_dialog(mc.allDialogs, dialog_object)
+            
+            folder_dialogs = mc.dialogsByFolder.get(0) if mc.dialogsByFolder else None
+            self._remove_folder_dialog(folder_dialogs, dialog_object)
         except Exception:
             pass
 
