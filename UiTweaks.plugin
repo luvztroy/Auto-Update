@@ -3192,6 +3192,17 @@ class UiTweaksPlugin(BasePlugin):
                     
                     fragment1.finishFragment()
                     
+                    if dids.size() > 1:
+                        from org.telegram.messenger import LocaleController, AndroidUtilities
+                        messages_count = self.messages.size() if self.messages else 1
+                        if messages_count <= 1:
+                            text = AndroidUtilities.replaceTags(LocaleController.formatPluralString("FwdMessageToManyChats", dids.size()))
+                        else:
+                            text = AndroidUtilities.replaceTags(LocaleController.formatPluralString("FwdMessagesToManyChats", dids.size()))
+                        from ui.bulletin import BulletinHelper
+                        from org.telegram.messenger import R as R_tg
+                        BulletinHelper.show_simple(text, R_tg.raw.forward, self.chat_activity)
+                    
                 else:
                     did = dids.get(0).dialogId
                     args1 = Bundle()
