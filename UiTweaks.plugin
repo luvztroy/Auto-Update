@@ -5138,18 +5138,18 @@ class UiTweaksPlugin(BasePlugin):
             
             search_filter_button.setOnClickListener(OnClickListener(lambda v: self._show_search_filter_selector(chat_activity)))
             
-            left_margin = 44
+            left_margin = 48
             try:
                 search_user_button = get_private_field(chat_activity, "searchUserButton")
                 if search_user_button:
-                    left_margin = 88
+                    left_margin = 96
                     self._hook_user_search_button_for_filter(search_user_button, search_filter_button, chat_activity)
             except:
                 pass
             
             search_container.addView(
                 search_filter_button,
-                LayoutHelper.createFrame(44, 44, Gravity.LEFT | Gravity.TOP, left_margin, 0, 0, 0)
+                LayoutHelper.createFrame(48, 48, Gravity.LEFT | Gravity.TOP, left_margin, 0, 0, 0)
             )
             
             self.search_filter_buttons[activity_id] = search_filter_button
@@ -5158,7 +5158,7 @@ class UiTweaksPlugin(BasePlugin):
                 search_count_text = get_private_field(chat_activity, "searchCountText")
                 if search_count_text:
                     current_padding_left = search_count_text.getPaddingLeft()
-                    new_padding_left = current_padding_left + AndroidUtilities.dp(44)
+                    new_padding_left = current_padding_left + AndroidUtilities.dp(48)
                     search_count_text.setPadding(
                         new_padding_left,
                         search_count_text.getPaddingTop(),
