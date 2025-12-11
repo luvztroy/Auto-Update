@@ -1437,7 +1437,7 @@ class UiTweaksPlugin(BasePlugin):
     def _create_settings_header(self, context):
         try:
             from android.widget import FrameLayout, TextView
-            from android.view import Gravity, ViewGroup
+            from android.view import Gravity
             from android.util import TypedValue
             from org.telegram.messenger import AndroidUtilities, MediaDataController, ImageLocation
             from org.telegram.ui.ActionBar import Theme
@@ -1447,9 +1447,18 @@ class UiTweaksPlugin(BasePlugin):
             imageView = BackupImageView(context)
             imageView.setRoundRadius(AndroidUtilities.dp(54))
             
-            sticker_set = MediaDataController.getInstance(0).getStickerSetByName("luvztroyIcons") or MediaDataController.getInstance(0).getStickerSetByEmojiOrName("luvztroyIcons")
-            if sticker_set and sticker_set.documents and sticker_set.documents.size() > 13:
-                imageView.setImage(ImageLocation.getForDocument(sticker_set.documents.get(13)), "108_108", None, None, 0, 1)
+            def try_load_sticker(img):
+                ss = MediaDataController.getInstance(0).getStickerSetByName("luvztroyIcons") or MediaDataController.getInstance(0).getStickerSetByEmojiOrName("luvztroyIcons")
+                if ss and ss.documents and ss.documents.size() > 13:
+                    img.setImage(ImageLocation.getForDocument(ss.documents.get(13)), "108_108", None, None, 0, 1)
+                    self.log("Header sticker loaded from cache")
+                    return True
+                return False
+            
+            if not try_load_sticker(imageView):
+                self.log("Header sticker not cached, fetching from server...")
+                MediaDataController.getInstance(0).loadStickersByEmojiOrName("luvztroyIcons", False, False)
+                run_on_ui_thread(lambda: try_load_sticker(imageView), 1500)
             
             container.addView(imageView, LayoutHelper.createFrame(108, 108, Gravity.CENTER | Gravity.TOP, 0, 20, 0, 0))
             
