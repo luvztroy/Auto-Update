@@ -429,12 +429,14 @@ class QuantaHut(BasePlugin):
 
     def _get_cache_info_text(self):
         try:
+            cache_content = github_localization.localization_cache.content
             languages = set()
             string_count = 0
-            for key in github_localization.localization_cache.content.keys():
+            for key in cache_content.keys():
                 if key.endswith('_timestamp'):
-                    lang = key.split('_')[-2] if '_' in key else 'unknown'
-                    languages.add(lang)
+                    parts = key.rsplit('_', 2)
+                    if len(parts) >= 2:
+                        languages.add(parts[-2])
                 elif '_' in key and not key.endswith('_timestamp'):
                     string_count += 1
             
@@ -458,7 +460,6 @@ class QuantaHut(BasePlugin):
             
             return " | ".join(info_parts)
         except Exception as e:
-            quantahut_log(f"Error getting cache info: {e}")
             return get_string("cache_info", "Cache status unavailable")
 
     def register_message_context_menu_item(self, *args, **kwargs):
@@ -2241,8 +2242,9 @@ class GitHubLocalization:
                     quantahut_log(f"First time caching {len(data)} keys")
                 
                 keys_to_remove = []
+                prefix = f"{plugin_id}_{language}_"
                 for key in self.localization_cache.content.keys():
-                    if key.startswith(f"{plugin_id}_") and not key.endswith('_timestamp') and not key == cache_key:
+                    if key.startswith(prefix) and not key.endswith('_timestamp'):
                         keys_to_remove.append(key)
                 
                 for key in keys_to_remove:
