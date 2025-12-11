@@ -577,62 +577,53 @@ class QuantaHut(BasePlugin):
         
         def download_thread():
             try:
-                quantahut_log(f"Downloading from: {self.download_url}")
-                
                 with urllib.request.urlopen(self.download_url, timeout=30) as response:
-                    if response.getcode() != 200:
-                        raise Exception(f"HTTP {response.getcode()}")
-                    
                     plugin_content = response.read()
-                    quantahut_log(f"Downloaded {len(plugin_content)} bytes")
                 
-                from com.exteragram.messenger.plugins import PluginsController
-                from org.telegram.messenger import ApplicationLoader
+                from com.exteragram.messenger.plugins import PluginsController, PluginsConstants
+                from org.telegram.messenger import ApplicationLoader, Utilities
+                from java import dynamic_proxy, jclass
                 
-                app_context = ApplicationLoader.applicationContext
-                files_dir = app_context.getFilesDir()
-                plugins_dir = os.path.join(str(files_dir), "plugins")
+                plugins_dir = os.path.join(str(ApplicationLoader.applicationContext.getFilesDir()), "plugins")
+                temp_file = os.path.join(plugins_dir, "quantahut_update.tmp")
                 
-                plugin_file = os.path.join(plugins_dir, "quantahut.py")
-                
-                quantahut_log(f"Installing to: {plugin_file}")
-                
-                with open(plugin_file, 'wb') as f:
+                with open(temp_file, 'wb') as f:
                     f.write(plugin_content)
-                
-                quantahut_log("QuantaHut updated successfully!")
                 
                 try:
                     from org.telegram.messenger import LocaleController
-                    current_language = LocaleController.getInstance().getCurrentLocaleInfo().getLangCode()
-                    if current_language != "en" and self.language_available:
-                        github_localization.download_localization("UiTweaks", current_language)
-                        quantahut_log(f"Updated localization for {current_language}")
-                except Exception as loc_e:
-                    quantahut_log(f"Localization update failed (non-critical): {loc_e}")
+                    lang = LocaleController.getInstance().getCurrentLocaleInfo().getLangCode()
+                    if lang != "en" and self.language_available:
+                        github_localization.download_localization("UiTweaks", lang)
+                except:
+                    pass
                 
-                success_msg = f"QuantaHut updated to v{self.latest_version}! Restart required."
-                run_on_ui_thread(lambda: BulletinHelper.show_success(success_msg))
+                version = self.latest_version
                 
-                run_on_ui_thread(self._show_restart_prompt)
+                class Callback(dynamic_proxy(Utilities.Callback)):
+                    def run(self_cb, error):
+                        if error:
+                            run_on_ui_thread(lambda: BulletinHelper.show_error(f"Update failed: {error}"))
+                        else:
+                            run_on_ui_thread(lambda: BulletinHelper.show_success(f"QuantaHut updated to v{version}!"))
+                        try:
+                            os.remove(temp_file)
+                        except:
+                            pass
+                
+                class Runnable(dynamic_proxy(jclass("java.lang.Runnable"))):
+                    def run(self_r):
+                        PluginsController.engines.get(PluginsConstants.PYTHON).loadPluginFromFile(temp_file, None, Callback())
+                
+                Utilities.pluginsQueue.postRunnable(Runnable())
                 
             except Exception as e:
-                error_msg = f"QuantaHut update failed: {str(e)}"
-                quantahut_log(f"Error downloading update: {e}")
-                run_on_ui_thread(lambda msg=error_msg: BulletinHelper.show_error(msg))
+                run_on_ui_thread(lambda: BulletinHelper.show_error(f"Update failed: {e}"))
         
-        thread = threading.Thread(target=download_thread)
-        thread.daemon = True
-        thread.start()
-    
-    def _show_restart_prompt(self):
-        try:
-            show_restart_bulletin(
-                message=get_string("restart_to_apply_quantahut_update", "Restart app to apply QuantaHut update"),
-                button_text=get_string("restart", "Restart")
-            )
-        except Exception as e:
-            quantahut_log(f"Error showing restart bulletin: {e}")
+        threading.Thread(target=download_thread, daemon=True).start()
+
+
+
 
     def on_plugin_unload(self):
         for ref in self.hook_refs:
