@@ -2074,6 +2074,11 @@ class UiTweaksPlugin(BasePlugin):
                         PluginsController.getInstance().loadPluginSettings("quantahut")
                         NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.pluginSettingsRegistered, "ui_tweaks")
                         NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.pluginSettingsRegistered, "quantahut")
+                        try:
+                            if quantahut and hasattr(quantahut, 'QuantaHut') and hasattr(quantahut.QuantaHut, 'instance') and quantahut.QuantaHut.instance:
+                                quantahut.QuantaHut.instance._update_restart_menu_item()
+                        except:
+                            pass
                         if self.fragment:
                             self.fragment.finishFragment()
                         BulletinHelper.show_simple(msg, R.raw.contact_check, get_last_fragment())
