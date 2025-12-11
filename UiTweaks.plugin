@@ -857,6 +857,7 @@ class UiTweaksPlugin(BasePlugin):
         self.repeat_menu_handle = None
         
         self.hook_search_by_user_id_ref = None
+        self.hook_settings_header_ref = None
         self.added_send_media_buttons = set()
         self._no_quote_buttons_created = set()
         self._no_quote_button_cache = {}
@@ -1133,6 +1134,7 @@ class UiTweaksPlugin(BasePlugin):
         self._setup_deeplink_hooks()
         self._setup_open_profile_hooks()
         self._setup_open_link_internally_hook()
+        self._setup_settings_header_hook()
         
         if self.get_setting("enable_goto_message", False):
             self._hook_goto_message()
@@ -1420,6 +1422,56 @@ class UiTweaksPlugin(BasePlugin):
             pass
 
 
+
+    def _setup_settings_header_hook(self):
+        try:
+            PSA = find_class("com.exteragram.messenger.plugins.ui.PluginSettingsActivity")
+            if not PSA:
+                return
+            method = PSA.getClass().getDeclaredMethod("fillItems", find_class("java.util.ArrayList"), find_class("org.telegram.ui.Components.UniversalAdapter"))
+            method.setAccessible(True)
+            self.hook_settings_header_ref = self.hook_method(method, UiTweaksSettingsHeaderHook(self))
+        except:
+            pass
+
+    def _create_settings_header(self, context):
+        try:
+            from android.widget import FrameLayout, TextView
+            from android.view import Gravity, ViewGroup
+            from android.util import TypedValue
+            from org.telegram.messenger import AndroidUtilities, MediaDataController, ImageLocation
+            from org.telegram.ui.ActionBar import Theme
+            from org.telegram.ui.Components import LayoutHelper, BackupImageView
+            
+            container = FrameLayout(context)
+            imageView = BackupImageView(context)
+            imageView.setRoundRadius(AndroidUtilities.dp(54))
+            
+            sticker_set = MediaDataController.getInstance(0).getStickerSetByName("luvztroyIcons") or MediaDataController.getInstance(0).getStickerSetByEmojiOrName("luvztroyIcons")
+            if sticker_set and sticker_set.documents and sticker_set.documents.size() > 13:
+                imageView.setImage(ImageLocation.getForDocument(sticker_set.documents.get(13)), "108_108", None, None, 0, 1)
+            
+            container.addView(imageView, LayoutHelper.createFrame(108, 108, Gravity.CENTER | Gravity.TOP, 0, 20, 0, 0))
+            
+            title = TextView(context)
+            title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText))
+            title.setTypeface(AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM))
+            title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 22)
+            title.setText(f"UiTweaks {__version__}")
+            title.setSingleLine(True)
+            title.setGravity(Gravity.CENTER)
+            container.addView(title, LayoutHelper.createFrame(-2, -2, Gravity.CENTER | Gravity.TOP, 50, 145, 50, 0))
+            
+            subtitle = TextView(context)
+            subtitle.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText))
+            subtitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14)
+            subtitle.setText("An experimental plugin for exteraGram based on python!")
+            subtitle.setGravity(Gravity.CENTER)
+            container.addView(subtitle, LayoutHelper.createFrame(-2, -2, Gravity.CENTER | Gravity.TOP, 60, 180, 60, 27))
+            
+            return container
+        except:
+            return None
 
     def _create_general_settings(self):
         return [
@@ -12649,3 +12701,44 @@ class OpenForwardHook(MethodHook):
     def before_hooked_method(self, param):
         if param.args[0]:
             param.args[0] = False
+
+
+class UiTweaksSettingsHeaderHook:
+    def __init__(self, plugin):
+        self.plugin = plugin
+    
+    def after_hooked_method(self, param):
+        try:
+            activity = param.thisObject
+            items = param.args[0]
+            if not items or items.size() == 0:
+                return
+            
+            plugin_obj = get_private_field(activity, "plugin")
+            if not plugin_obj or str(plugin_obj.getId()) != "ui_tweaks":
+                return
+            
+            if get_private_field(activity, "createSubFragmentCallback") is not None:
+                return
+            
+            try:
+                qh = getattr(quantahut, 'QuantaHut', None)
+                if qh and hasattr(qh, 'instance') and qh.instance:
+                    state = qh.instance._search_state.get(id(activity))
+                    if state and (state.get("active") or state.get("show_history")):
+                        return
+            except:
+                pass
+            
+            header = self.plugin._create_settings_header(activity.getContext())
+            if header:
+                from org.telegram.ui.Components import UItem
+                from com.exteragram.messenger.plugins.models import HeaderSetting
+                item = UItem.asCustom(header)
+                item.settingItem = HeaderSetting("uitweaks_header")
+                item.setTransparent(True)
+                items.add(0, item)
+                items.add(1, UItem.asShadow())
+        except:
+            pass
+
