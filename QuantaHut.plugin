@@ -2211,7 +2211,7 @@ class GitHubLocalization:
         
         return default or key
         
-    def download_localization(self, plugin_id: str, language: str = "en"):
+    def download_localization(self, plugin_id: str, language: str = "en", force_refresh: bool = False):
         try:
             import urllib.request
             import json
@@ -2222,7 +2222,7 @@ class GitHubLocalization:
                 cache_key = f"{plugin_id}_{language}"
                 old_data = self.localization_cache.content.get(cache_key, {})
                 
-                if old_data == data:
+                if not force_refresh and old_data == data:
                     return "no_changes_detected"
                 
                 if old_data:
