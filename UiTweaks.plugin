@@ -9126,6 +9126,7 @@ class PhoneFormatHook:
 class MessagesControllerGetDialogsHook:
     def __init__(self, plugin: UiTweaksPlugin):
         self.plugin = plugin
+        self._processed_accounts = set()
 
     def _remove_folder_dialog(self, dialog_list, dialog_object):
         if dialog_list is None:
@@ -9138,9 +9139,15 @@ class MessagesControllerGetDialogsHook:
     def before_hooked_method(self, param):
         try:
             if not self.plugin.get_setting("hide_archived_chats", False):
+                self._processed_accounts.clear()
                 return
 
             mc = param.thisObject
+            account_id = mc.currentAccount
+            
+            if account_id in self._processed_accounts:
+                return
+            
             dialog_object = jclass("org.telegram.messenger.DialogObject")
             archive_id = dialog_object.makeFolderDialogId(1)
             
@@ -9151,6 +9158,8 @@ class MessagesControllerGetDialogsHook:
             
             folder_dialogs = mc.dialogsByFolder.get(0) if mc.dialogsByFolder else None
             self._remove_folder_dialog(folder_dialogs, dialog_object)
+            
+            self._processed_accounts.add(account_id)
         except Exception:
             pass
 
