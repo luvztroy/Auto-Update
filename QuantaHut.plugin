@@ -370,20 +370,19 @@ class QuantaHut(BasePlugin):
         try:
             enabled = self.get_setting("show_restart_menu", DEFAULT_SHOW_RESTART_MENU)
 
+            if self.restart_menu_item:
+                self.remove_menu_item(self.restart_menu_item)
+                self.restart_menu_item = None
+
             if enabled:
-                if not self.restart_menu_item:
-                    self.restart_menu_item = self.add_menu_item(MenuItemData(
-                        menu_type=MenuItemType.DRAWER_MENU,
-                        text=get_string("quantahut_restart_drawer", "Restart App"),
-                        icon="msg_retry",
-                        priority=150,
-                        on_click=self._on_restart_menu_clicked,
-                    ))
-            else:
-                if self.restart_menu_item:
-                    self.remove_menu_item(self.restart_menu_item)
-                    self.restart_menu_item = None
-        except Exception:
+                self.restart_menu_item = self.add_menu_item(MenuItemData(
+                    menu_type=MenuItemType.DRAWER_MENU,
+                    text=get_string("quantahut_restart_drawer", "Restart App"),
+                    icon="msg_retry",
+                    priority=150,
+                    on_click=self._on_restart_menu_clicked,
+                ))
+        except:
             pass
 
     def _on_restart_menu_clicked(self, context):
