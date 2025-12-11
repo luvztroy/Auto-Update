@@ -850,57 +850,52 @@ class QuantaHut(BasePlugin):
             return 'this chat'
 
     def _load_available_languages(self):
-        if hasattr(self, '_languages_loading') and self._languages_loading:
-            return
-        if self.available_languages:
+        if getattr(self, '_languages_loading', False) or self.available_languages:
             return
             
         self._languages_loading = True
         
-        def load_languages_background():
+        def load_worker():
             try:
-                import urllib.request, json, re
+                import urllib.request, json
+                from java.util import Locale
+                from android_utils import run_on_ui_thread
+
                 branch = self._get_selected_branch()
                 url = f"https://api.github.com/repos/luvztroy/UiTweaks/contents/?ref={branch}"
+                
                 with urllib.request.urlopen(url) as response:
-                    data = json.loads(response.read().decode('utf-8'))
-                    languages = []
-                    for file_info in data:
-                        if file_info.get('type') == 'file' and file_info.get('name', '').startswith('UiTweaks ') and file_info.get('name', '').endswith('.json'):
-                            filename = file_info['name']
-                            match = re.search(r'UiTweaks (.+)\.json$', filename)
-                            if match:
-                                lang_code = match.group(1)
-                                try:
-                                    from java.util import Locale
-                                    locale = Locale(lang_code)
-                                    display_name = locale.getDisplayLanguage(locale).title()
-                                except:
-                                    display_name = lang_code.upper()
-                                languages.append({'code': lang_code, 'display_name': display_name})
-                    languages.sort(key=lambda x: x['display_name'])
-                    
-                    from android_utils import run_on_ui_thread
-                    def update_languages():
-                        self.available_languages = languages
-                        global available_languages
-                        available_languages = languages
-                        self._languages_loading = False
-                        quantahut_log(f"Loaded {len(languages)} available languages")
-                    run_on_ui_thread(update_languages)
+                    files = json.loads(response.read().decode('utf-8'))
+
+                langs = []
+                for f in files:
+                    name = f.get('name', '')
+                    if f.get('type') == 'file' and name.startswith('UiTweaks ') and name.endswith('.json'):
+                        code = name[9:-5]
+                        try:
+                            loc = Locale(code)
+                            display_name = loc.getDisplayLanguage(loc).title()
+                        except:
+                            display_name = code.upper()
+                        langs.append({'code': code, 'display_name': display_name})
+                
+                langs.sort(key=lambda x: x['display_name'])
+                
+                def on_ui():
+                    self.available_languages = langs
+                    global available_languages
+                    available_languages = langs
+                    self._languages_loading = False
+                    quantahut_log(f"Loaded {len(langs)} available languages")
+                
+                run_on_ui_thread(on_ui)
+                
             except Exception as e:
-                quantahut_log(f"Error loading available languages: {e}")
                 self._languages_loading = False
-        
+                quantahut_log(f"Error loading languages: {e}")
+
         import threading
-        import time
-        def delayed_load():
-            time.sleep(0.5)
-            load_languages_background()
-        
-        thread = threading.Thread(target=delayed_load)
-        thread.daemon = True
-        thread.start()
+        threading.Thread(target=load_worker, daemon=True).start()
 
     def _setup_quanta_file_hook(self):
         try:
