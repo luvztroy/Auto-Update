@@ -2076,11 +2076,8 @@ class QuantaDeeplinkHook:
             if not data:
                 return
             url = str(data)
-            if url == "tg://quanta_update" or url == "tg:quanta_update":
+            if url == "tg://quanta" or url == "tg:quanta":
                 run_on_ui_thread(check_quanta_updates)
-                param.setResult(None)
-            elif url.startswith("tg:Quanta") or url.startswith("tg://Quanta") or url.startswith("tg:quanta") or url.startswith("tg://quanta"):
-                run_on_ui_thread(self.plugin._show_quanta_bottom_sheet)
                 param.setResult(None)
             elif url == "tg://restart":
                 run_on_ui_thread(self._restart_app_direct)
