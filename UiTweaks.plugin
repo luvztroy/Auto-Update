@@ -1629,7 +1629,6 @@ class UiTweaksPlugin(BasePlugin):
             settings.extend([
                 Header(text=get_string("auto_update", "Auto Update")),
                 self.Quanta_selector("update_branch", get_string("update_branch", "Update Branch"), [get_string("branch_main", "Main"), get_string("branch_beta", "Beta")], 0, link_alias="update_branch"),
-                self.Quanta_selector("localization_branch", get_string("localization_branch", "Localization Branch"), [get_string("branch_main", "Main"), get_string("branch_beta", "Beta")], 0, link_alias="localization_branch"),
                 Divider(text=get_string("update_branch_info", "Select which branch to receive updates and download localization files from. Beta may contain experimental features and newer translations."))
             ])
         
@@ -2054,42 +2053,56 @@ class UiTweaksPlugin(BasePlugin):
                             item = UItem.asRadio(i, english_name, native_name)
                             item.checked = (lang_code == self.selected_language)
                             items.add(item)
+                    
                     items.add(UItem.asShadow(None))
+                    items.add(UItem.asHeader(get_string("localization_options", "Localization Options")))
+                    items.add(UItem.asButton(-3, get_string("refresh_localization", "Refresh Localization")))
+                    items.add(UItem.asShadow(get_string("refresh_localization_info", "Force update the localization for the selected language.")))
                 
                 def onClick(self, item, view, position, x, y):
                     item_id = item.id
                     
-                    if item_id == -1:
-                        self.selected_language = "en"
+                    def save_lang(code):
                         try:
                             prefs = get_private_field(PluginsController.getInstance(), "preferences")
-                            prefs.edit().putString("plugin_setting_ui_tweaks_selected_language", "en").apply()
-                        except Exception as e:
-                            plugin.log(f"Error saving default language: {e}")
-                        
-                        if self.fragment:
-                            try:
-                                self.fragment.listView.getAdapter().update(False)
-                            except:
-                                pass
-                        
+                            prefs.edit().putString("plugin_setting_ui_tweaks_selected_language", code).apply()
+                        except:
+                            pass
+                    
+                    def refresh_and_finish(msg):
                         PluginsController.getInstance().loadPluginSettings("ui_tweaks")
                         PluginsController.getInstance().loadPluginSettings("quantahut")
-                        NotificationCenter.getGlobalInstance().postNotificationName(
-                            NotificationCenter.pluginSettingsRegistered,
-                            "ui_tweaks"
-                        )
-                        NotificationCenter.getGlobalInstance().postNotificationName(
-                            NotificationCenter.pluginSettingsRegistered,
-                            "quantahut"
-                        )
+                        NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.pluginSettingsRegistered, "ui_tweaks")
+                        NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.pluginSettingsRegistered, "quantahut")
                         if self.fragment:
                             self.fragment.finishFragment()
-                        BulletinHelper.show_simple(
-                            get_string("language_changed_to", "Language changed to") + " English",
-                            R.raw.contact_check,
-                            get_last_fragment()
-                        )
+                        BulletinHelper.show_simple(msg, R.raw.contact_check, get_last_fragment())
+                    
+                    if item_id == -1:
+                        self.selected_language = "en"
+                        save_lang("en")
+                        refresh_and_finish(get_string("language_changed_to", "Language changed to") + " English")
+                        return
+                    
+                    if item_id == -3:
+                        lang_code = self.selected_language or "en"
+                        if lang_code == "en":
+                            BulletinHelper.show_simple(get_string("no_localization_for_english", "No localization needed for English"), R.raw.info, self.fragment)
+                            return
+                        
+                        BulletinHelper.show_simple(get_string("refreshing_localization", "Refreshing localization..."), R.raw.info, self.fragment)
+                        
+                        def do_refresh():
+                            try:
+                                quantahut.github_localization.download_localization("UiTweaks", lang_code, force_refresh=True)
+                                run_on_ui_thread(lambda: refresh_and_finish(get_string("localization_refreshed", "Localization refreshed successfully")))
+                            except Exception as e:
+                                err_msg = str(e)
+                                plugin.log(f"Refresh localization error: {err_msg}")
+                                run_on_ui_thread(lambda: BulletinHelper.show_simple(get_string("refresh_failed", "Refresh failed") + f": {err_msg}", R.raw.error, self.fragment))
+                        
+                        import threading
+                        threading.Thread(target=do_refresh, daemon=True).start()
                         return
                     
                     languages = quantahut.available_languages if quantahut and hasattr(quantahut, 'available_languages') else []
@@ -2098,12 +2111,7 @@ class UiTweaksPlugin(BasePlugin):
                         lang_code = lang.get("code")
                         lang_display = lang.get("display_name", lang_code)
                         self.selected_language = lang_code
-                        
-                        try:
-                            prefs = get_private_field(PluginsController.getInstance(), "preferences")
-                            prefs.edit().putString("plugin_setting_ui_tweaks_selected_language", lang_code).apply()
-                        except Exception as e:
-                            plugin.log(f"Error saving language preference: {e}")
+                        save_lang(lang_code)
                         
                         if self.fragment:
                             try:
@@ -2111,42 +2119,15 @@ class UiTweaksPlugin(BasePlugin):
                             except:
                                 pass
                         
-                        def download_lang():
+                        def do_download():
                             try:
                                 quantahut.github_localization.download_localization("UiTweaks", lang_code)
-                                plugin.log(f"Downloaded localization for {lang_code}")
-                                def apply_and_refresh():
-                                    try:
-                                        PluginsController.getInstance().loadPluginSettings("ui_tweaks")
-                                        PluginsController.getInstance().loadPluginSettings("quantahut")
-                                        NotificationCenter.getGlobalInstance().postNotificationName(
-                                            NotificationCenter.pluginSettingsRegistered,
-                                            "ui_tweaks"
-                                        )
-                                        NotificationCenter.getGlobalInstance().postNotificationName(
-                                            NotificationCenter.pluginSettingsRegistered,
-                                            "quantahut"
-                                        )
-                                        if self.fragment:
-                                            self.fragment.finishFragment()
-                                        BulletinHelper.show_simple(
-                                            get_string("language_changed_to", "Language changed to") + f" {lang_display}",
-                                            R.raw.contact_check,
-                                            get_last_fragment()
-                                        )
-                                    except Exception as e:
-                                        plugin.log(f"Error refreshing: {e}")
-                                run_on_ui_thread(apply_and_refresh)
-                            except Exception as e:
-                                plugin.log(f"Error downloading localization: {e}")
-                                run_on_ui_thread(lambda: BulletinHelper.show_simple(
-                                    get_string("download_failed", "Download failed"),
-                                    R.raw.error,
-                                    self.fragment
-                                ))
+                                run_on_ui_thread(lambda: refresh_and_finish(get_string("language_changed_to", "Language changed to") + f" {lang_display}"))
+                            except:
+                                run_on_ui_thread(lambda: BulletinHelper.show_simple(get_string("download_failed", "Download failed"), R.raw.error, self.fragment))
                         
                         import threading
-                        threading.Thread(target=download_lang, daemon=True).start()
+                        threading.Thread(target=do_download, daemon=True).start()
                 
                 def onLongClick(self, item, view, position, x, y):
                     return False
