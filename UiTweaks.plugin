@@ -1638,7 +1638,7 @@ class UiTweaksPlugin(BasePlugin):
             Text(text=get_string("channel", "Channel"), icon="msg_channel_solar", on_click=lambda v: self._open_channel()),
             Text(text=get_string("chats", "Chats"), icon="msg_groups_solar", on_click=lambda v: self._open_group()),
             Text(text=get_string("tips_and_tricks", "Tips and Tricks"), icon="menu_feature_reactions_solar", on_click=lambda v: self._open_tips()),
-            Text(text=get_string("translate", "Translate"), icon="msg_translate_solar", on_click=lambda v: self._open_translation(), on_long_click=lambda v: self._toggle_branch_selector()),
+            Text(text=get_string("Language", "Language"), icon="msg_language", on_click=lambda v: self._open_translation(), on_long_click=lambda v: self._toggle_branch_selector()),
         ])
         
         
@@ -2335,60 +2335,51 @@ class UiTweaksPlugin(BasePlugin):
         
         def download_thread():
             try:
-                self.log(f"Downloading from: {self.download_url}")
-                
                 with urllib.request.urlopen(self.download_url, timeout=30) as response:
-                    if response.getcode() != 200:
-                        raise Exception(f"HTTP {response.getcode()}")
-                    
                     plugin_content = response.read()
-                    self.log(f"Downloaded {len(plugin_content)} bytes")
                 
-                from com.exteragram.messenger.plugins import PluginsController
-                from org.telegram.messenger import ApplicationLoader
+                from com.exteragram.messenger.plugins import PluginsController, PluginsConstants
+                from org.telegram.messenger import ApplicationLoader, Utilities
+                from java import dynamic_proxy, jclass
                 
-                app_context = ApplicationLoader.applicationContext
-                files_dir = app_context.getFilesDir()
-                plugins_dir = os.path.join(str(files_dir), "plugins")
+                plugins_dir = os.path.join(str(ApplicationLoader.applicationContext.getFilesDir()), "plugins")
+                temp_file = os.path.join(plugins_dir, "ui_tweaks_update.tmp")
                 
-                plugin_file = os.path.join(plugins_dir, "ui_tweaks.py")
-                
-                self.log(f"Installing to: {plugin_file}")
-                
-                with open(plugin_file, 'wb') as f:
+                with open(temp_file, 'wb') as f:
                     f.write(plugin_content)
-                
-                self.log("UiTweaks updated successfully!")
                 
                 try:
                     from org.telegram.messenger import LocaleController
-                    current_language = LocaleController.getInstance().getCurrentLocaleInfo().getLangCode()
-                    if current_language != "en":
-                        quantahut.github_localization.download_localization("UiTweaks", current_language)
-                        self.log(f"Updated localization for {current_language}")
-                except Exception as loc_e:
-                    self.log(f"Localization update failed (non-critical): {loc_e}")
+                    lang = LocaleController.getInstance().getCurrentLocaleInfo().getLangCode()
+                    if lang != "en":
+                        quantahut.github_localization.download_localization("UiTweaks", lang)
+                except:
+                    pass
                 
-                run_on_ui_thread(self._show_restart_prompt)
+                version = self.latest_version
+                
+                class Callback(dynamic_proxy(Utilities.Callback)):
+                    def run(self_cb, error):
+                        if error:
+                            run_on_ui_thread(lambda: BulletinHelper.show_error(f"Update failed: {error}"))
+                        else:
+                            run_on_ui_thread(lambda: BulletinHelper.show_success(f"UiTweaks updated to v{version}!"))
+                        try:
+                            os.remove(temp_file)
+                        except:
+                            pass
+                
+                class Runnable(dynamic_proxy(jclass("java.lang.Runnable"))):
+                    def run(self_r):
+                        PluginsController.engines.get(PluginsConstants.PYTHON).loadPluginFromFile(temp_file, None, Callback())
+                
+                Utilities.pluginsQueue.postRunnable(Runnable())
                 
             except Exception as e:
-                error_msg = f"UiTweaks update failed: {str(e)}"
-                self.log(f"Error downloading update: {e}")
-                run_on_ui_thread(lambda msg=error_msg: BulletinHelper.show_error(msg))
+                run_on_ui_thread(lambda: BulletinHelper.show_error(f"Update failed: {e}"))
         
-        thread = threading.Thread(target=download_thread)
-        thread.daemon = True
-        thread.start()
-    
-    def _show_restart_prompt(self):
-        try:
-            from quantahut import show_restart_bulletin
-            show_restart_bulletin(
-                message=get_string("restart_to_apply_uitweaks_update", "Restart app to apply UiTweaks update"),
-                button_text=get_string("restart", "Restart")
-            )
-        except Exception as e:
-            self.log(f"Error showing restart bulletin: {e}")
+        threading.Thread(target=download_thread, daemon=True).start()
+
 
     def on_plugin_unload(self):
         self.memory_check_running = False
