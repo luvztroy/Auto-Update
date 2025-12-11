@@ -60,7 +60,6 @@ class QuantaHut(BasePlugin):
         self.hook_refs = []
         self.available_languages = []
         self.current_language = "en"
-        self.language_available = False
         self.localization_cache = github_localization.localization_cache
         self.restart_menu_item = None
         self.current_filter = 0
@@ -141,48 +140,12 @@ class QuantaHut(BasePlugin):
         self._setup_enhanced_plugin_search()
         self._setup_plugin_settings_search()
         
-        self._check_language_availability_on_load()
         self._load_available_languages()
         
         self.log("QuantaHut initialized with GitHub-based system")
         
         self._check_for_updates_on_load()
 
-    def _check_language_availability_on_load(self):
-        def check_availability():
-            try:
-                try:
-                    from org.telegram.messenger import LocaleController
-                    current_language = LocaleController.getInstance().getCurrentLocaleInfo().getLangCode()
-                except:
-                    current_language = "en"
-                
-                import urllib.request
-                branch = self._get_selected_branch()
-                github_url = f"https://raw.githubusercontent.com/luvztroy/UiTweaks/refs/heads/{branch}/UiTweaks%20{current_language}.json"
-                
-                try:
-                    with urllib.request.urlopen(github_url) as response:
-                        if response.getcode() == 200:
-                            self.language_available = True
-                            quantahut_log(f"Language {current_language} is available")
-                        else:
-                            self.language_available = False
-                            quantahut_log(f"Language {current_language} is not available")
-                except Exception as e:
-                    self.language_available = False
-                    if "404" in str(e) or "Not Found" in str(e):
-                        quantahut_log(f"Language {current_language} is not available")
-                    else:
-                        quantahut_log(f"Language {current_language} is not available (network error: {e})")
-            except Exception as e:
-                self.language_available = False
-                quantahut_log(f"Error checking language availability: {e}")
-        
-        import threading
-        thread = threading.Thread(target=check_availability)
-        thread.daemon = True
-        thread.start()
 
     def _setup_deeplink_handling(self):
         try:
@@ -593,7 +556,7 @@ class QuantaHut(BasePlugin):
                 try:
                     from org.telegram.messenger import LocaleController
                     lang = LocaleController.getInstance().getCurrentLocaleInfo().getLangCode()
-                    if lang != "en" and self.language_available:
+                    if lang != "en":
                         github_localization.download_localization("UiTweaks", lang)
                 except:
                     pass
