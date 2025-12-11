@@ -2072,6 +2072,24 @@ class UiTweaksPlugin(BasePlugin):
                                 self.fragment.listView.getAdapter().update(False)
                             except:
                                 pass
+                        
+                        PluginsController.getInstance().loadPluginSettings("ui_tweaks")
+                        PluginsController.getInstance().loadPluginSettings("quantahut")
+                        NotificationCenter.getGlobalInstance().postNotificationName(
+                            NotificationCenter.pluginSettingsRegistered,
+                            "ui_tweaks"
+                        )
+                        NotificationCenter.getGlobalInstance().postNotificationName(
+                            NotificationCenter.pluginSettingsRegistered,
+                            "quantahut"
+                        )
+                        if self.fragment:
+                            self.fragment.finishFragment()
+                        BulletinHelper.show_simple(
+                            get_string("language_changed_to", "Language changed to") + " English",
+                            R.raw.contact_check,
+                            get_last_fragment()
+                        )
                         return
                     
                     languages = quantahut.available_languages if quantahut and hasattr(quantahut, 'available_languages') else []
