@@ -3709,7 +3709,7 @@ class _PluginSettingsSearchFillItemsHook:
                     
                     UItem = jclass("org.telegram.ui.Components.UItem")
                     TextSetting = jclass("com.exteragram.messenger.plugins.models.TextSetting")
-                    items.add(UItem.asHeader("Recent searches"))
+                    items.add(UItem.asHeader(get_string("recent_searches", "Recent searches")))
                     
                     for qt in history:
                         def make_cb(q, a):
