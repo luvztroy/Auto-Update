@@ -12805,7 +12805,8 @@ class UiTweaksSettingsHeaderHook:
                 from com.exteragram.messenger.plugins.models import HeaderSetting
                 item = UItem.asCustom(header)
                 item.settingItem = HeaderSetting("uitweaks_header")
-                item.setTransparent(True)
+                try: item.setTransparent(True)
+                except: pass
                 items.add(0, item)
                 items.add(1, UItem.asShadow())
         except:
