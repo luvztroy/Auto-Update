@@ -1444,6 +1444,25 @@ class UiTweaksPlugin(BasePlugin):
             from org.telegram.ui.Components import LayoutHelper, BackupImageView
             
             container = FrameLayout(context)
+            
+            if self.get_setting("enable_header_particles", True):
+                try:
+                    from org.telegram.ui.Components.Premium import StarParticlesView
+
+                    particlesView = StarParticlesView(context)
+                    particlesView.setClipWithGradient()
+                    particlesView.drawable.colorKey = Theme.key_premiumStarGradient2
+                    particlesView.drawable.isCircle = True
+                    particlesView.drawable.centerOffsetY = AndroidUtilities.dp(0)
+                    particlesView.drawable.minLifeTime = 2000
+                    particlesView.drawable.randLifeTime = 3000
+                    particlesView.drawable.useRotate = False
+                    particlesView.drawable.updateColors()
+                    container.addView(particlesView, LayoutHelper.createFrame(-1, 220, Gravity.CENTER_HORIZONTAL | Gravity.TOP, 0, 0, 0, 0))
+
+                    run_on_ui_thread(lambda: particlesView.flingParticles(360), 200)
+                except: pass
+            
             imageView = BackupImageView(context)
             imageView.setRoundRadius(AndroidUtilities.dp(54))
             
@@ -1451,12 +1470,12 @@ class UiTweaksPlugin(BasePlugin):
                 ss = MediaDataController.getInstance(0).getStickerSetByName("luvztroyIcons") or MediaDataController.getInstance(0).getStickerSetByEmojiOrName("luvztroyIcons")
                 if ss and ss.documents and ss.documents.size() > 13:
                     img.setImage(ImageLocation.getForDocument(ss.documents.get(13)), "108_108", None, None, 0, 1)
-                    self.log("Header sticker loaded from cache")
+
                     return True
                 return False
             
             if not try_load_sticker(imageView):
-                self.log("Header sticker not cached, fetching from server...")
+
                 MediaDataController.getInstance(0).loadStickersByEmojiOrName("luvztroyIcons", False, False)
                 run_on_ui_thread(lambda: try_load_sticker(imageView), 1500)
             
@@ -1680,6 +1699,9 @@ class UiTweaksPlugin(BasePlugin):
             Text(text=get_string("know_more", "Know more"), icon="msg_info", accent=True, on_click=lambda v: self._show_donation_info()),
             Divider(text=get_string("another_services", "If the provided services are not available in your country, you can contact me via [direct message](https://t.me/luvztroy)")),
 
+            
+
+
             Text(text=get_string("export_settings", "Export Settings"), icon="msg_photo_rotate_solar", on_click=lambda v: self._export_settings()),
             
             Text(text=get_string("reset_shared_preferences", "Reset Shared Preferences"), icon="msg_delete", red=True, on_click=lambda v: self._reset_all_preferences()),
@@ -1699,6 +1721,7 @@ class UiTweaksPlugin(BasePlugin):
             Text(text=get_string("chats", "Chats"), icon="msg_groups_solar", on_click=lambda v: self._open_group()),
             Text(text=get_string("tips_and_tricks", "Tips and Tricks"), icon="menu_feature_reactions_solar", on_click=lambda v: self._open_tips()),
             Text(text=get_string("Language", "Language"), icon="msg_language", on_click=lambda v: self._open_translation(), on_long_click=lambda v: self._toggle_branch_selector()),
+            self.Quanta_switch("enable_header_particles", get_string("enable_header_particles", "Enable Particle Effect"), default=True, icon="msg_settings_ny", link_alias="enable_header_particles"),
         ])
         
         
