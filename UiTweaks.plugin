@@ -4792,20 +4792,26 @@ class UiTweaksPlugin(BasePlugin):
                 return
             
             current_account = UserConfig.selectedAccount
-            from_lang = "auto"
             TranslateAlert2 = jclass("org.telegram.ui.Components.TranslateAlert2")
             to_lang = TranslateAlert2.getToLanguage()
+            from_lang = None
             
-            entities_list = jclass("java.util.ArrayList")()
+            entities = message_object.messageOwner.entities if message_object.messageOwner.entities else jclass("java.util.ArrayList")()
             
-            alert = TranslateAlert2.showAlert(
+            try:
+                field = chat_activity.getClass().getDeclaredField("selectedObject")
+                field.setAccessible(True)
+                field.set(chat_activity, message_object)
+            except: pass
+            
+            TranslateAlert2.showAlert(
                 chat_activity.getParentActivity(),
                 chat_activity,
                 current_account,
                 from_lang,
                 to_lang,
                 message_text,
-                entities_list,
+                entities,
                 False,
                 None,
                 None
