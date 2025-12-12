@@ -1730,11 +1730,6 @@ class UiTweaksPlugin(BasePlugin):
             ])
         
         settings.extend([
-            Header(text=get_string("links", "Links")),
-            Text(text=get_string("channel", "Channel"), icon="msg_channel_solar", on_click=lambda v: self._open_channel()),
-            Text(text=get_string("chats", "Chats"), icon="msg_groups_solar", on_click=lambda v: self._open_group()),
-            Text(text=get_string("tips_and_tricks", "Tips and Tricks"), icon="menu_feature_reactions_solar", on_click=lambda v: self._open_tips()),
-            Text(text=get_string("Language", "Language"), icon="msg_language", on_click=lambda v: self._open_translation(), on_long_click=lambda v: self._toggle_branch_selector()),
             self.Quanta_switch("enable_header_particles", get_string("enable_header_particles", "Enable Particle Effect"), default=True, icon="msg_settings_ny", link_alias="enable_header_particles"),
         ])
         
@@ -1806,8 +1801,10 @@ class UiTweaksPlugin(BasePlugin):
                 on_click=lambda view: self._show_performance_warning()
             ),
             
-            Divider(),
-            Divider(text=get_string("thank_you_message", "Thank you for using UiTweaks! Feedback?\nJoin: @QuantaPlugins"))
+            Header(text=get_string("links", "Links")),
+            Text(text=get_string("channel", "Channel"), icon="msg_channel_solar", on_click=lambda v: self._open_channel()),
+            Text(text=get_string("chats", "Chats"), icon="msg_groups_solar", on_click=lambda v: self._open_group()),
+            Text(text=get_string("tips_and_tricks", "Tips and Tricks"), icon="menu_feature_reactions_solar", on_click=lambda v: self._open_tips()),
             Text(text=get_string("translate", "Translate"), icon="msg_translate_solar", on_click=lambda v: self._open_translation()),
         ]
 
@@ -2077,7 +2074,7 @@ class UiTweaksPlugin(BasePlugin):
                 messages_controller.openByUserName("QuantaTips", fragment, 1)
         except Exception as e:
             self.log(f"Error opening tips: {e}")
-    
+
     def _open_translation(self):
         from android.content import Intent
         from android.net import Uri
