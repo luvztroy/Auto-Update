@@ -1808,6 +1808,7 @@ class UiTweaksPlugin(BasePlugin):
             
             Divider(),
             Divider(text=get_string("thank_you_message", "Thank you for using UiTweaks! Feedback?\nJoin: @QuantaPlugins"))
+            Text(text=get_string("translate", "Translate"), icon="msg_translate_solar", on_click=lambda v: self._open_translation()),
         ]
 
     def _collect_all_settings_with_values(self):
@@ -2078,6 +2079,12 @@ class UiTweaksPlugin(BasePlugin):
             self.log(f"Error opening tips: {e}")
     
     def _open_translation(self):
+        from android.content import Intent
+        from android.net import Uri
+        intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/luvztroy/UiTweaks"))
+        get_last_fragment().getParentActivity().startActivity(intent)     
+    
+    def _open_language(self):
         try:
             from com.exteragram.messenger.plugins.ui.components.templates import UniversalFragment
             from java import dynamic_proxy
