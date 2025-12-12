@@ -1795,12 +1795,12 @@ class UiTweaksPlugin(BasePlugin):
             ),
             
             
-            Text(
-                text=get_string("performance_warning", "Performance Warning"),
-                icon="msg_info_solar",
-                accent=True,
-                on_click=lambda view: self._show_performance_warning()
-            ),
+#            Text(
+#                text=get_string("performance_warning", "Performance Warning"),
+#                icon="msg_info_solar",
+#                accent=True,
+#                on_click=lambda view: self._show_performance_warning()
+#            ),
             
             Header(text=get_string("links", "Links")),
             Text(text=get_string("channel", "Channel"), icon="msg_channel_solar", on_click=lambda v: self._open_channel()),
