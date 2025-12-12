@@ -1741,11 +1741,11 @@ class UiTweaksPlugin(BasePlugin):
         
         return settings
 
-    def Quanta_switch(self, key, text, default=True, on_change=None, subtext=None, link_alias=None, on_long_click=None):
+    def Quanta_switch(self, key, text, default=True, on_change=None, subtext=None, link_alias=None, on_long_click=None, icon=None):
         try:
-            return Switch(key=key, text=text, link_alias=link_alias, default=default, on_change=on_change, subtext=subtext, on_long_click=on_long_click) if link_alias else Switch(key=key, text=text, default=default, on_change=on_change, subtext=subtext, on_long_click=on_long_click)
+            return Switch(key=key, text=text, icon=icon, link_alias=link_alias, default=default, on_change=on_change, subtext=subtext, on_long_click=on_long_click) if link_alias else Switch(key=key, text=text, icon=icon, default=default, on_change=on_change, subtext=subtext, on_long_click=on_long_click)
         except Exception:
-            return Switch(key=key, text=text, default=default, on_change=on_change, subtext=subtext) if subtext else Switch(key=key, text=text, default=default)
+            return Switch(key=key, text=text, icon=icon, default=default, on_change=on_change, subtext=subtext) if subtext else Switch(key=key, text=text, icon=icon, default=default)
 
     def Quanta_selector(self, key, text, items, default=0, on_change=None, subtext=None, link_alias=None):
         try:
