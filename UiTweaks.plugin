@@ -1092,11 +1092,10 @@ class UiTweaksPlugin(BasePlugin):
         global uitweaks_plugin_instance
         uitweaks_plugin_instance = self
         
+        self.current_mode = self.get_setting("forward_mode", "forward")
+        
         self._send_comments_bypass = False
         self._send_comments_pending = {}
-        self.add_hook("TL_messages_forwardMessages")
-        
-        self.current_mode = self.get_setting("forward_mode", "forward")
         
         self.update_available = False
         self.latest_version = None
@@ -2533,59 +2532,6 @@ class UiTweaksPlugin(BasePlugin):
 
 
 
-    def on_send_message_hook(self, account: int, params: any):
-        from base_plugin import HookResult, HookStrategy
-        message = getattr(params, "message", "")
-        
-        if not isinstance(message, str) or not message:
-            return HookResult()
-        
-        if self.get_setting("send_comments_after_forward", False) and not self._send_comments_bypass:
-            if not hasattr(params, "message") or not isinstance(params.message, str):
-                return HookResult()
-            if not params.message:
-                return HookResult()
-            if not hasattr(params, "peer") or not params.peer:
-                return HookResult()
-            try:
-                LaunchActivity = jclass("org.telegram.ui.LaunchActivity")
-                ChatActivity = jclass("org.telegram.ui.ChatActivity")
-                DialogsActivity = jclass("org.telegram.ui.DialogsActivity")
-                fragment = LaunchActivity.getLastFragment()
-            except Exception:
-                return HookResult()
-            if fragment is None:
-                return HookResult()
-            should_intercept = False
-            try:
-                if isinstance(fragment, ChatActivity):
-                    preview = get_private_field(fragment, "messagePreviewParams")
-                    if preview is not None:
-                        forward = getattr(preview, "forwardMessages", None)
-                        if forward is not None:
-                            messages = getattr(forward, "messages", None)
-                            try:
-                                has_forward = messages is not None and not messages.isEmpty()
-                            except Exception:
-                                has_forward = False
-                            if has_forward:
-                                should_intercept = True
-                elif isinstance(fragment, DialogsActivity):
-                    dialogs_type = get_private_field(fragment, "dialogsType")
-                    forward_type = getattr(DialogsActivity, "DIALOGS_TYPE_FORWARD", None)
-                    if dialogs_type == forward_type:
-                        should_intercept = True
-            except Exception:
-                should_intercept = False
-            if not should_intercept:
-                return HookResult()
-            peer = params.peer
-            self.log(f"hook_text {peer} {params.message[:30]}")
-            self._send_comments_pending[peer] = (params, account)
-            return HookResult(strategy=HookStrategy.CANCEL)
-        
-        return HookResult()
-
     def _cleanup_activity_resources(self):
         try:
             sets_to_clear = [
@@ -2751,6 +2697,7 @@ class UiTweaksPlugin(BasePlugin):
             "hook_unify_username_behavior_process_click_ref",
             "hook_unify_username_behavior_bind_ref",
             "hook_edit_file_name_ref",
+            "hook_send_comments_after_forward_ref",
         ):
             ref = getattr(self, ref_attr, None)
             if ref:
@@ -2983,6 +2930,9 @@ class UiTweaksPlugin(BasePlugin):
             
             if self.get_setting("enable_edit_file_name", False):
                 self._hook_edit_file_name()
+            
+            if self.get_setting("send_comments_after_forward", False):
+                self._hook_send_comments_after_forward()
 
         except Exception as e:
             pass
@@ -3947,6 +3897,12 @@ class UiTweaksPlugin(BasePlugin):
             handler = EditFileNameSetItemOptionsHook(self)
             self.hook_edit_file_name_ref = self.hook_method(set_item_options_method, handler)
             
+        except Exception:
+            pass
+    
+    def _hook_send_comments_after_forward(self):
+        try:
+            self.hook_send_comments_after_forward_ref = self.add_hook("TL_messages_forwardMessages")
         except Exception:
             pass
     
@@ -5929,12 +5885,13 @@ class UiTweaksPlugin(BasePlugin):
             entry = self._send_comments_pending.pop(peer, None)
             if entry is not None:
                 params, acc = entry
-                self.log(f"forward_match {peer}")
                 def after_forward():
                     def send_on_main_thread():
                         self._send_comments_bypass = True
                         try:
                             SendMessagesHelper.getInstance(acc).sendMessage(params)
+                        except Exception:
+                            pass
                         finally:
                             self._send_comments_bypass = False
                     run_on_ui_thread(send_on_main_thread)
@@ -5943,7 +5900,68 @@ class UiTweaksPlugin(BasePlugin):
         
         return HookResult()
     
-
+    def on_send_message_hook(self, account: int, params: any):
+        from base_plugin import HookResult, HookStrategy
+        message = getattr(params, "message", "")
+        
+        if not isinstance(message, str) or not message:
+            return HookResult()
+        
+        if self.get_setting("send_comments_after_forward", False) and not self._send_comments_bypass:
+            if not hasattr(params, "message") or not isinstance(params.message, str):
+                return HookResult()
+            if not params.message:
+                return HookResult()
+            if not hasattr(params, "peer") or not params.peer:
+                return HookResult()
+            try:
+                LaunchActivity = jclass("org.telegram.ui.LaunchActivity")
+                ChatActivity = jclass("org.telegram.ui.ChatActivity")
+                DialogsActivity = jclass("org.telegram.ui.DialogsActivity")
+                ShareAlert = jclass("org.telegram.ui.Components.ShareAlert")
+                fragment = LaunchActivity.getLastFragment()
+            except Exception:
+                return HookResult()
+            if fragment is None:
+                return HookResult()
+            should_intercept = False
+            try:
+                if isinstance(fragment, ChatActivity):
+                    preview = get_private_field(fragment, "messagePreviewParams")
+                    if preview is not None:
+                        forward = getattr(preview, "forwardMessages", None)
+                        if forward is not None:
+                            messages = getattr(forward, "messages", None)
+                            try:
+                                has_forward = messages is not None and not messages.isEmpty()
+                            except Exception:
+                                has_forward = False
+                            if has_forward:
+                                should_intercept = True
+                    
+                    visibleDialog = get_private_field(fragment, "visibleDialog")
+                    if visibleDialog is not None and isinstance(visibleDialog, ShareAlert):
+                        sendingMessageObjects = get_private_field(visibleDialog, "sendingMessageObjects")
+                        if sendingMessageObjects is not None and not sendingMessageObjects.isEmpty():
+                            should_intercept = True
+                
+                elif isinstance(fragment, DialogsActivity):
+                    dialogs_type = get_private_field(fragment, "dialogsType")
+                    forward_type = getattr(DialogsActivity, "DIALOGS_TYPE_FORWARD", None)
+                    if dialogs_type == forward_type:
+                        should_intercept = True
+            
+            except Exception:
+                should_intercept = False
+            
+            if not should_intercept:
+                return HookResult()
+            
+            peer = params.peer
+            self._send_comments_pending[peer] = (params, account)
+            return HookResult(strategy=HookStrategy.CANCEL)
+        
+        return HookResult()
 
     def _show_performance_warning(self):
         try:
