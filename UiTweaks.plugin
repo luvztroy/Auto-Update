@@ -2389,53 +2389,171 @@ class UiTweaksPlugin(BasePlugin):
             return
         
         self.checking_update = True
+        self.log("Checking for updates...")
         
-        def check_thread():
+        CHANNEL_USERNAME = "QuantaConfig"
+        
+        def on_update_info_received(uitweaks_version, quantahut_version, pack, sticker_index, text_msg_id, messages):
             try:
-                self.log("Checking for UiTweaks updates from GitHub...")
+                changelog_text = "No changelog available"
+                
+                if text_msg_id:
+                    for i in range(messages.size()):
+                        msg = messages.get(i)
+                        if msg.id == text_msg_id:
+                            if hasattr(msg, 'message') and msg.message:
+                                try:
+                                    from org.telegram.messenger import MessageObject
+                                    from android.text import SpannableStringBuilder
+                                    
+                                    text = str(msg.message)
+                                    entities = msg.entities if hasattr(msg, 'entities') else None
+                                    
+                                    if entities and entities.size() > 0:
+                                        ssb = SpannableStringBuilder(text)
+                                        MessageObject.addEntitiesToText(ssb, entities, False, False, False, False)
+                                        changelog_text = ssb
+                                    else:
+                                        changelog_text = text
+                                except:
+                                    changelog_text = str(msg.message)
+                            break
+                
+                self.changelog = changelog_text
                 
                 branch_index = self.get_setting("update_branch", 0)
                 branch = "main" if branch_index == 0 else "Beta"
                 
-                version_url = f"https://raw.githubusercontent.com/luvztroy/Auto-Update/refs/heads/{branch}/changelog.json"
-                self.log(f"Fetching from {branch} branch: {version_url}")
+                uitweaks_update = False
+                quantahut_update = False
                 
-                with urllib.request.urlopen(version_url, timeout=10) as response:
-                    if response.getcode() != 200:
-                        raise Exception(f"HTTP {response.getcode()}")
-                    
-                    version_data = json.loads(response.read().decode('utf-8'))
-                    
-                    self.latest_version = version_data.get("version", "0.0.0")
-                    self.changelog = version_data.get("changelog_text", "No changelog available")
-                    sticker_pack = version_data.get("sticker_pack")
-                    sticker_index = version_data.get("sticker_index")
-                    sticker_circle = version_data.get("sticker_circle", False)
-                    sticker_size = version_data.get("sticker_size", 160)
-                    
-                    self.download_url = f"https://raw.githubusercontent.com/luvztroy/Auto-Update/refs/heads/{branch}/UiTweaks.plugin"
-                    
-                    self.log(f"Latest version: {self.latest_version}")
-                    self.log(f"Current version: {__version__}")
-                    
-                    if self._is_newer_version(self.latest_version, __version__):
-                        self.update_available = True
-                        self.log("UiTweaks update available!")
-                        
-                        if show_on_load:
-                            run_on_ui_thread(lambda: self._show_update_bottom_sheet(
-                                sticker_pack, sticker_index, sticker_circle, sticker_size
-                            ))
-                    else:
-                        self.update_available = False
-                        self.log("UiTweaks is up to date")
+                if uitweaks_version and self._is_newer_version(uitweaks_version, __version__):
+                    uitweaks_update = True
+                    self.latest_version = uitweaks_version
+                
+                quantahut_current = "0.0.0"
+                try:
+                    quantahut_current = quantahut.__version__
+                except:
+                    pass
+                
+                if quantahut_version and self._is_newer_version(quantahut_version, quantahut_current):
+                    quantahut_update = True
+                    self.quantahut_latest_version = quantahut_version
+                
+                self.uitweaks_update_available = uitweaks_update
+                self.quantahut_update_available = quantahut_update
+                self.update_available = uitweaks_update or quantahut_update
+                
+                if self.update_available:
+                    updates = []
+                    if uitweaks_update:
+                        updates.append(f"UiTweaks {uitweaks_version}")
+                    if quantahut_update:
+                        updates.append(f"QuantaHut {quantahut_version}")
+                    self.log(f"Update available: {', '.join(updates)}")
+                else:
+                    self.log("Already up to date")
+                
+                self.uitweaks_download_url = f"https://raw.githubusercontent.com/luvztroy/Auto-Update/refs/heads/{branch}/UiTweaks.plugin"
+                self.quantahut_download_url = f"https://raw.githubusercontent.com/luvztroy/Auto-Update/refs/heads/{branch}/QuantaHut.plugin"
+                
+                if self.update_available and show_on_load:
+                    run_on_ui_thread(lambda: self._show_update_bottom_sheet(
+                        pack, sticker_index, False, 160
+                    ))
                 
             except Exception as e:
-                self.log(f"Error checking UiTweaks updates: {e}")
+                self.log(f"Error processing update info: {e}")
             finally:
                 self.checking_update = False
         
-        thread = threading.Thread(target=check_thread)
+        def fetch_channel_messages():
+            try:
+                from org.telegram.tgnet import TLRPC
+                from client_utils import get_account_instance, send_request, RequestCallback
+                
+                account = get_account_instance()
+                branch_index = self.get_setting("update_branch", 0)
+                update_tag = "update_stable" if branch_index == 0 else "update_beta"
+                
+                def on_channel_resolved(chat):
+                    if not chat:
+                        self.checking_update = False
+                        return
+                    
+                    req = TLRPC.TL_messages_getHistory()
+                    req.peer = TLRPC.TL_inputPeerChannel()
+                    req.peer.channel_id = chat.id
+                    req.peer.access_hash = chat.access_hash
+                    req.offset_id = 0
+                    req.limit = 50
+                    
+                    def handle_response(response, error):
+                        if error or not response:
+                            self.checking_update = False
+                            return
+                        
+                        try:
+                            messages = response.messages
+                            uitweaks_version = None
+                            quantahut_version = None
+                            sticker_index = None
+                            text_msg_id = None
+                            pack = None
+                            
+                            for i in range(messages.size()):
+                                msg = messages.get(i)
+                                if hasattr(msg, 'message') and msg.message:
+                                    msg_text = str(msg.message)
+                                    if msg_text.startswith(update_tag):
+                                        lines = msg_text.split('\n')
+                                        for line in lines:
+                                            if '=' in line:
+                                                key, value = line.split('=', 1)
+                                                key = key.strip()
+                                                value = value.strip()
+                                                if key == 'version':
+                                                    uitweaks_version = value
+                                                elif key == 'version2':
+                                                    quantahut_version = value
+                                                elif key == 'sticker':
+                                                    sticker_index = int(value)
+                                                elif key == 'text':
+                                                    text_msg_id = int(value)
+                                                elif key == 'pack':
+                                                    pack = value
+                                        break
+                            
+                            if uitweaks_version or quantahut_version:
+                                on_update_info_received(uitweaks_version, quantahut_version, pack, sticker_index, text_msg_id, messages)
+                            else:
+                                self.checking_update = False
+                        except Exception as e:
+                            self.checking_update = False
+                    
+                    send_request(req, RequestCallback(handle_response))
+                
+                def resolve_channel():
+                    from java import dynamic_proxy, jclass
+                    Consumer = jclass("com.google.android.exoplayer2.util.Consumer")
+                    
+                    class ResolveCallback(dynamic_proxy(Consumer)):
+                        def accept(self_cb, peer_id):
+                            if peer_id and peer_id < 0:
+                                run_on_ui_thread(lambda: on_channel_resolved(messages_controller.getChat(-peer_id)))
+                            else:
+                                self.checking_update = False
+                    
+                    messages_controller = account.getMessagesController()
+                    messages_controller.getUserNameResolver().resolve(CHANNEL_USERNAME, ResolveCallback())
+                
+                run_on_ui_thread(resolve_channel)
+                
+            except Exception as e:
+                self.checking_update = False
+        
+        thread = threading.Thread(target=fetch_channel_messages)
         thread.daemon = True
         thread.start()
     
@@ -2472,12 +2590,22 @@ class UiTweaksPlugin(BasePlugin):
         if not self.update_available:
             return
         
-        self.log("Showing UiTweaks update bottom sheet")
+        self.log("Showing update bottom sheet")
         
         try:
+            uitweaks_update = getattr(self, 'uitweaks_update_available', False)
+            quantahut_update = getattr(self, 'quantahut_update_available', False)
+            
+            if uitweaks_update and quantahut_update:
+                subtitle = f"UiTweaks {self.latest_version} • QuantaHut {self.quantahut_latest_version}"
+            elif uitweaks_update:
+                subtitle = f"UiTweaks {self.latest_version}"
+            else:
+                subtitle = f"QuantaHut {self.quantahut_latest_version}"
+            
             showupdatebottomsheet(
-                title=f"UiTweaks Update: v{self.latest_version}",
-                subtitle=f"Current version: {__version__}",
+                title="Plugin Update Available",
+                subtitle=subtitle,
                 description=self.changelog,
                 sticker_pack=sticker_pack,
                 sticker_index=sticker_index,
@@ -2488,26 +2616,49 @@ class UiTweaksPlugin(BasePlugin):
                 on_button_click=self._download_and_install_update
             )
         except Exception as e:
-            self.log(f"Error showing UiTweaks update sheet: {e}")
+            self.log(f"Error showing update sheet: {e}")
     
     def _download_and_install_update(self):
-        self.log("Starting UiTweaks update download...")
-        BulletinHelper.show_info("Downloading UiTweaks update...")
+        uitweaks_update = getattr(self, 'uitweaks_update_available', False)
+        quantahut_update = getattr(self, 'quantahut_update_available', False)
+        
+        plugins_to_update = []
+        if uitweaks_update:
+            plugins_to_update.append("UiTweaks")
+        if quantahut_update:
+            plugins_to_update.append("QuantaHut")
+        
+        self.log(f"Starting update for: {', '.join(plugins_to_update)}")
+        BulletinHelper.show_info(f"Downloading {', '.join(plugins_to_update)}...")
         
         def download_thread():
             try:
-                with urllib.request.urlopen(self.download_url, timeout=30) as response:
-                    plugin_content = response.read()
-                
                 from com.exteragram.messenger.plugins import PluginsController, PluginsConstants
                 from org.telegram.messenger import ApplicationLoader, Utilities
                 from java import dynamic_proxy, jclass
                 
                 plugins_dir = os.path.join(str(ApplicationLoader.applicationContext.getFilesDir()), "plugins")
-                temp_file = os.path.join(plugins_dir, "ui_tweaks_update.tmp")
+                updated_plugins = []
                 
-                with open(temp_file, 'wb') as f:
-                    f.write(plugin_content)
+                if uitweaks_update:
+                    self.log("Downloading UiTweaks...")
+                    with urllib.request.urlopen(self.uitweaks_download_url, timeout=30) as response:
+                        uitweaks_content = response.read()
+                    
+                    uitweaks_temp = os.path.join(plugins_dir, "ui_tweaks_update.tmp")
+                    with open(uitweaks_temp, 'wb') as f:
+                        f.write(uitweaks_content)
+                    updated_plugins.append(("UiTweaks", uitweaks_temp, self.latest_version))
+                
+                if quantahut_update:
+                    self.log("Downloading QuantaHut...")
+                    with urllib.request.urlopen(self.quantahut_download_url, timeout=30) as response:
+                        quantahut_content = response.read()
+                    
+                    quantahut_temp = os.path.join(plugins_dir, "quantahut_update.tmp")
+                    with open(quantahut_temp, 'wb') as f:
+                        f.write(quantahut_content)
+                    updated_plugins.append(("QuantaHut", quantahut_temp, self.quantahut_latest_version))
                 
                 try:
                     from org.telegram.messenger import LocaleController
@@ -2517,26 +2668,41 @@ class UiTweaksPlugin(BasePlugin):
                 except:
                     pass
                 
-                version = self.latest_version
+                success_count = [0]
+                total_plugins = len(updated_plugins)
                 
-                class Callback(dynamic_proxy(Utilities.Callback)):
-                    def run(self_cb, error):
-                        if error:
-                            run_on_ui_thread(lambda: BulletinHelper.show_error(f"Update failed: {error}"))
-                        else:
-                            run_on_ui_thread(lambda: BulletinHelper.show_success(f"UiTweaks updated to v{version}!"))
-                        try:
-                            os.remove(temp_file)
-                        except:
-                            pass
+                def install_next(index):
+                    if index >= total_plugins:
+                        if success_count[0] == total_plugins:
+                            names = " & ".join([p[0] for p in updated_plugins])
+                            run_on_ui_thread(lambda: BulletinHelper.show_success(f"{names} updated!"))
+                        return
+                    
+                    name, temp_file, version = updated_plugins[index]
+                    
+                    class Callback(dynamic_proxy(Utilities.Callback)):
+                        def run(self_cb, error):
+                            if error:
+                                run_on_ui_thread(lambda: BulletinHelper.show_error(f"{name} update failed: {error}"))
+                            else:
+                                success_count[0] += 1
+                                self.log(f"{name} updated to v{version}")
+                            try:
+                                os.remove(temp_file)
+                            except:
+                                pass
+                            install_next(index + 1)
+                    
+                    class Runnable(dynamic_proxy(jclass("java.lang.Runnable"))):
+                        def run(self_r):
+                            PluginsController.engines.get(PluginsConstants.PYTHON).loadPluginFromFile(temp_file, None, Callback())
+                    
+                    Utilities.pluginsQueue.postRunnable(Runnable())
                 
-                class Runnable(dynamic_proxy(jclass("java.lang.Runnable"))):
-                    def run(self_r):
-                        PluginsController.engines.get(PluginsConstants.PYTHON).loadPluginFromFile(temp_file, None, Callback())
-                
-                Utilities.pluginsQueue.postRunnable(Runnable())
+                install_next(0)
                 
             except Exception as e:
+                self.log(f"Update failed: {e}")
                 run_on_ui_thread(lambda: BulletinHelper.show_error(f"Update failed: {e}"))
         
         threading.Thread(target=download_thread, daemon=True).start()
