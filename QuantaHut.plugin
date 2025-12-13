@@ -2670,13 +2670,19 @@ class UpdateBottomSheet:
                 description_text_view.setGravity(Gravity.LEFT | Gravity.TOP)
             
             try:
-                formatted_description = description.replace("\\n", "\n")
-                builder = SpannableStringBuilder(formatted_description)
                 from org.telegram.messenger import AndroidUtilities as AU
-                formatted_text = AU.replaceTags(formatted_description)
-                description_text_view.setText(formatted_text)
+                
+                if hasattr(description, 'toString'):
+                    description_text_view.setText(description)
+                else:
+                    formatted_description = str(description).replace("\\n", "\n")
+                    formatted_text = AU.replaceTags(formatted_description)
+                    description_text_view.setText(formatted_text)
             except Exception as e:
-                description_text_view.setText(description.replace("\\n", "\n"))
+                try:
+                    description_text_view.setText(str(description).replace("\\n", "\n"))
+                except:
+                    description_text_view.setText(str(description))
             
             description_text_view.setTextColor(Theme.getColor(Theme.key_dialogTextBlack))
             description_text_view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15)
