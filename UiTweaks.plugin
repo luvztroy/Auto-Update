@@ -1679,8 +1679,6 @@ class UiTweaksPlugin(BasePlugin):
             Header(text=get_string("media_playback", "Media Playback")),
             self.Quanta_switch("dont_auto_play_enabled", get_string("dont_auto_play_enabled", "Don't Auto Play Next"), False, lambda v: self._apply_hooks(), on_long_click=lambda v: self._handle_long_click_with_enable("dont_auto_play_enabled", self._show_dont_auto_play_selector), subtext=get_string("long_press_to_select_message_types", "Long-press to select message types")),
             Divider(text=get_string("dont_auto_play_info", "Prevents automatic playback of the next voice or video message in a chat, giving you control over when media plays.")) if self.get_setting("dont_auto_play_enabled", False) else None,
-            self.Quanta_switch("progress_timestamp_enabled", get_string("progress_timestamp_enabled", "Progress Timestamp"), False, lambda v: self._apply_hooks(), on_long_click=lambda v: self._handle_long_click_with_enable("progress_timestamp_enabled", self._show_progress_timestamp_selector), subtext=get_string("long_press_to_select_message_types", "Long-press to select message types")),
-            Divider(text=get_string("progress_timestamp_info", "Shows the current playback time and total duration on voice and video messages for better media control.")) if self.get_setting("progress_timestamp_enabled", False) else None,
             self.Quanta_switch("enable_adaptive_audio_length", get_string("enable_adaptive_audio_length", "Adaptive Audio Message Length"), False, lambda v: self._apply_hooks(), link_alias="enable_adaptive_audio_length"),
             Divider(text=get_string("adaptive_audio_length_info", "The audio message bubble length will depend on the recording duration and automatically adjust to the screen width.")) if self.get_setting("enable_adaptive_audio_length", False) else None,
         ])
@@ -2819,8 +2817,6 @@ class UiTweaksPlugin(BasePlugin):
                     self._hook_voice_message_control()
                 if self.get_setting("dont_auto_play_next_video", False):
                     self._hook_video_message_control()
-            if self.get_setting("progress_timestamp_enabled", False):
-               self._hook_voice_message_time_display()
             if self.get_setting("unread_badge_on_back_button", False):
                 self._hook_unread_badge()
             if self.get_setting("hide_bot_button", False):
@@ -6198,24 +6194,6 @@ class UiTweaksPlugin(BasePlugin):
             action_text=get_string("apply", "Apply")
         )
 
-    def _show_progress_timestamp_selector(self):
-        progress_timestamp_items = [
-            get_string("progress_timestamp_voice", "Voice Messages"),
-            get_string("progress_timestamp_video", "Video Messages")
-        ]
-        
-        progress_timestamp_keys = [
-            "voice_message_time_display", "round_video_time_display"
-        ]
-        
-        showmultiselector(
-            items=progress_timestamp_items,
-            title=get_string("progress_timestamp_types", "Message Types"),
-            subtitle=get_string("progress_timestamp_subtitle", "Select message types"),
-            setting_keys=progress_timestamp_keys,
-            plugin_instance=self,
-            action_text=get_string("apply", "Apply")
-        )
 
     def _handle_long_click_with_enable(self, setting_key, selector_callback):
         if not self.get_setting(setting_key, False):
@@ -6732,15 +6710,6 @@ class UiTweaksPlugin(BasePlugin):
             import traceback
             traceback.print_exc()
 
-    def _hook_voice_message_time_display(self):
-        try:
-            ChatMessageCellClass = jclass("org.telegram.ui.Cells.ChatMessageCell")
-            updatePlayingMessageProgressMethod = ChatMessageCellClass.getClass().getDeclaredMethod("updatePlayingMessageProgress")
-            updatePlayingMessageProgressMethod.setAccessible(True)
-            
-            self.hook_voice_message_time_display_ref = self.hook_method(updatePlayingMessageProgressMethod, VoiceMessageTimeDisplayHook(self))
-        except Exception as e:
-            pass
 
     def _hook_unread_badge(self):
         try:
@@ -9553,173 +9522,6 @@ class VideoMessageControlHook(WeakPluginHook):
             pass
 
 
-class VoiceMessageTimeDisplayHook(WeakPluginHook):
-    def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
-        self._cell_cache = {}
-        self._last_update_ts = {}
-        self._cache_order = []
-        self._cache_capacity = 16
-        self._pending_updates = {}
-        
-    def after_hooked_method(self, param):
-        try:
-            if not self.plugin.get_setting("progress_timestamp_enabled", False):
-                return
-                
-            cell = param.thisObject
-            if not cell:
-                return
-                
-            messageObject = get_private_field(cell, "currentMessageObject")
-            if not messageObject:
-                return
-                
-            documentAttachType = get_private_field(cell, "documentAttachType")
-                
-            if not self.is_voice_message(messageObject) and not self.is_round_video_message(messageObject):
-                return
-                
-            if documentAttachType != 3 and not (hasattr(messageObject, 'isRoundVideo') and messageObject.isRoundVideo()):
-                return
-            
-            if hasattr(messageObject, 'isRoundVideo') and messageObject.isRoundVideo():
-                try:
-                    set_private_field(cell, "roundPlayingDrawableProgress", 0.0)
-                except:
-                    pass
-                
-            self._apply_cached_update(cell, messageObject)
-            
-        except Exception as e:
-            pass
-
-    def _apply_cached_update(self, cell, messageObject):
-        throttle_ms = 35
-        key = id(cell)
-        
-        try:
-            curr_id = int(messageObject.getId())
-            curr_did = int(messageObject.getDialogId())
-            duration = self.get_voice_duration(messageObject)
-            currentProgress = 0
-            if self.is_playing(messageObject):
-                currentProgress = self.get_audio_progress_sec(messageObject)
-        except:
-            return
-            
-        prev = self._cell_cache.get(key)
-        if prev is not None and len(prev) >= 5 and prev[3] == curr_id and prev[4] == curr_did and prev[0] == currentProgress and prev[1] == duration:
-            try:
-                if prev[2] is not None:
-                    set_private_field(cell, "durationLayout", prev[2])
-                cell.invalidate()
-            except:
-                pass
-            return
-            
-        pend = self._pending_updates.get(key)
-        if pend and pend[0] == curr_did and pend[1] == curr_id and pend[2] == currentProgress:
-            return
-            
-        self._pending_updates[key] = (curr_did, curr_id, currentProgress)
-        
-        def runner():
-            try:
-                c = cell
-                m = get_private_field(c, "currentMessageObject")
-                if m is None:
-                    return
-                if int(m.getDialogId()) == curr_did and int(m.getId()) == curr_id:
-                    self._force_update_with_cache(c, m)
-            finally:
-                self._pending_updates.pop(key, None)
-        
-        try:
-            from org.telegram.messenger import AndroidUtilities
-            AndroidUtilities.runOnUIThread(runner, throttle_ms)
-        except:
-            self._force_update_with_cache(cell, messageObject)
-
-    def _force_update_with_cache(self, cell, messageObject):
-        try:
-            duration = self.get_voice_duration(messageObject)
-            if duration <= 0:
-                return
-                
-            currentProgress = 0
-            if self.is_playing(messageObject):
-                currentProgress = self.get_audio_progress_sec(messageObject)
-                
-            from org.telegram.messenger import AndroidUtilities
-            from org.telegram.ui.ActionBar import Theme
-            from android.text import StaticLayout, Layout
-            from java import jint
-            
-            timeString = AndroidUtilities.formatShortDuration(currentProgress, int(duration))
-            
-            chatAudioTimePaint = Theme.chat_audioTimePaint
-            if not chatAudioTimePaint:
-                return
-                
-            timeWidth = int(chatAudioTimePaint.measureText(timeString))
-            
-            durationLayout = StaticLayout(
-                timeString,
-                chatAudioTimePaint,
-                timeWidth,
-                Layout.Alignment.ALIGN_NORMAL,
-                1.0,
-                0.0,
-                False
-            )
-            
-            set_private_field(cell, "durationLayout", durationLayout)
-            set_private_field(cell, "timeWidthAudio", jint(timeWidth))
-            set_private_field(cell, "lastTime", jint(currentProgress))
-            cell.invalidate()
-            
-            key = id(cell)
-            try:
-                curr_id = int(messageObject.getId())
-                curr_did = int(messageObject.getDialogId())
-                self._cell_cache[key] = (currentProgress, duration, durationLayout, curr_id, curr_did)
-                
-                if key in self._cache_order:
-                    self._cache_order.remove(key)
-                self._cache_order.append(key)
-                if len(self._cache_order) > self._cache_capacity:
-                    old_key = self._cache_order.pop(0)
-                    self._cell_cache.pop(old_key, None)
-                    self._last_update_ts.pop(old_key, None)
-            except:
-                pass
-                
-        except Exception as e:
-            pass
-    
-    def is_voice_message(self, messageObject):
-        if not self.plugin.get_setting("voice_message_time_display", True):
-            return False
-        return hasattr(messageObject, 'isVoice') and messageObject.isVoice()
-    
-    def is_round_video_message(self, messageObject):
-        if not self.plugin.get_setting("round_video_time_display", True):
-            return False
-        return hasattr(messageObject, 'isRoundVideo') and messageObject.isRoundVideo()
-    
-    def get_voice_duration(self, messageObject):
-        return messageObject.getDuration() if hasattr(messageObject, 'getDuration') else 0
-    
-    def is_playing(self, messageObject):
-        try:
-            from org.telegram.messenger import MediaController
-            return MediaController.getInstance().isPlayingMessage(messageObject)
-        except:
-            return False
-    
-    def get_audio_progress_sec(self, messageObject):
-        return messageObject.audioProgressSec if hasattr(messageObject, 'audioProgressSec') else 0
 
 
 class GifSpoilerHook(WeakPluginHook):
