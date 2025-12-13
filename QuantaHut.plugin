@@ -139,9 +139,7 @@ class QuantaHut(BasePlugin):
         self._setup_enhanced_plugin_search()
         self._setup_plugin_settings_search()
         
-        self._load_available_languages()
-        
-        self.log("QuantaHut initialized with GitHub-based system")
+        self.log("QuantaHut initialized")
 
 
     def _setup_deeplink_handling(self):
@@ -644,53 +642,90 @@ class QuantaHut(BasePlugin):
         except Exception as e:
             return 'this chat'
 
-    def _load_available_languages(self):
-        if getattr(self, '_languages_loading', False) or self.available_languages:
+    def _load_available_languages(self, language_msg_id=None):
+        if getattr(self, '_languages_loading', False):
+            return
+        
+        if not language_msg_id:
             return
             
         self._languages_loading = True
+        CHANNEL_USERNAME = "QuantaConfig"
         
-        def load_worker():
+        def fetch_languages():
             try:
-                import urllib.request, json
-                from java.util import Locale
+                from org.telegram.tgnet import TLRPC
+                from client_utils import get_account_instance, send_request, RequestCallback
                 from android_utils import run_on_ui_thread
-
-                branch = self._get_selected_branch()
-                url = f"https://api.github.com/repos/luvztroy/UiTweaks/contents/?ref={branch}"
                 
-                with urllib.request.urlopen(url) as response:
-                    files = json.loads(response.read().decode('utf-8'))
-
-                langs = []
-                for f in files:
-                    name = f.get('name', '')
-                    if f.get('type') == 'file' and name.startswith('UiTweaks ') and name.endswith('.json'):
-                        code = name[9:-5]
+                account = get_account_instance()
+                
+                def on_channel_resolved(chat):
+                    if not chat:
+                        self._languages_loading = False
+                        return
+                    
+                    req = TLRPC.TL_messages_getHistory()
+                    req.peer = TLRPC.TL_inputPeerChannel()
+                    req.peer.channel_id = chat.id
+                    req.peer.access_hash = chat.access_hash
+                    req.offset_id = 0
+                    req.limit = 50
+                    
+                    def handle_response(response, error):
+                        if error or not response:
+                            self._languages_loading = False
+                            return
+                        
                         try:
-                            loc = Locale(code)
-                            display_name = loc.getDisplayLanguage(loc).title()
-                        except:
-                            display_name = code.upper()
-                        langs.append({'code': code, 'display_name': display_name})
+                            messages = response.messages
+                            for i in range(messages.size()):
+                                msg = messages.get(i)
+                                if msg.id == language_msg_id:
+                                    if hasattr(msg, 'message') and msg.message:
+                                        langs = []
+                                        for line in str(msg.message).split('\n'):
+                                            if ':' in line:
+                                                code, name = line.split(':', 1)
+                                                langs.append({'code': code.strip(), 'display_name': name.strip()})
+                                        
+                                        def on_ui():
+                                            self.available_languages = langs
+                                            global available_languages
+                                            available_languages = langs
+                                            self._languages_loading = False
+                                            quantahut_log(f"Loaded {len(langs)} languages from channel")
+                                        run_on_ui_thread(on_ui)
+                                        return
+                                    break
+                            self._languages_loading = False
+                        except Exception as e:
+                            quantahut_log(f"Error parsing languages: {e}")
+                            self._languages_loading = False
+                    
+                    send_request(req, RequestCallback(handle_response))
                 
-                langs.sort(key=lambda x: x['display_name'])
+                def resolve_channel():
+                    from java import dynamic_proxy, jclass
+                    Consumer = jclass("com.google.android.exoplayer2.util.Consumer")
+                    
+                    class ResolveCallback(dynamic_proxy(Consumer)):
+                        def accept(self_cb, peer_id):
+                            if peer_id and peer_id < 0:
+                                run_on_ui_thread(lambda: on_channel_resolved(account.getMessagesController().getChat(-peer_id)))
+                            else:
+                                self._languages_loading = False
+                    
+                    account.getMessagesController().getUserNameResolver().resolve(CHANNEL_USERNAME, ResolveCallback())
                 
-                def on_ui():
-                    self.available_languages = langs
-                    global available_languages
-                    available_languages = langs
-                    self._languages_loading = False
-                    quantahut_log(f"Loaded {len(langs)} available languages")
-                
-                run_on_ui_thread(on_ui)
+                run_on_ui_thread(resolve_channel)
                 
             except Exception as e:
-                self._languages_loading = False
                 quantahut_log(f"Error loading languages: {e}")
-
+                self._languages_loading = False
+        
         import threading
-        threading.Thread(target=load_worker, daemon=True).start()
+        threading.Thread(target=fetch_languages, daemon=True).start()
 
     def _setup_quanta_file_hook(self):
         try:
@@ -2453,102 +2488,59 @@ class UpdateBottomSheet:
         self.fragment = fragment
         self.bottom_sheet = None
         self.download_button = None
-        self.language_selector_layout = None
-        self.language_selector_inner_layout = None
-        self.language_avatar_view = None
-        self.language_selector_icon_view = None
         self.current_language = "en"
         self.available_languages = available_languages or []
         self.selected_github_url = None
         self.localization_cache = localization_cache
         self.status_text_view = None
-        
-    def _get_selected_branch(self):
+
+    def _load_sticker_avatar(self, avatar_view, pack_name, index):
         try:
-            branch_index = setting_getter("language_fetch", DEFAULT_BRANCH) if setting_getter else DEFAULT_BRANCH
-            return "main" if branch_index == 0 else "Beta"
+            account = self.fragment.getCurrentAccount() if hasattr(self.fragment, 'getCurrentAccount') else 0
+            media = MediaDataController.getInstance(account)
+            if not media:
+                return
+            
+            sticker_set = media.getStickerSetByName(pack_name)
+            if sticker_set and sticker_set.documents and sticker_set.documents.size() > index:
+                doc = sticker_set.documents.get(index)
+                avatar_view.setImage(ImageLocation.getForDocument(doc), "90_90", None, 0, doc)
+                return
+            
+            from org.telegram.tgnet import TLRPC
+            input_set = TLRPC.TL_inputStickerSetShortName()
+            input_set.short_name = pack_name
+            
+            def on_response(result):
+                try:
+                    if result and result.documents and result.documents.size() > index:
+                        doc = result.documents.get(index)
+                        run_on_ui_thread(lambda: avatar_view.setImage(ImageLocation.getForDocument(doc), "90_90", None, 0, doc))
+                except:
+                    pass
+            
+            media.getStickerSet(input_set, None, False, Callback1(on_response))
         except:
-            return "main"
-    
-    def log(self, message: str):
-        if self.get_setting("show_logs", DEFAULT_SHOW_LOGS):
-            log(f"[QuantaHut] {message}")
-
-    def update_status(self, message):
-        try:
-            if self.status_text_view:
-                self.status_text_view.setText(message)
-                self.status_text_view.setVisibility(0) 
-        except Exception as e:
             pass
-    
-    def _perform_haptic(self):
-        try:
-            perform_haptic(self.activity)
-        except Exception as e:
-            pass
-   
 
-
-    def _load_sticker_avatar(self, avatar_image_view, sticker_pack_name: str, sticker_index_to_use: int):
-        try:
-            try:
-                current_account = self.fragment.getCurrentAccount()
-            except Exception:
-                current_account = 0
-
-            media_controller = MediaDataController.getInstance(current_account)
-            if media_controller is None:
-                quantahut_log("MediaDataController is None, cannot load sticker")
-                return
-
-            sticker_set = media_controller.getStickerSetByName(sticker_pack_name)
-            if sticker_set and sticker_set.documents and sticker_set.documents.size() > sticker_index_to_use:
-                sticker_document = sticker_set.documents.get(sticker_index_to_use)
-                image_location = ImageLocation.getForDocument(sticker_document)
-                avatar_image_view.setImage(image_location, "90_90", None, 0, sticker_document)
-                quantahut_log(f"Sticker loaded from cache: {sticker_pack_name} (account {current_account})")
-                return
-            quantahut_log(f"Sticker cache miss: {sticker_pack_name}, requesting set; will update on response")
-
-            try:
-                from org.telegram.tgnet import TLRPC
-                input_set = TLRPC.TL_inputStickerSetShortName()
-                input_set.short_name = sticker_pack_name
-
-                def _on_set_response(result):
-                    try:
-                        if result and result.documents and result.documents.size() > sticker_index_to_use:
-                            doc = result.documents.get(sticker_index_to_use)
-                            img_loc = ImageLocation.getForDocument(doc)
-                            run_on_ui_thread(lambda: avatar_image_view.setImage(img_loc, "90_90", None, 0, doc))
-                            quantahut_log(f"Sticker loaded after fetch: {sticker_pack_name}")
-                    except Exception as _e_inner:
-                        quantahut_log(f"Error applying fetched sticker: {_e_inner}")
-
-                media_controller.getStickerSet(input_set, None, False, Callback1(_on_set_response))
-            except Exception as _e_fetch:
-                quantahut_log(f"Error requesting sticker set '{sticker_pack_name}': {_e_fetch}")
-        except Exception as e:
-            quantahut_log(f"Error in _load_sticker_avatar: {e}")
-
-    def create_bottom_sheet(self, title, subtitle=None, description=None, github_url=None, plugin_name=None, sticker_pack=None, sticker_index=None, raw_resource=None, button_text="Download", button2_text=None, bottom_text=None, show_close_button=True, show_user_avatar=False, sticker_circle=True, sticker_size=90, description_centered=False, on_button_click=None, on_button2_click=None, on_sticker_long_click=None):
-        from org.telegram.ui.ActionBar import BottomSheet
-        from org.telegram.ui.Components import LayoutHelper
+    def create_bottom_sheet(self, title, subtitle=None, description=None, github_url=None, plugin_name=None, 
+                           sticker_pack=None, sticker_index=None, raw_resource=None, button_text="Download", 
+                           button2_text=None, bottom_text=None, show_close_button=True, show_user_avatar=False, 
+                           sticker_circle=True, sticker_size=90, description_centered=False, 
+                           on_button_click=None, on_button2_click=None, on_sticker_long_click=None):
+        from org.telegram.ui.ActionBar import BottomSheet, Theme
+        from org.telegram.ui.Components import LayoutHelper, BackupImageView
         from org.telegram.messenger import AndroidUtilities
         from android.widget import LinearLayout, TextView, ImageView, FrameLayout
         from android.view import Gravity
-        from android.graphics import Typeface
         from android.util import TypedValue
         from androidx.core.widget import NestedScrollView
-        from org.telegram.ui.ActionBar import Theme
-        
         
         try:
             from org.telegram.messenger import LocaleController
             self.current_language = LocaleController.getInstance().getCurrentLocaleInfo().getLangCode()
         except:
-            self.current_language = "en"
+            pass
         
         self.bottom_sheet = BottomSheet(self.context, False, self.fragment.getResourceProvider())
         self.bottom_sheet.setApplyBottomPadding(False)
@@ -2566,190 +2558,148 @@ class UpdateBottomSheet:
         scroll_view.addView(frame_layout)
         self.bottom_sheet.setCustomView(scroll_view)
         
-        OnClickInterface = find_class("android.view.View$OnClickListener")
-        OnClick = dynamic_proxy(OnClickInterface)
+        OnClick = dynamic_proxy(find_class("android.view.View$OnClickListener"))
         
         if show_close_button:
             close_view = ImageView(self.context)
             close_view.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector)))
             close_view.setColorFilter(Theme.getColor(Theme.key_sheet_other))
             close_view.setImageResource(R_tg.drawable.ic_layer_close)
-            class CloseClickImpl(OnClick):
-                def __init__(self, bottom_sheet):
-                    super().__init__()
-                    self.bottom_sheet = bottom_sheet
-                def onClick(self, v):
-                    self.bottom_sheet.dismiss()
-            close_view.setOnClickListener(CloseClickImpl(self.bottom_sheet))
-            close_padding = AndroidUtilities.dp(8)
-            close_view.setPadding(close_padding, close_padding, close_padding, close_padding)
+            bs = self.bottom_sheet
+            class CloseClick(OnClick):
+                def onClick(self, v): bs.dismiss()
+            close_view.setOnClickListener(CloseClick())
+            pad = AndroidUtilities.dp(8)
+            close_view.setPadding(pad, pad, pad, pad)
             frame_layout.addView(close_view, LayoutHelper.createFrame(36, 36, Gravity.TOP | Gravity.END, 6, 8, 8, 0))
         
-        
-
-        from org.telegram.ui.Components import BackupImageView
-        avatar_image_view = BackupImageView(self.context)
-        if sticker_circle:
-            avatar_image_view.setRoundRadius(AndroidUtilities.dp(45))
-        else:
-            avatar_image_view.setRoundRadius(AndroidUtilities.dp(0))
+        avatar_view = BackupImageView(self.context)
+        avatar_view.setRoundRadius(AndroidUtilities.dp(45 if sticker_circle else 0))
         
         if on_sticker_long_click:
-            OnLongClickInterface = find_class("android.view.View$OnLongClickListener")
-            OnLongClick = dynamic_proxy(OnLongClickInterface)
-            class StickerLongClickImpl(OnLongClick):
-                def __init__(self, callback, bottom_sheet_instance):
-                    super().__init__()
-                    self.callback = callback
-                    self.bottom_sheet_instance = bottom_sheet_instance
+            OnLongClick = dynamic_proxy(find_class("android.view.View$OnLongClickListener"))
+            callback, sheet = on_sticker_long_click, self
+            class StickerLongClick(OnLongClick):
                 def onLongClick(self, v):
                     try:
-                        self.bottom_sheet_instance._perform_haptic()
-                        if callable(self.callback):
-                            self.callback(self.bottom_sheet_instance)
-                        return True
-                    except Exception as e:
-                        return False
-            avatar_image_view.setOnLongClickListener(StickerLongClickImpl(on_sticker_long_click, self))
+                        perform_haptic(sheet.activity)
+                        if callable(callback): callback(sheet)
+                    except: pass
+                    return True
+            avatar_view.setOnLongClickListener(StickerLongClick())
         
-        linear_layout.addView(avatar_image_view, LayoutHelper.createLinear(sticker_size, sticker_size, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 17, 20, 17, 0))
+        linear_layout.addView(avatar_view, LayoutHelper.createLinear(sticker_size, sticker_size, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 17, 20, 17, 0))
         
         try:
             if show_user_avatar:
                 from org.telegram.ui.Components import AvatarDrawable
                 from org.telegram.messenger import UserConfig
-                
-                current_user = UserConfig.getInstance(0).getCurrentUser()
-                avatar_drawable = AvatarDrawable()
-                avatar_drawable.setInfo(current_user)
-                avatar_image_view.setForUserOrChat(current_user, avatar_drawable)
-                quantahut_log("User avatar loaded successfully")
+                user = UserConfig.getInstance(0).getCurrentUser()
+                avatar = AvatarDrawable()
+                avatar.setInfo(user)
+                avatar_view.setForUserOrChat(user, avatar)
             elif raw_resource:
                 from org.telegram.ui.Components import RLottieImageView
-                lottie_view = RLottieImageView(self.context)
-                lottie_view.setAnimation(raw_resource, 144, 144)
-                lottie_view.playAnimation()
-                linear_layout.removeView(avatar_image_view)
-                linear_layout.addView(lottie_view, LayoutHelper.createLinear(144, 144, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 16, 0, 0))
-                quantahut_log(f"Raw resource loaded: {raw_resource}")
+                lottie = RLottieImageView(self.context)
+                lottie.setAnimation(raw_resource, 144, 144)
+                lottie.playAnimation()
+                linear_layout.removeView(avatar_view)
+                linear_layout.addView(lottie, LayoutHelper.createLinear(144, 144, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 16, 0, 0))
             elif sticker_pack:
-                sticker_pack_name = sticker_pack
-                sticker_index_to_use = sticker_index if sticker_index is not None else 0
-                self._load_sticker_avatar(avatar_image_view, sticker_pack_name, sticker_index_to_use)
-            else:
-                quantahut_log("No sticker pack or raw resource specified, avatar will remain empty")
-        except Exception as e:
-            quantahut_log(f"Error setting avatar: {str(e)}")
+                self._load_sticker_avatar(avatar_view, sticker_pack, sticker_index or 0)
+        except:
+            pass
         
-        title_text_view = TextView(self.context)
-        title_text_view.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"))
-        title_text_view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20)
-        title_text_view.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText))
-        title_text_view.setText(title)
-        title_text_view.setGravity(Gravity.CENTER_HORIZONTAL)
-        linear_layout.addView(title_text_view, LayoutHelper.createLinear(-1, -2, 0, 40, 20, 40, 0))
+        title_view = TextView(self.context)
+        title_view.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"))
+        title_view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20)
+        title_view.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText))
+        title_view.setText(title)
+        title_view.setGravity(Gravity.CENTER_HORIZONTAL)
+        linear_layout.addView(title_view, LayoutHelper.createLinear(-1, -2, 0, 40, 20, 40, 0))
         
         if subtitle:
-            subtitle_text_view = TextView(self.context)
-            subtitle_text_view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14)
-            subtitle_text_view.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText))
-            subtitle_text_view.setText(subtitle)
-            subtitle_text_view.setGravity(Gravity.CENTER_HORIZONTAL)
-            linear_layout.addView(subtitle_text_view, LayoutHelper.createLinear(-1, -2, 0, 21, 15, 21, 8))
+            sub_view = TextView(self.context)
+            sub_view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14)
+            sub_view.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText))
+            sub_view.setText(subtitle)
+            sub_view.setGravity(Gravity.CENTER_HORIZONTAL)
+            linear_layout.addView(sub_view, LayoutHelper.createLinear(-1, -2, 0, 21, 15, 21, 8))
         
         if description:
             from org.telegram.ui.Components.spoilers import SpoilersTextView
-            from android.text import SpannableStringBuilder
-            from org.telegram.messenger import MessageObject
-            
-            description_text_view = SpoilersTextView(self.context)
-            if description_centered:
-                description_text_view.setGravity(Gravity.CENTER_HORIZONTAL | Gravity.TOP)
-            else:
-                description_text_view.setGravity(Gravity.LEFT | Gravity.TOP)
+            desc_view = SpoilersTextView(self.context)
+            desc_view.setGravity((Gravity.CENTER_HORIZONTAL if description_centered else Gravity.LEFT) | Gravity.TOP)
             
             try:
                 from org.telegram.messenger import AndroidUtilities as AU
-                
                 if hasattr(description, 'toString'):
-                    description_text_view.setText(description)
+                    desc_view.setText(description)
                 else:
-                    formatted_description = str(description).replace("\\n", "\n")
-                    formatted_text = AU.replaceTags(formatted_description)
-                    description_text_view.setText(formatted_text)
-            except Exception as e:
-                try:
-                    description_text_view.setText(str(description).replace("\\n", "\n"))
-                except:
-                    description_text_view.setText(str(description))
+                    desc_view.setText(AU.replaceTags(str(description).replace("\\n", "\n")))
+            except:
+                desc_view.setText(str(description))
             
-            description_text_view.setTextColor(Theme.getColor(Theme.key_dialogTextBlack))
-            description_text_view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15)
-            description_text_view.setMovementMethod(AU.LinkMovementMethodMy())
-            description_text_view.setLinkTextColor(Theme.getColor(Theme.key_dialogTextLink))
-            linear_layout.addView(description_text_view, LayoutHelper.createLinear(-1, -2, Gravity.LEFT | Gravity.TOP, 23, 15, 23, 20))
+            desc_view.setTextColor(Theme.getColor(Theme.key_dialogTextBlack))
+            desc_view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15)
+            try:
+                desc_view.setMovementMethod(AU.LinkMovementMethodMy())
+            except:
+                pass
+            desc_view.setLinkTextColor(Theme.getColor(Theme.key_dialogTextLink))
+            linear_layout.addView(desc_view, LayoutHelper.createLinear(-1, -2, Gravity.LEFT | Gravity.TOP, 23, 15, 23, 20))
         
         self.download_button = TextView(self.context)
         self.download_button.setBackground(Theme.createSimpleSelectorRoundRectDrawable(
-            AndroidUtilities.dp(8), 
-            Theme.getColor(Theme.key_featuredStickers_addButton), 
-            Theme.getColor(Theme.key_featuredStickers_addButtonPressed)
-        ))
+            AndroidUtilities.dp(8), Theme.getColor(Theme.key_featuredStickers_addButton), 
+            Theme.getColor(Theme.key_featuredStickers_addButtonPressed)))
         self.download_button.setGravity(Gravity.CENTER)
         self.download_button.setSingleLine(True)
-        current_lang_display = self.current_language.upper()
+        
+        lang_display = self.current_language.upper()
         try:
-            for lang in self.available_languages:
-                if lang['code'] == self.current_language:
-                    current_lang_display = lang['display_name']
+            langs = self.available_languages if isinstance(self.available_languages, list) else []
+            for lang in langs:
+                if isinstance(lang, dict) and lang.get('code') == self.current_language:
+                    lang_display = lang.get('display_name', lang_display)
                     break
         except:
             pass
         
-        initial_button_text = f"{button_text} {current_lang_display}" if github_url else button_text
-        self.download_button.setText(initial_button_text)
+        self.download_button.setText(f"{button_text} {lang_display}" if github_url else button_text)
         self.download_button.setTextColor(Theme.getColor(Theme.key_featuredStickers_buttonText))
         self.download_button.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14)
         self.download_button.setTypeface(AndroidUtilities.bold())
-        class DownloadClickImpl(OnClick):
-            def __init__(self, bottom_sheet_instance, custom_callback=None):
-                super().__init__()
-                self.bottom_sheet_instance = bottom_sheet_instance
-                self.custom_callback = custom_callback
+        
+        sheet, url, name = self, github_url, plugin_name
+        class DownloadClick(OnClick):
             def onClick(self, v):
-                if self.custom_callback:
-                    self.custom_callback()
-                    if self.bottom_sheet_instance.bottom_sheet:
-                        self.bottom_sheet_instance.bottom_sheet.dismiss()
+                if on_button_click:
+                    on_button_click()
+                    if sheet.bottom_sheet: sheet.bottom_sheet.dismiss()
                 else:
-                    self.bottom_sheet_instance._on_download_click(github_url, plugin_name)
-        self.download_button.setOnClickListener(DownloadClickImpl(self, on_button_click))
+                    sheet._on_download_click(url, name)
+        self.download_button.setOnClickListener(DownloadClick())
         linear_layout.addView(self.download_button, LayoutHelper.createLinear(-1, 48, Gravity.START, 14, 0, 14, 14))
         
         if button2_text and on_button2_click:
             from org.telegram.ui.Stories.recorder import ButtonWithCounterView
-            button2 = ButtonWithCounterView(self.context, False, self.fragment.getResourceProvider())
-            button2.setText(button2_text, False)
-            class Button2ClickImpl(OnClick):
-                def __init__(self, bottom_sheet_instance, callback):
-                    super().__init__()
-                    self.bottom_sheet_instance = bottom_sheet_instance
-                    self.callback = callback
+            btn2 = ButtonWithCounterView(self.context, False, self.fragment.getResourceProvider())
+            btn2.setText(button2_text, False)
+            class Btn2Click(OnClick):
                 def onClick(self, v):
-                    if self.callback:
-                        self.callback()
-                    if self.bottom_sheet_instance.bottom_sheet:
-                        self.bottom_sheet_instance.bottom_sheet.dismiss()
-            button2.setOnClickListener(Button2ClickImpl(self, on_button2_click))
-            linear_layout.addView(button2, LayoutHelper.createLinear(-1, 48, Gravity.START, 14, 0, 14, 14))
+                    on_button2_click()
+                    if sheet.bottom_sheet: sheet.bottom_sheet.dismiss()
+            btn2.setOnClickListener(Btn2Click())
+            linear_layout.addView(btn2, LayoutHelper.createLinear(-1, 48, Gravity.START, 14, 0, 14, 14))
         
         if bottom_text:
-            disclaimer_text_view = TextView(self.context)
-            disclaimer_text_view.setGravity(Gravity.CENTER)
-            disclaimer_text_view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14)
-            disclaimer_text_view.setText(bottom_text)
-            disclaimer_text_view.setTextColor(Theme.getColor(Theme.key_dialogTextGray3))
-            linear_layout.addView(disclaimer_text_view, LayoutHelper.createLinear(-1, -2, Gravity.TOP, 24, 17, 24, 15))
+            bottom_view = TextView(self.context)
+            bottom_view.setGravity(Gravity.CENTER)
+            bottom_view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14)
+            bottom_view.setText(bottom_text)
+            bottom_view.setTextColor(Theme.getColor(Theme.key_dialogTextGray3))
+            linear_layout.addView(bottom_view, LayoutHelper.createLinear(-1, -2, Gravity.TOP, 24, 17, 24, 15))
         
         self.status_text_view = TextView(self.context)
         self.status_text_view.setGravity(Gravity.CENTER)
@@ -2757,117 +2707,65 @@ class UpdateBottomSheet:
         self.status_text_view.setTextColor(Theme.getColor(Theme.key_dialogTextGray3))
         self.status_text_view.setVisibility(8)
         linear_layout.addView(self.status_text_view, LayoutHelper.createLinear(-1, -2, Gravity.TOP, 0, 0, 0, 10))
-    
+
     def _on_download_click(self, github_url, plugin_name):
-        quantahut_log("Download button clicked!")
-        
-        download_url = self.selected_github_url or github_url
-        
-        if download_url is None:
-            quantahut_log("Localization not available, storing user choice to continue in English")
+        url = self.selected_github_url or github_url
+        if not url:
             self._store_continue_english_choice(plugin_name)
             self.bottom_sheet.dismiss()
             return
         
-        self._show_loading_state()
-        self._download_and_cache_plugin(download_url, plugin_name)
-    
-    def _store_continue_english_choice(self, plugin_name):
-        try:
-            from java.util import Locale
-            current_language = Locale.getDefault().getLanguage()
-            
-            if plugin_name == "UiTweaks_Localization":
-                continue_english_key = f"continue_english_{current_language}"
-                from base_plugin import PluginsController
-                prefs = get_private_field(PluginsController.getInstance(), "preferences")
-                prefs.edit().putBoolean(f"plugin_setting_ui_tweaks_{continue_english_key}", True).apply()
-                quantahut_log(f"Stored continue in English choice for {current_language}")
-        except Exception as e:
-            quantahut_log(f"Error storing continue English choice: {e}")
-    
-    def _show_loading_state(self):
         if self.download_button:
             self.download_button.setText("Downloading...")
             self.download_button.setEnabled(False)
-    
-    def _download_and_cache_plugin(self, github_url, plugin_name):
-        def download_callback():
+        
+        def download():
             try:
-                quantahut_log(f"Downloading localization from: {github_url}")
-                
-                language = self.current_language
-                
-                result = github_localization.download_localization("UiTweaks", language)
-                
-                if result == "no_update_needed":
-                    quantahut_log(f"No update needed for language: {language}")
-                    run_on_ui_thread(lambda: self._show_no_update_state())
-                elif result == "no_changes_detected":
-                    quantahut_log(f"No changes detected for language: {language}")
-                    run_on_ui_thread(lambda: self._show_no_changes_state())
-                elif result == "updated":
-                    quantahut_log(f"Localization updated for language: {language}")
-                    run_on_ui_thread(lambda: self._show_success_state())
+                result = github_localization.download_localization("UiTweaks", self.current_language)
+                if result in ("no_update_needed", "no_changes_detected"):
+                    run_on_ui_thread(lambda: self._set_button_state("Already Up to Date", dismiss=True))
                 else:
-                    quantahut_log(f"Localization cached for language: {language}")
-                    run_on_ui_thread(lambda: self._show_success_state())
-                
+                    run_on_ui_thread(lambda: self._set_button_state("Cached!", dismiss=True, show_restart=True))
             except Exception as e:
-                error_message = str(e)
-                quantahut_log(f"Error downloading localization: {error_message}")
-                run_on_ui_thread(lambda: self._show_error_state(f"Download failed: {error_message}"))
+                run_on_ui_thread(lambda: self._set_button_state("Retry", enabled=True))
         
         import threading
-        thread = threading.Thread(target=download_callback)
-        thread.daemon = True
-        thread.start()
-    
-    def _show_success_state(self):
+        threading.Thread(target=download, daemon=True).start()
+
+    def _set_button_state(self, text, enabled=False, dismiss=False, show_restart=False):
         if self.download_button:
-            self.download_button.setText("Cached!")
-            self.download_button.setEnabled(False)
+            self.download_button.setText(text)
+            self.download_button.setEnabled(enabled)
         
-        def dismiss_delayed():
-            run_on_ui_thread(lambda: self.bottom_sheet.dismiss())
-            run_on_ui_thread(lambda: show_restart_bulletin(
-                message=get_string("restart_to_apply_localization", "Restart app to apply localization changes"),
-                button_text=get_string("restart", "Restart")
-            ))
-        import threading
-        timer = threading.Timer(2.0, dismiss_delayed)
-        timer.start()
-    
-    def _show_error_state(self, error_message):
-        if self.download_button:
-            self.download_button.setText("Retry")
-            self.download_button.setEnabled(True)
-        quantahut_log(f"Error: {error_message}")
-    
-    def _show_no_update_state(self):
-        if self.download_button:
-            self.download_button.setText("No Update Needed")
-            self.download_button.setEnabled(False)
-        
-        def dismiss_delayed():
-            run_on_ui_thread(lambda: self.bottom_sheet.dismiss())
-        
-        import threading
-        timer = threading.Timer(2.0, dismiss_delayed)
-        timer.start()
-    
-    def _show_no_changes_state(self):
-        if self.download_button:
-            self.download_button.setText("Already Up to Date")
-            self.download_button.setEnabled(False)
-        
-        def dismiss_delayed():
-            run_on_ui_thread(lambda: self.bottom_sheet.dismiss())
-        
-        import threading
-        timer = threading.Timer(2.0, dismiss_delayed)
-        timer.start()
-    
+        if dismiss:
+            def delayed():
+                run_on_ui_thread(lambda: self.bottom_sheet.dismiss())
+                if show_restart:
+                    run_on_ui_thread(lambda: show_restart_bulletin(
+                        message=get_string("restart_to_apply_localization", "Restart app to apply localization changes"),
+                        button_text=get_string("restart", "Restart")))
+            import threading
+            threading.Timer(2.0, delayed).start()
+
+    def _store_continue_english_choice(self, plugin_name):
+        try:
+            from java.util import Locale
+            lang = Locale.getDefault().getLanguage()
+            if plugin_name == "UiTweaks_Localization":
+                from base_plugin import PluginsController
+                prefs = get_private_field(PluginsController.getInstance(), "preferences")
+                prefs.edit().putBoolean(f"plugin_setting_ui_tweaks_continue_english_{lang}", True).apply()
+        except:
+            pass
+
+    def update_status(self, message):
+        try:
+            if self.status_text_view:
+                self.status_text_view.setText(message)
+                self.status_text_view.setVisibility(0)
+        except:
+            pass
+
     def show(self):
         if self.bottom_sheet:
             self.bottom_sheet.show()
