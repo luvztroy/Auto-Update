@@ -19,7 +19,7 @@ from ui.settings import Header, Switch, Divider, Selector, Text, EditText
 from ui.bulletin import BulletinHelper
 from ui.alert import AlertDialogBuilder
 
-from client_utils import get_last_fragment, get_send_messages_helper, get_messages_storage, run_on_queue, PLUGINS_QUEUE, get_messages_controller, get_account_instance
+from client_utils import get_last_fragment, get_send_messages_helper, get_messages_storage, run_on_queue, PLUGINS_QUEUE, get_messages_controller, get_account_instance, send_message
 from android_utils import run_on_ui_thread, log, OnLongClickListener, OnClickListener
 from com.exteragram.messenger.plugins.ui.components.templates import UniversalFragment
 
@@ -1123,6 +1123,8 @@ class UiTweaksPlugin(BasePlugin):
         self._send_comments_bypass = False
         self._send_comments_pending = {}
         
+        self.hook_hide_via_bot_ref = None
+        
         self.update_available = False
         self.latest_version = None
         self.changelog = None
@@ -1727,6 +1729,7 @@ class UiTweaksPlugin(BasePlugin):
         settings.extend([
             Header(text=get_string("general", "General")),
             self.Quanta_switch("enable_goto_message", get_string("enable_goto_message", "Search by Message ID"), False, lambda v: self._apply_hooks(), link_alias="enable_goto_message"),
+            self.Quanta_switch("hide_via_bot", get_string("hide_via_bot", "Hide 'Via Bot' caption"), False, lambda v: self._apply_hooks(), link_alias="hide_via_bot"),
             self.Quanta_switch("enable_gif_spoiler", get_string("gif_spoiler_caption", "GIF Spoiler & Caption"), False, lambda v: self._apply_hooks(), link_alias="enable_gif_spoiler"),
             self.Quanta_switch("enable_ai_summarize", get_string("enable_ai_summarize", "Summarize Chat"), False, lambda v: self._apply_hooks(), link_alias="enable_ai_summarize"),
             self.Quanta_switch("enable_search_filter", get_string("enable_search_filter", "Search Filter"), False, lambda v: self._apply_hooks(), link_alias="enable_search_filter"),
@@ -2956,6 +2959,7 @@ class UiTweaksPlugin(BasePlugin):
             "hook_send_comments_after_forward_ref",
             "hook_in_message_translation_alert_ref",
             "hook_in_message_translation_revert_ref",
+            "hook_hide_via_bot_ref",
         ):
             ref = getattr(self, ref_attr, None)
             if ref:
@@ -3190,6 +3194,9 @@ class UiTweaksPlugin(BasePlugin):
             if self.get_setting("send_comments_after_forward", False):
                 self._hook_send_comments_after_forward()
             
+            if self.get_setting("hide_via_bot", False):
+                self._hook_hide_via_bot()
+
             if self.get_setting("manual_translation_behavior", 0) == 1:
                 self._hook_in_message_translation()
 
@@ -4160,8 +4167,16 @@ class UiTweaksPlugin(BasePlugin):
             pass
     
     def _hook_send_comments_after_forward(self):
+        self.hook_send_comments_after_forward_ref = self.add_hook("TL_messages_forwardMessages")
+    
+    def _hook_hide_via_bot(self):
         try:
-            self.hook_send_comments_after_forward_ref = self.add_hook("TL_messages_forwardMessages")
+            send_messages_helper_class = find_class("org.telegram.messenger.SendMessagesHelper")
+            if send_messages_helper_class is None:
+                return
+            
+            handler = HideViaBotHook(self)
+            self.hook_hide_via_bot_ref = self.hook_all_methods(send_messages_helper_class, "prepareSendingBotContextResult", handler)
         except Exception:
             pass
     
@@ -12989,5 +13004,40 @@ class UiTweaksSettingsHeaderHook(WeakPluginHook):
                 items.add(0, item)
                 items.add(1, UItem.asShadow())
         except:
+            pass
+
+
+class HideViaBotHook(WeakPluginHook, MethodHook):
+    def __init__(self, plugin):
+        WeakPluginHook.__init__(self, plugin)
+        MethodHook.__init__(self)
+    
+    def before_hooked_method(self, param):
+        try:
+            result = param.args[2]
+            if result is None:
+                return
+            
+            document = getattr(result, 'document', None)
+            photo = getattr(result, 'photo', None)
+            
+            if not isinstance(document, TLRPC.TL_document) and not isinstance(photo, TLRPC.TL_photo):
+                return
+            
+            send_message_obj = getattr(result, 'send_message', None)
+            caption = getattr(send_message_obj, 'caption', "") if send_message_obj else ""
+            
+            send_params = {
+                "peer": param.args[4],
+                "document": document if isinstance(document, TLRPC.TL_document) else None,
+                "photo": photo if isinstance(photo, TLRPC.TL_photo) else None,
+                "message": caption or None,
+                "replyToMsg": param.args[5],
+                "replyToTopMsg": param.args[6],
+                "scheduleDate": param.args[10]
+            }
+            send_message(send_params)
+            param.setResult(None)
+        except Exception:
             pass
 
