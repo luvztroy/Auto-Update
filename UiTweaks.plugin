@@ -1100,6 +1100,17 @@ class UiTweaksPlugin(BasePlugin):
 
     def on_plugin_load(self):
         self.log(f"UiTweaks {__version__} loaded")
+
+        if self.get_setting("random_header_sticker", False):
+            try:
+                import random
+                random_index = random.randint(0, 36)
+                random_icon = f"MyLittleMsMizukiPt1/{random_index}"
+                plugin = PluginsController.getInstance().plugins.get("ui_tweaks")
+                if plugin:
+                    plugin.setIcon(random_icon)
+            except:
+                pass
         self.custom_saved_chat_id = self.get_setting("custom_saved_chat_id", None)
         self.add_on_send_message_hook()
         self._load_hidden_folders()
@@ -1481,16 +1492,28 @@ class UiTweaksPlugin(BasePlugin):
             imageView.setRoundRadius(AndroidUtilities.dp(54))
             
             def try_load_sticker(img):
-                ss = MediaDataController.getInstance(0).getStickerSetByName("luvztroyIcons") or MediaDataController.getInstance(0).getStickerSetByEmojiOrName("luvztroyIcons")
-                if ss and ss.documents and ss.documents.size() > 13:
-                    img.setImage(ImageLocation.getForDocument(ss.documents.get(13)), "108_108", None, None, 0, 1)
-
+                import random
+                is_random = self.get_setting("random_header_sticker", False)
+                
+                if is_random:
+                    pack_name = "MyLittleMsMizukiPt1"
+                else:
+                    pack_name = "luvztroyIcons"
+                
+                ss = MediaDataController.getInstance(0).getStickerSetByName(pack_name) or MediaDataController.getInstance(0).getStickerSetByEmojiOrName(pack_name)
+                if ss and ss.documents and ss.documents.size() > 0:
+                    if is_random:
+                        sticker_index = random.randint(0, ss.documents.size() - 1)
+                    else:
+                        sticker_index = min(13, ss.documents.size() - 1)
+                    img.setImage(ImageLocation.getForDocument(ss.documents.get(sticker_index)), "108_108", None, None, 0, 1)
                     return True
                 return False
             
+            is_random_mode = self.get_setting("random_header_sticker", False)
             if not try_load_sticker(imageView):
-
-                MediaDataController.getInstance(0).loadStickersByEmojiOrName("luvztroyIcons", False, False)
+                pack_to_load = "MyLittleMsMizukiPt1" if is_random_mode else "luvztroyIcons"
+                MediaDataController.getInstance(0).loadStickersByEmojiOrName(pack_to_load, False, False)
                 run_on_ui_thread(lambda: try_load_sticker(imageView), 1500)
             
             container.addView(imageView, LayoutHelper.createFrame(108, 108, Gravity.CENTER | Gravity.TOP, 0, 20, 0, 0))
@@ -1512,17 +1535,34 @@ class UiTweaksPlugin(BasePlugin):
             container.addView(subtitle, LayoutHelper.createFrame(-2, -2, Gravity.CENTER | Gravity.TOP, 60, 180, 60, 27))
             
             try:
+                from android_utils import OnLongClickListener, OnClickListener
                 from java import dynamic_proxy
                 from android.view import View, MotionEvent
-                class TouchListener(dynamic_proxy(View.OnTouchListener)):
+                
+                plugin_ref = self
+                
+                def on_sticker_long_click(view):
+                    current = plugin_ref.get_setting("random_header_sticker", False)
+                    plugin_ref.set_setting("random_header_sticker", not current)
+                    try_load_sticker(imageView)
+                    return True
+                
+                def on_sticker_click(view):
+                    if plugin_ref.get_setting("random_header_sticker", False):
+                        try_load_sticker(imageView)
+                
+                class BounceTouchListener(dynamic_proxy(View.OnTouchListener)):
                     def onTouch(self, v, event):
                         action = event.getAction()
                         if action == MotionEvent.ACTION_DOWN:
                             v.animate().scaleX(0.9).scaleY(0.9).setDuration(100).start()
                         elif action == MotionEvent.ACTION_UP or action == MotionEvent.ACTION_CANCEL:
                             v.animate().scaleX(1.0).scaleY(1.0).setDuration(100).start()
-                        return True
-                imageView.setOnTouchListener(TouchListener())
+                        return False
+                
+                imageView.setOnTouchListener(BounceTouchListener())
+                imageView.setOnLongClickListener(OnLongClickListener(on_sticker_long_click))
+                imageView.setOnClickListener(OnClickListener(on_sticker_click))
             except: pass
             
             return container
