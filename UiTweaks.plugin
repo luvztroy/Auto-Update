@@ -2413,10 +2413,13 @@ class UiTweaksPlugin(BasePlugin):
                                         ssb = SpannableStringBuilder(text)
                                         MessageObject.addEntitiesToText(ssb, entities, False, False, False, False)
                                         changelog_text = ssb
+                                        self.changelog_entities = entities
                                     else:
                                         changelog_text = text
+                                        self.changelog_entities = None
                                 except:
                                     changelog_text = str(msg.message)
+                                    self.changelog_entities = None
                             break
                 
                 self.changelog = changelog_text
@@ -2496,48 +2499,62 @@ class UiTweaksPlugin(BasePlugin):
                         
                         try:
                             messages = response.messages
-                            uitweaks_version = None
-                            quantahut_version = None
-                            sticker_index = None
-                            text_msg_id = None
-                            pack = None
-                            language_msg_id = None
+                            update_info = {}
+                            
+                            def parse_update_fields(msg_text):
+                                info = {}
+                                for line in msg_text.split('\n'):
+                                    if '=' in line:
+                                        k, v = line.split('=', 1)
+                                        k, v = k.strip(), v.strip()
+                                        if k == 'version': info['version'] = v
+                                        elif k == 'version2': info['version2'] = v
+                                        elif k == 'sticker': info['sticker'] = int(v)
+                                        elif k == 'text': info['text'] = int(v)
+                                        elif k == 'pack': info['pack'] = v
+                                        elif k == 'available_language': info['lang_id'] = int(v)
+                                        elif k == 'isDev': info['dev_ids'] = [int(x.strip()) for x in v.split(',')]
+                                return info
+                            
+                            current_user_id = None
+                            try:
+                                from org.telegram.messenger import UserConfig
+                                current_user_id = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId()
+                            except:
+                                pass
                             
                             for i in range(messages.size()):
                                 msg = messages.get(i)
-                                if hasattr(msg, 'message') and msg.message:
-                                    msg_text = str(msg.message)
-                                    if msg_text.startswith(update_tag):
-                                        lines = msg_text.split('\n')
-                                        for line in lines:
-                                            if '=' in line:
-                                                key, value = line.split('=', 1)
-                                                key = key.strip()
-                                                value = value.strip()
-                                                if key == 'version':
-                                                    uitweaks_version = value
-                                                elif key == 'version2':
-                                                    quantahut_version = value
-                                                elif key == 'sticker':
-                                                    sticker_index = int(value)
-                                                elif key == 'text':
-                                                    text_msg_id = int(value)
-                                                elif key == 'pack':
-                                                    pack = value
-                                                elif key == 'available_language':
-                                                    language_msg_id = int(value)
+                                if not (hasattr(msg, 'message') and msg.message):
+                                    continue
+                                msg_text = str(msg.message)
+                                
+                                if msg_text.startswith("update_dev"):
+                                    info = parse_update_fields(msg_text)
+                                    dev_ids = info.get('dev_ids', [])
+                                    if current_user_id and current_user_id in dev_ids:
+                                        self.log(f"Dev update found for user {current_user_id}")
+                                        update_info = info
                                         break
+                                
+                                elif msg_text.startswith(update_tag) and not update_info:
+                                    update_info = parse_update_fields(msg_text)
+                                    break
                             
-                            if language_msg_id:
-                                self.log(f"Found available_language={language_msg_id}")
+                            if update_info.get('lang_id'):
+                                self.log(f"Found available_language={update_info['lang_id']}")
                                 try:
                                     if hasattr(quantahut, 'QuantaHut') and hasattr(quantahut.QuantaHut, 'instance'):
-                                        quantahut.QuantaHut.instance._load_available_languages(language_msg_id)
+                                        quantahut.QuantaHut.instance._load_available_languages(update_info['lang_id'])
                                 except Exception as e:
                                     self.log(f"Error loading languages: {e}")
                             
-                            if uitweaks_version or quantahut_version:
-                                on_update_info_received(uitweaks_version, quantahut_version, pack, sticker_index, text_msg_id, messages)
+                            if update_info.get('version') or update_info.get('version2'):
+                                on_update_info_received(
+                                    update_info.get('version'), update_info.get('version2'),
+                                    update_info.get('pack'), update_info.get('sticker'),
+                                    update_info.get('text'), messages
+                                )
                             else:
                                 self.checking_update = False
                         except Exception as e:
@@ -2618,6 +2635,7 @@ class UiTweaksPlugin(BasePlugin):
                 title="Plugin Update Available",
                 subtitle=subtitle,
                 description=self.changelog,
+                description_entities=getattr(self, 'changelog_entities', None),
                 sticker_pack=sticker_pack,
                 sticker_index=sticker_index,
                 sticker_circle=sticker_circle,
