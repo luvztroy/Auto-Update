@@ -1542,6 +1542,7 @@ class UiTweaksPlugin(BasePlugin):
                 plugin_ref = self
                 
                 def on_sticker_long_click(view):
+                    plugin_ref._perform_haptic(view)
                     current = plugin_ref.get_setting("random_header_sticker", False)
                     plugin_ref.set_setting("random_header_sticker", not current)
                     try_load_sticker(imageView)
