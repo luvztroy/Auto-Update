@@ -94,8 +94,7 @@ class QuantaHut(BasePlugin):
         
         if show_branch_selector:
             settings.extend([
-                Selector(key="update_branch", text=get_string("update_branch", "Update Branch"), items=[get_string("branch_main", "Main"), get_string("branch_beta", "Beta")], default=DEFAULT_BRANCH, icon="msg_folders"),
-                Divider(text=get_string("update_branch_info", "Select which branch to receive updates and download localization files from. Beta may contain experimental features and newer translations.")),
+                Selector(key="language_fetch", text=get_string("language_fetch", "Check Language Files"), items=[get_string("branch_main", "Main"), get_string("branch_beta", "Beta")], default=DEFAULT_BRANCH, icon="msg_folders"),
             ])
 
             
@@ -317,7 +316,7 @@ class QuantaHut(BasePlugin):
             return False
     
     def _get_selected_branch(self):
-        branch_index = self.get_setting("update_branch", DEFAULT_BRANCH)
+        branch_index = self.get_setting("language_fetch", DEFAULT_BRANCH)
         return "main" if branch_index == 0 else "Beta"
     
     def _on_restart_toggle_changed(self, enabled):
@@ -2466,7 +2465,7 @@ class UpdateBottomSheet:
         
     def _get_selected_branch(self):
         try:
-            branch_index = setting_getter("update_branch", DEFAULT_BRANCH) if setting_getter else DEFAULT_BRANCH
+            branch_index = setting_getter("language_fetch", DEFAULT_BRANCH) if setting_getter else DEFAULT_BRANCH
             return "main" if branch_index == 0 else "Beta"
         except:
             return "main"
