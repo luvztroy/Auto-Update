@@ -1784,7 +1784,7 @@ class UiTweaksPlugin(BasePlugin):
             ])
         
         settings.extend([
-            self.Quanta_switch("enable_header_particles", get_string("enable_header_particles", "Enable Particle Effect"), default=True, icon="msg_settings_ny", link_alias="enable_header_particles"),
+            self.Quanta_switch("enable_header_particles", get_string("particles", "Particles"), default=True, icon="msg_settings_ny", link_alias="enable_header_particles"),
             Text(text=get_string("Language", "Language"), icon="msg_language", on_click=lambda v: self._open_language(), on_long_click=lambda v: self._toggle_branch_selector()),
         ])
         
