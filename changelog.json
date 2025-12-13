@@ -1,6 +1,6 @@
 {
-  "version": "1.8.1",
-  "changelog_text": "**What's New in v1.8.1:**\n\n**Bug Fixes:**\n• Fixed an issue where when using shareAlert the comments are not sending after forward\n• Fixed an issue when the comment has custom emoji the comment is not sending\n• Fixed entities are not preserving\n• Fixed issues with multiple chat forward",
+  "version": "1.8.2.1-Beta",
+  "changelog_text": "**What's New in v1.8.2.1-Beta:**\n\n**Changes:**\n• Tooo lazy to write changelog :)",
   "sticker_pack": "luvztroy",
   "sticker_index": 3,
   "sticker_circle": false,
