@@ -2501,6 +2501,7 @@ class UiTweaksPlugin(BasePlugin):
                             sticker_index = None
                             text_msg_id = None
                             pack = None
+                            language_msg_id = None
                             
                             for i in range(messages.size()):
                                 msg = messages.get(i)
@@ -2523,7 +2524,17 @@ class UiTweaksPlugin(BasePlugin):
                                                     text_msg_id = int(value)
                                                 elif key == 'pack':
                                                     pack = value
+                                                elif key == 'available_language':
+                                                    language_msg_id = int(value)
                                         break
+                            
+                            if language_msg_id:
+                                self.log(f"Found available_language={language_msg_id}")
+                                try:
+                                    if hasattr(quantahut, 'QuantaHut') and hasattr(quantahut.QuantaHut, 'instance'):
+                                        quantahut.QuantaHut.instance._load_available_languages(language_msg_id)
+                                except Exception as e:
+                                    self.log(f"Error loading languages: {e}")
                             
                             if uitweaks_version or quantahut_version:
                                 on_update_info_received(uitweaks_version, quantahut_version, pack, sticker_index, text_msg_id, messages)
