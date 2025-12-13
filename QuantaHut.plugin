@@ -2523,7 +2523,7 @@ class UpdateBottomSheet:
         except:
             pass
 
-    def create_bottom_sheet(self, title, subtitle=None, description=None, github_url=None, plugin_name=None, 
+    def create_bottom_sheet(self, title, subtitle=None, description=None, description_entities=None, github_url=None, plugin_name=None, 
                            sticker_pack=None, sticker_index=None, raw_resource=None, button_text="Download", 
                            button2_text=None, bottom_text=None, show_close_button=True, show_user_avatar=False, 
                            sticker_circle=True, sticker_size=90, description_centered=False, 
@@ -2628,12 +2628,16 @@ class UpdateBottomSheet:
         
         if description:
             from org.telegram.ui.Components.spoilers import SpoilersTextView
+            from org.telegram.messenger import MessageObject
+            
             desc_view = SpoilersTextView(self.context)
             desc_view.setGravity((Gravity.CENTER_HORIZONTAL if description_centered else Gravity.LEFT) | Gravity.TOP)
             
             try:
                 from org.telegram.messenger import AndroidUtilities as AU
                 if hasattr(description, 'toString'):
+                    if description_entities and description_entities.size() > 0:
+                        MessageObject.replaceAnimatedEmoji(description, description_entities, desc_view.getPaint().getFontMetricsInt())
                     desc_view.setText(description)
                 else:
                     desc_view.setText(AU.replaceTags(str(description).replace("\\n", "\n")))
@@ -3237,7 +3241,7 @@ hut = utilities
 available_languages = []
 
 
-def showupdatebottomsheet(title, subtitle=None, description=None, github_url=None, plugin_name=None, sticker_pack=None, sticker_index=None, raw_resource=None, button_text="Download", button2_text=None, bottom_text=None, show_close_button=True, show_user_avatar=False, sticker_circle=True, sticker_size=90, description_centered=False, on_button_click=None, on_button2_click=None, on_sticker_long_click=None):
+def showupdatebottomsheet(title, subtitle=None, description=None, description_entities=None, github_url=None, plugin_name=None, sticker_pack=None, sticker_index=None, raw_resource=None, button_text="Download", button2_text=None, bottom_text=None, show_close_button=True, show_user_avatar=False, sticker_circle=True, sticker_size=90, description_centered=False, on_button_click=None, on_button2_click=None, on_sticker_long_click=None):
     try:
         from android_utils import run_on_ui_thread
         
@@ -3254,7 +3258,7 @@ def showupdatebottomsheet(title, subtitle=None, description=None, github_url=Non
                     return
                 
                 bottom_sheet = UpdateBottomSheet(activity, activity, current_fragment, github_localization.localization_cache)
-                bottom_sheet.create_bottom_sheet(title, subtitle, description, github_url, plugin_name, sticker_pack, sticker_index, raw_resource, button_text, button2_text, bottom_text, show_close_button, show_user_avatar, sticker_circle, sticker_size, description_centered, on_button_click, on_button2_click, on_sticker_long_click)
+                bottom_sheet.create_bottom_sheet(title, subtitle, description, description_entities, github_url, plugin_name, sticker_pack, sticker_index, raw_resource, button_text, button2_text, bottom_text, show_close_button, show_user_avatar, sticker_circle, sticker_size, description_centered, on_button_click, on_button2_click, on_sticker_long_click)
                 bottom_sheet.show()
                 
             except Exception as e:
