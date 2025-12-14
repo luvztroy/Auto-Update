@@ -87,18 +87,21 @@ class QuantaHut(BasePlugin):
             Text(
                 text=get_string("plugin_engine", "Plugin Engine"),
                 icon="msg_plugins",
+                link_alias="plugin_engine",
                 create_sub_fragment=self._create_plugin_engine_settings
             ),
             
             Text(
                 text=get_string("localization", "Localization"),
                 icon="msg_language",
+                link_alias="localization",
                 create_sub_fragment=self._create_localization_settings
             ),
             
             Text(
                 text=get_string("others", "Others"),
                 icon="msg_fave",
+                link_alias="others",
                 create_sub_fragment=self._create_others_settings
             ),
         ]
@@ -106,13 +109,13 @@ class QuantaHut(BasePlugin):
     def _create_plugin_engine_settings(self):
         return [
             Header(text=get_string("plugin_engine_features", "Plugin Engine Features")),
-            Switch(key="enable_enhanced_plugin_search", text=get_string("enhanced_plugin_search", "Enhanced Plugin Search"), default=True, icon="msg_search"),
-            Switch(key="enable_plugin_filter_pills", text=get_string("plugin_filter_pills", "Plugin Filter Pills"), default=True, icon="menu_tag_filter_solar"),
-            Switch(key="enable_plugin_settings_search", text=get_string("plugin_settings_search", "Plugin Settings Search"), default=True, icon="msg_search"),
+            Switch(key="enable_enhanced_plugin_search", text=get_string("enhanced_plugin_search", "Enhanced Plugin Search"), default=True, icon="msg_search", link_alias="enhanced_plugin_search"),
+            Switch(key="enable_plugin_filter_pills", text=get_string("plugin_filter_pills", "Plugin Filter Pills"), default=True, icon="menu_tag_filter_solar", link_alias="plugin_filter_pills"),
+            Switch(key="enable_plugin_settings_search", text=get_string("plugin_settings_search", "Plugin Settings Search"), default=True, icon="msg_search", link_alias="plugin_settings_search"),
             
             Header(text=get_string("export", "Export")),
-            Text(text=get_string("export_all_settings", "Export All Plugin Settings"), icon="msg_photo_rotate_solar", on_click=self._export_all_settings),
-            Text(text=get_string("export_all_plugins", "Export All Plugins"), icon="msg_photo_rotate_solar", on_click=self._export_all_plugins),
+            Text(text=get_string("export_all_settings", "Export All Plugin Settings"), icon="msg_photo_rotate_solar", on_click=self._export_all_settings, link_alias="export_all_settings"),
+            Text(text=get_string("export_all_plugins", "Export All Plugins"), icon="msg_photo_rotate_solar", on_click=self._export_all_plugins, link_alias="export_all_plugins"),
         ]
     
     def _create_localization_settings(self):
@@ -124,12 +127,12 @@ class QuantaHut(BasePlugin):
         
         if show_branch_selector:
             settings.append(
-                Selector(key="language_fetch", text=get_string("language_fetch", "Check Language Files"), items=[get_string("branch_main", "Main"), get_string("branch_beta", "Beta")], default=DEFAULT_BRANCH, icon="msg_folders")
+                Selector(key="language_fetch", text=get_string("language_fetch", "Check Language Files"), items=[get_string("branch_main", "Main"), get_string("branch_beta", "Beta")], default=DEFAULT_BRANCH, icon="msg_folders", link_alias="language_fetch")
             )
         
         settings.extend([
             Text(text=get_string("reset_language_preference", "Reset Language Preference"), red=True, on_click=self._reset_language_preference, on_long_click=self._toggle_branch_selector, icon="msg_delete"),
-            Text(text=get_string("clear_file_cache", "Clear File Cache"), red=True, on_click=self._clear_file_cache, icon="msg_delete"),
+            Text(text=get_string("clear_file_cache", "Clear File Cache"), red=True, on_click=self._clear_file_cache, icon="msg_delete", link_alias="clear_file_cache"),
             Divider(text=self._get_cache_info_text()),
         ])
         
@@ -138,12 +141,12 @@ class QuantaHut(BasePlugin):
     def _create_others_settings(self):
         return [
             Header(text=get_string("updates", "Updates")),
-            Text(text=get_string("check_update", "Check for Plugin Updates"), accent=True, icon="msg_download_solar", on_click=lambda v: check_quanta_updates()),
+            Text(text=get_string("check_update", "Check for Plugin Updates"), accent=True, icon="msg_download_solar", on_click=lambda v: check_quanta_updates(), link_alias="check_update"),
             
             Header(text=get_string("general", "General")),
-            Switch(key="enable_header_particles", text=get_string("particles", "Particles"), default=True, icon="msg_settings_ny"),
-            Switch(key="show_logs", text=get_string("enable_debug_logging_quantahut", "Enable Debug Logging"), default=DEFAULT_SHOW_LOGS, icon="menu_intro_solar"),
-            Switch(key="show_restart_menu", text=get_string("quantahut_show_restart", "Show Restart in Drawer"), default=DEFAULT_SHOW_RESTART_MENU, icon="msg_retry", on_change=self._on_restart_toggle_changed),
+            Switch(key="enable_header_particles", text=get_string("particles", "Particles"), default=True, icon="msg_settings_ny", link_alias="enable_header_particles"),
+            Switch(key="show_logs", text=get_string("enable_debug_logging_quantahut", "Enable Debug Logging"), default=DEFAULT_SHOW_LOGS, icon="menu_intro_solar", link_alias="show_logs"),
+            Switch(key="show_restart_menu", text=get_string("quantahut_show_restart", "Show Restart in Drawer"), default=DEFAULT_SHOW_RESTART_MENU, icon="msg_retry", on_change=self._on_restart_toggle_changed, link_alias="show_restart_menu"),
         ]
 
     def on_plugin_load(self):
