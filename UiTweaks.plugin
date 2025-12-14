@@ -2695,10 +2695,12 @@ class UiTweaksPlugin(BasePlugin):
                 try:
                     from org.telegram.messenger import LocaleController
                     lang = LocaleController.getInstance().getCurrentLocaleInfo().getLangCode()
-                    if lang != "en":
-                        quantahut.github_localization.download_localization("UiTweaks", lang)
-                except:
-                    pass
+                    self.log(f"OTA: Downloading localization for lang={lang}")
+                    if lang and lang != "en":
+                        quantahut.github_localization.download_localization("UiTweaks", lang, force_refresh=True)
+                        self.log(f"OTA: Localization download completed for {lang}")
+                except Exception as e:
+                    self.log(f"OTA: Localization download failed: {e}")
                 
                 success_count = [0]
                 total_plugins = len(updated_plugins)
