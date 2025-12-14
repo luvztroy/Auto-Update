@@ -2187,19 +2187,6 @@ def check_quanta_updates():
             import time
             from base_plugin import PluginsController
             
-            quantahut_instance = QuantaHut.instance if hasattr(QuantaHut, 'instance') else None
-            
-            if quantahut_instance:
-                quantahut_instance._check_for_updates(show_on_load=True)
-                
-                timeout = 10
-                start_time = time.time()
-                while quantahut_instance.checking_update and (time.time() - start_time) < timeout:
-                    time.sleep(0.1)
-                
-                if quantahut_instance.update_available:
-                    return
-            
             controller = PluginsController.getInstance()
             engine = controller.getPluginEngine("ui_tweaks")
             
@@ -2210,6 +2197,10 @@ def check_quanta_updates():
                     time.sleep(2)
                     if not (hasattr(py_instance, 'update_available') and py_instance.update_available):
                         run_on_ui_thread(lambda: BulletinHelper.show_success(get_string("already_uptodate", "Already up to date")))
+                else:
+                    run_on_ui_thread(lambda: BulletinHelper.show_error(get_string("uitweaks_not_found", "UiTweaks not found")))
+            else:
+                run_on_ui_thread(lambda: BulletinHelper.show_error(get_string("uitweaks_not_found", "UiTweaks not found")))
                         
         except Exception as e:
             quantahut_log(f"Error in quanta_update: {e}")
