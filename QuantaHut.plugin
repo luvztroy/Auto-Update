@@ -81,36 +81,70 @@ class QuantaHut(BasePlugin):
             log(f"[QuantaHut] {message}")
     
     def create_settings(self):
+        return [
+            Header(text=get_string("category", "Category")),
+            
+            Text(
+                text=get_string("plugin_engine", "Plugin Engine"),
+                icon="msg_plugins",
+                create_sub_fragment=self._create_plugin_engine_settings
+            ),
+            
+            Text(
+                text=get_string("localization", "Localization"),
+                icon="msg_language",
+                create_sub_fragment=self._create_localization_settings
+            ),
+            
+            Text(
+                text=get_string("others", "Others"),
+                icon="msg_fave",
+                create_sub_fragment=self._create_others_settings
+            ),
+        ]
+    
+    def _create_plugin_engine_settings(self):
+        return [
+            Header(text=get_string("plugin_engine_features", "Plugin Engine Features")),
+            Switch(key="enable_enhanced_plugin_search", text=get_string("enhanced_plugin_search", "Enhanced Plugin Search"), default=True, icon="msg_search"),
+            Switch(key="enable_plugin_filter_pills", text=get_string("plugin_filter_pills", "Plugin Filter Pills"), default=True, icon="menu_tag_filter_solar"),
+            Switch(key="enable_plugin_settings_search", text=get_string("plugin_settings_search", "Plugin Settings Search"), default=True, icon="msg_search"),
+            
+            Header(text=get_string("export", "Export")),
+            Text(text=get_string("export_all_settings", "Export All Plugin Settings"), icon="msg_photo_rotate_solar", on_click=self._export_all_settings),
+            Text(text=get_string("export_all_plugins", "Export All Plugins"), icon="msg_photo_rotate_solar", on_click=self._export_all_plugins),
+        ]
+    
+    def _create_localization_settings(self):
         show_branch_selector = self.get_setting("show_branch_selector", False)
         
         settings = [
-            Header(text=get_string("quantahut_configuration", "QuantaHut Configuration")),
-            Switch(key="show_logs", text=get_string("enable_debug_logging_quantahut", "Enable Debug Logging"), default=DEFAULT_SHOW_LOGS, icon="menu_intro_solar"),
-            Switch(key="show_restart_menu", text=get_string("quantahut_show_restart", "Show Restart in Drawer"), default=DEFAULT_SHOW_RESTART_MENU, icon="msg_retry", on_change=self._on_restart_toggle_changed),
-            Header(text=get_string("updates", "Updates")),
-
-            Text(text=get_string("check_update", "Check for Plugin Updates"), accent=True, icon="msg_download_solar", on_click=lambda v: check_quanta_updates()),
+            Header(text=get_string("localization_settings", "Localization Settings")),
         ]
         
         if show_branch_selector:
-            settings.extend([
-                Selector(key="language_fetch", text=get_string("language_fetch", "Check Language Files"), items=[get_string("branch_main", "Main"), get_string("branch_beta", "Beta")], default=DEFAULT_BRANCH, icon="msg_folders"),
-            ])
-
-            
+            settings.append(
+                Selector(key="language_fetch", text=get_string("language_fetch", "Check Language Files"), items=[get_string("branch_main", "Main"), get_string("branch_beta", "Beta")], default=DEFAULT_BRANCH, icon="msg_folders")
+            )
         
         settings.extend([
-            Header(text=get_string("pluging_engine", "Plugin engine features")),
-            Text(text=get_string("export_all_settings", "Export All Plugin Settings"), icon="msg_photo_rotate_solar", on_click=self._export_all_settings),
-            Text(text=get_string("export_all_plugins", "Export All Plugins"), icon="msg_photo_rotate_solar", on_click=self._export_all_plugins),
-    
-            Header(text=get_string("cleanup", "Cleanup & Reset")),
-            Text(text=get_string("clear_file_cache", "Clear File Cache"), red=True, on_click=self._clear_file_cache, icon="msg_delete"),
             Text(text=get_string("reset_language_preference", "Reset Language Preference"), red=True, on_click=self._reset_language_preference, on_long_click=self._toggle_branch_selector, icon="msg_delete"),
+            Text(text=get_string("clear_file_cache", "Clear File Cache"), red=True, on_click=self._clear_file_cache, icon="msg_delete"),
             Divider(text=self._get_cache_info_text()),
         ])
         
         return settings
+    
+    def _create_others_settings(self):
+        return [
+            Header(text=get_string("updates", "Updates")),
+            Text(text=get_string("check_update", "Check for Plugin Updates"), accent=True, icon="msg_download_solar", on_click=lambda v: check_quanta_updates()),
+            
+            Header(text=get_string("general", "General")),
+            Switch(key="enable_header_particles", text=get_string("particles", "Particles"), default=True, icon="msg_settings_ny"),
+            Switch(key="show_logs", text=get_string("enable_debug_logging_quantahut", "Enable Debug Logging"), default=DEFAULT_SHOW_LOGS, icon="menu_intro_solar"),
+            Switch(key="show_restart_menu", text=get_string("quantahut_show_restart", "Show Restart in Drawer"), default=DEFAULT_SHOW_RESTART_MENU, icon="msg_retry", on_change=self._on_restart_toggle_changed),
+        ]
 
     def on_plugin_load(self):
         self.log("Initializing QuantaHut...")
@@ -138,8 +172,144 @@ class QuantaHut(BasePlugin):
         self._setup_deeplink_handling()
         self._setup_enhanced_plugin_search()
         self._setup_plugin_settings_search()
+        self._setup_settings_header_hook()
         
         self.log("QuantaHut initialized")
+
+    def _setup_settings_header_hook(self):
+        try:
+            from base_plugin import MethodHook
+            
+            class QuantaHutSettingsHeaderHook(MethodHook):
+                def __init__(self, quantahut):
+                    self.quantahut = quantahut
+                
+                def after_hooked_method(self, param):
+                    try:
+                        activity = param.thisObject
+                        items = param.args[0]
+                        if not items or items.size() == 0:
+                            return
+                        
+                        plugin_obj = get_private_field(activity, "plugin")
+                        if not plugin_obj or str(plugin_obj.getId()) != "quantahut":
+                            return
+                        
+                        if get_private_field(activity, "createSubFragmentCallback") is not None:
+                            return
+                        
+                        searching = get_private_field(activity, "searching")
+                        if searching:
+                            return
+                        
+                        header = self.quantahut._create_settings_header(activity.getContext())
+                        if header:
+                            from org.telegram.ui.Components import UItem
+                            from com.exteragram.messenger.plugins.models import HeaderSetting
+                            item = UItem.asCustom(header)
+                            item.settingItem = HeaderSetting("quantahut_header")
+                            try: item.setTransparent(True)
+                            except: pass
+                            items.add(0, item)
+                            items.add(1, UItem.asShadow())
+                    except:
+                        pass
+            
+            PSA = find_class("com.exteragram.messenger.plugins.ui.PluginSettingsActivity")
+            if PSA:
+                method = PSA.getClass().getDeclaredMethod("fillItems", find_class("java.util.ArrayList"), find_class("org.telegram.ui.Components.UniversalAdapter"))
+                method.setAccessible(True)
+                self.hook_refs.append(self.hook_method(method, QuantaHutSettingsHeaderHook(self)))
+        except Exception as e:
+            self.log(f"Failed to setup settings header hook: {e}")
+
+    def _create_settings_header(self, context):
+        try:
+            from android.widget import FrameLayout, TextView
+            from android.view import Gravity
+            from android.util import TypedValue
+            from org.telegram.messenger import AndroidUtilities, MediaDataController, ImageLocation
+            from org.telegram.ui.ActionBar import Theme
+            from org.telegram.ui.Components import LayoutHelper, BackupImageView
+            
+            container = FrameLayout(context)
+            
+            if self.get_setting("enable_header_particles", True):
+                try:
+                    from org.telegram.ui.Components.Premium import StarParticlesView
+
+                    particlesView = StarParticlesView(context)
+                    particlesView.setClipWithGradient()
+                    particlesView.drawable.colorKey = Theme.key_premiumStarGradient2
+                    particlesView.drawable.isCircle = True
+                    particlesView.drawable.centerOffsetY = AndroidUtilities.dp(0)
+                    particlesView.drawable.minLifeTime = 2000
+                    particlesView.drawable.randLifeTime = 3000
+                    particlesView.drawable.useRotate = False
+                    particlesView.drawable.updateColors()
+                    container.addView(particlesView, LayoutHelper.createFrame(-1, 220, Gravity.CENTER_HORIZONTAL | Gravity.TOP, 0, 0, 0, 0))
+
+                    run_on_ui_thread(lambda: particlesView.flingParticles(360), 200)
+                except: pass
+            
+            imageView = BackupImageView(context)
+            imageView.setRoundRadius(AndroidUtilities.dp(54))
+            imageView.setClickable(True)
+            
+            def try_load_sticker(img):
+                pack_name = "luvztroyIcons"
+                sticker_index = 14
+                
+                ss = MediaDataController.getInstance(0).getStickerSetByName(pack_name) or MediaDataController.getInstance(0).getStickerSetByEmojiOrName(pack_name)
+                if ss and ss.documents and ss.documents.size() > 0:
+                    sticker_index = min(sticker_index, ss.documents.size() - 1)
+                    img.setImage(ImageLocation.getForDocument(ss.documents.get(sticker_index)), "108_108", None, None, 0, 1)
+                    return True
+                return False
+            
+            if not try_load_sticker(imageView):
+                MediaDataController.getInstance(0).loadStickersByEmojiOrName("luvztroyIcons", False, False)
+                run_on_ui_thread(lambda: try_load_sticker(imageView), 1500)
+            
+            container.addView(imageView, LayoutHelper.createFrame(108, 108, Gravity.CENTER | Gravity.TOP, 0, 20, 0, 0))
+            
+            title = TextView(context)
+            title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText))
+            title.setTypeface(AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM))
+            title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 22)
+            title.setText(f"QuantaHut {__version__}")
+            title.setSingleLine(True)
+            title.setGravity(Gravity.CENTER)
+            container.addView(title, LayoutHelper.createFrame(-2, -2, Gravity.CENTER | Gravity.TOP, 50, 145, 50, 0))
+            
+            subtitle = TextView(context)
+            subtitle.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText))
+            subtitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14)
+            subtitle.setText("Library for Quanta plugins")
+            subtitle.setGravity(Gravity.CENTER)
+            container.addView(subtitle, LayoutHelper.createFrame(-2, -2, Gravity.CENTER | Gravity.TOP, 60, 180, 60, 27))
+            
+            try:
+                from android_utils import OnClickListener
+                from java import dynamic_proxy
+                from android.view import View, MotionEvent
+                
+                class BounceTouchListener(dynamic_proxy(View.OnTouchListener)):
+                    def onTouch(self, v, event):
+                        action = event.getAction()
+                        if action == MotionEvent.ACTION_DOWN:
+                            v.animate().scaleX(0.9).scaleY(0.9).setDuration(100).start()
+                        elif action == MotionEvent.ACTION_UP or action == MotionEvent.ACTION_CANCEL:
+                            v.animate().scaleX(1.0).scaleY(1.0).setDuration(100).start()
+                        return False
+                
+                imageView.setOnTouchListener(BounceTouchListener())
+            except: pass
+            
+            return container
+        except Exception as e:
+            self.log(f"Failed to create settings header: {e}")
+            return None
 
 
     def _setup_deeplink_handling(self):
@@ -160,6 +330,8 @@ class QuantaHut(BasePlugin):
             self.log(f"Error setting up deeplink handling: {e}")
 
     def _setup_enhanced_plugin_search(self):
+        if not self.get_setting("enable_enhanced_plugin_search", True):
+            return
         try:
             from base_plugin import MethodHook
             from com.exteragram.messenger.plugins import PluginsController
@@ -260,7 +432,7 @@ class QuantaHut(BasePlugin):
                             for item in filtered_items:
                                 items.add(item)
                         
-                        if self.quantahut.pills_container and items.size() > 0:
+                        if self.quantahut.pills_container and items.size() > 0 and self.quantahut.get_setting("enable_plugin_filter_pills", True):
                             from org.telegram.ui.Components import UItem
                             try:
                                 quantahut_log(f"Creating pills item, items.size()={items.size()}")
@@ -282,8 +454,9 @@ class QuantaHut(BasePlugin):
                         context = param.args[0]
                         self.quantahut.stored_context = context
                         self.quantahut.stored_activity = activity
-                        self.quantahut._add_filter_pills(activity)
-                        run_on_ui_thread(lambda: self.quantahut._refresh_plugins_list(activity))
+                        if self.quantahut.get_setting("enable_plugin_filter_pills", True):
+                            self.quantahut._add_filter_pills(activity)
+                            run_on_ui_thread(lambda: self.quantahut._refresh_plugins_list(activity))
                     except:
                         pass
             
@@ -1550,6 +1723,8 @@ class QuantaHut(BasePlugin):
         run_on_queue(do_import)
 
     def _setup_plugin_settings_search(self):
+        if not self.get_setting("enable_plugin_settings_search", True):
+            return
         try:
             PluginSettingsActivity = find_class("com.exteragram.messenger.plugins.ui.PluginSettingsActivity")
             if not PluginSettingsActivity:
