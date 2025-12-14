@@ -878,7 +878,6 @@ class UiTweaksPlugin(BasePlugin):
         
         self._goto_items_added = set()
         
-
         self.hooked_activities = set()
         self.hook_chat_activity_cleanup_ref = None
         self.memory_check_running = False
@@ -3461,8 +3460,6 @@ class UiTweaksPlugin(BasePlugin):
             self._remove_no_quote_forward_menu_item()
 
     def _on_no_quote_forward_click(self, chat_activity, message):
-        self.current_mode = "no_quote"
-        
         if not chat_activity:
             return
             
@@ -3610,6 +3607,107 @@ class UiTweaksPlugin(BasePlugin):
 
         self.current_mode = "forward"
         log("[UiTweaks]current_mode reset to 'forward'")
+
+    def _open_no_quote_forward(self, ca):
+        self._open_custom_forward(ca, False)
+
+    def _open_hide_caption_forward(self, ca):
+        self._open_custom_forward(ca, True)
+
+    def _open_custom_forward(self, ca, hide_cap):
+        try:
+            msgs = self._collect_selected_messages(ca)
+            if not msgs or msgs.size() == 0:
+                return
+            
+            if hasattr(ca, 'getCurrentChat') and ca.getCurrentChat():
+                if ca.getMessagesController().isChatNoForwards(ca.getCurrentChat()):
+                    return
+            
+            from android.os import Bundle
+            args = Bundle()
+            args.putBoolean("onlySelect", True)
+            args.putBoolean("canSelectTopics", True)
+            args.putInt("dialogsType", 3)
+            
+            frag = DialogsActivity(args)
+            
+            from java import dynamic_proxy
+            
+            class FwdDelegate(dynamic_proxy(DialogsActivity.DialogsActivityDelegate)):
+                def __init__(s, m, c, p, hc):
+                    super().__init__()
+                    s.m = m
+                    s.c = c
+                    s.p = weakref.ref(p)
+                    s.hc = hc
+                
+                def didSelectDialogs(s, f, dids, txt, param, notify, sched, topics):
+                    pl = s.p()
+                    if pl is None:
+                        return True
+                    
+                    if dids.size() > 1 or dids.get(0).dialogId == s.c.getUserConfig().getClientUserId() or txt:
+                        for i in range(dids.size()):
+                            d = dids.get(i)
+                            tid = d.topicId if hasattr(d, 'topicId') and d.topicId else 0
+                            sh = s.c.getSendMessagesHelper()
+                            if sh:
+                                sh.sendMessage(s.m, d.dialogId, True, False, True, tid, 0)
+                        
+                        f.finishFragment()
+                        
+                        if dids.size() > 1:
+                            from org.telegram.messenger import LocaleController, AndroidUtilities
+                            cnt = s.m.size() if s.m else 1
+                            key = "FwdMessageToManyChats" if cnt <= 1 else "FwdMessagesToManyChats"
+                            txt = AndroidUtilities.replaceTags(LocaleController.formatPluralString(key, dids.size()))
+                            from ui.bulletin import BulletinHelper
+                            from org.telegram.messenger import R as R_tg
+                            BulletinHelper.show_simple(txt, R_tg.raw.forward, s.c)
+                    else:
+                        did = dids.get(0).dialogId
+                        a1 = Bundle()
+                        a1.putBoolean("scrollToTopOnResume", True)
+                        
+                        if DialogObject.isEncryptedDialog(did):
+                            a1.putInt("enc_id", DialogObject.getEncryptedChatId(did))
+                        elif DialogObject.isUserDialog(did):
+                            a1.putLong("user_id", did)
+                        else:
+                            a1.putLong("chat_id", -did)
+                        
+                        if not s.c.getMessagesController().checkCanOpenChat(a1, f):
+                            return True
+                        
+                        s.c.getNotificationCenter().postNotificationName(NotificationCenter.closeChats)
+                        
+                        nca = ChatActivity(a1)
+                        
+                        FU = pl._get_class("org.telegram.ui.Components.Forum.ForumUtilities")
+                        if FU:
+                            FU.applyTopic(nca, dids.get(0))
+                        
+                        f.presentFragment(nca, True)
+                        nca.showFieldPanelForForward(True, s.m)
+                        pr = get_private_field(nca, "messagePreviewParams")
+                        if pr:
+                            try:
+                                set_private_field(pr, "hideForwardSendersName", True)
+                                if s.hc:
+                                    set_private_field(pr, "hideCaption", True)
+                            except:
+                                pass
+                    
+                    return True
+                
+                def canSelectStories(s):
+                    return False
+            
+            frag.setDelegate(FwdDelegate(msgs, ca, self, hide_cap))
+            ca.presentFragment(frag)
+        except Exception:
+            pass
 
     def _collect_selected_messages(self, chat_activity):
         try:
@@ -3831,7 +3929,21 @@ class UiTweaksPlugin(BasePlugin):
                         
                         def wrapped_click(view):
                             try:
-                                use_old_share_sheet = hook_self.plugin.get_setting("enable_old_forward", False)
+                                plugin = hook_self.plugin
+                                use_old_share_sheet = plugin.get_setting("enable_old_forward", False)
+                                
+                                if plugin.current_mode == "no_quote":
+                                    from client_utils import get_last_fragment
+                                    chat_activity = get_last_fragment()
+                                    if chat_activity:
+                                        plugin._open_no_quote_forward(chat_activity)
+                                    return
+                                elif plugin.current_mode == "hide_caption":
+                                    from client_utils import get_last_fragment
+                                    chat_activity = get_last_fragment()
+                                    if chat_activity:
+                                        plugin._open_hide_caption_forward(chat_activity)
+                                    return
                                 
                                 if use_old_share_sheet:
                                     open_old_share_sheet()
@@ -3864,7 +3976,50 @@ class UiTweaksPlugin(BasePlugin):
             forward_button.setOnLongClickListener(OnLongClickListener(on_forward_long_click))
             self._update_forward_button_text(layout)
             
+            self._hook_open_forward()
+            
         except Exception as e:
+            pass
+    
+    def _hook_open_forward(self):
+        try:
+            if self.hook_open_forward_ref:
+                return
+            
+            ChatActivityClass = self._get_class("org.telegram.ui.ChatActivity")
+            if not ChatActivityClass:
+                return
+            
+            from java.lang import Boolean
+            openForwardMethod = ChatActivityClass.getClass().getDeclaredMethod("openForward", Boolean.TYPE)
+            openForwardMethod.setAccessible(True)
+            
+            plugin_ref = self
+            
+            class OpenForwardHook(WeakPluginHook):
+                def __init__(hook_self):
+                    super().__init__(plugin_ref)
+                
+                def before_hooked_method(hook_self, param):
+                    try:
+                        plugin = hook_self.plugin
+                        if plugin is None:
+                            return
+                        
+                        if plugin._forward_from_button:
+                            if plugin.current_mode in ("no_quote", "hide_caption"):
+                                plugin._active_forward_mode = plugin.current_mode
+                            else:
+                                plugin._active_forward_mode = None
+                        else:
+                            plugin._active_forward_mode = None
+                        
+                        plugin._forward_from_button = False
+                    except Exception:
+                        pass
+            
+            self.hook_open_forward_ref = self.hook_method(openForwardMethod, OpenForwardHook())
+        except Exception:
             pass
     
     def _hook_add_to_selected_messages(self, layout):
@@ -6242,16 +6397,6 @@ class UiTweaksPlugin(BasePlugin):
             pass
     
     def pre_request_hook(self, request_name: str, account: int, request):
-        if request_name == "TL_messages_forwardMessages" and self.current_mode == "no_quote" and hasattr(request, 'drop_author'):
-            request.drop_author = True
-            self.current_mode = "forward"
-            return HookResult(strategy=HookStrategy.MODIFY, request=request)
-        
-        if request_name == "TL_messages_forwardMessages" and self.current_mode == "hide_caption" and hasattr(request, 'drop_media_captions'):
-            request.drop_media_captions = True
-            request.drop_author = True
-            self.current_mode = "forward"
-            return HookResult(strategy=HookStrategy.MODIFY, request=request)
         
         if request_name == "TL_messages_forwardMessages" and self.get_setting("send_comments_after_forward", False):
             if not hasattr(request, "to_peer") or request.to_peer is None:
