@@ -85,7 +85,7 @@ class QuantaHut(BasePlugin):
             Header(text=get_string("uitweaks_settings", "Categories")),
             
             Text(
-                text=get_string("plugin_engine", "Plugin Engine"),
+                text=get_string("plugins_engine", "Plugin Engine"),
                 icon="msg_plugins",
                 link_alias="plugin_engine",
                 create_sub_fragment=self._create_plugin_engine_settings
@@ -108,7 +108,7 @@ class QuantaHut(BasePlugin):
     
     def _create_plugin_engine_settings(self):
         return [
-            Header(text=get_string("plugin_engine_features", "Plugin Engine Features")),
+            Header(text=get_string("plugin_engine", "Plugin Engine Features")),
             Switch(key="enable_enhanced_plugin_search", text=get_string("enhanced_plugin_search", "Enhanced Plugin Search"), default=True, icon="msg_search", link_alias="enhanced_plugin_search"),
             Switch(key="enable_plugin_filter_pills", text=get_string("plugin_filter_pills", "Plugin Filter Pills"), default=True, icon="menu_tag_filter_solar", link_alias="plugin_filter_pills"),
             Switch(key="enable_plugin_settings_search", text=get_string("plugin_settings_search", "Plugin Settings Search"), default=True, icon="msg_search", link_alias="plugin_settings_search"),
