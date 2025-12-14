@@ -12495,7 +12495,7 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
             try:
                 document_id = int(input_text)
                 
-                if not UserConfig.getInstance(0).isPremium():
+                if not UserConfig.getInstance(UserConfig.selectedAccount).isPremium():
                     BulletinHelper.show_simple(get_string("premium_required", "Premium required"), R_tg.raw.star_premium_2, fragment)
                     return
                 
