@@ -82,7 +82,7 @@ class QuantaHut(BasePlugin):
     
     def create_settings(self):
         return [
-            Header(text=get_string("category", "Category")),
+            Header(text=get_string("uitweaks_settings", "Categories")),
             
             Text(
                 text=get_string("plugin_engine", "Plugin Engine"),
