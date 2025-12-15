@@ -1764,17 +1764,17 @@ class UiTweaksPlugin(BasePlugin):
         
         settings.extend([
             Header(text=get_string("support", "Support Development")),
-            Text(text=get_string("boosty", "Boosty"), icon="boosty_icon", on_click=lambda v: self._open_boosty()),
-            Text(text=get_string("ton_keeper", "Ton Keeper"), icon="ton_icon", on_click=lambda v: self._copy_ton_address()),
-            Text(text=get_string("know_more", "Know more"), icon="msg_info", accent=True, on_click=lambda v: self._show_donation_info()),
+            Text(text=get_string("boosty", "Boosty"), icon="boosty_icon", on_click=lambda v: self._open_boosty(), link_alias="boosty"),
+            Text(text=get_string("ton_keeper", "Ton Keeper"), icon="ton_icon", on_click=lambda v: self._copy_ton_address(), link_alias="ton_keeper"),
+            Text(text=get_string("know_more", "Know more"), icon="msg_info", accent=True, on_click=lambda v: self._show_donation_info, on_long_click=lambda v: self._toggle_branch_selector()),
             Divider(text=get_string("another_services", "If the provided services are not available in your country, you can contact me via [direct message](https://t.me/luvztroy)")),
 
             
 
 
-            Text(text=get_string("export_settings", "Export Settings"), icon="msg_photo_rotate_solar", on_click=lambda v: self._export_settings()),
+            Text(text=get_string("export_settings", "Export Settings"), icon="msg_photo_rotate_solar", on_click=lambda v: self._export_settings(), link_alias="export_settings"),
             
-            Text(text=get_string("reset_shared_preferences", "Reset Shared Preferences"), icon="msg_delete", red=True, on_click=lambda v: self._reset_all_preferences()),
+            Text(text=get_string("reset_shared_preferences", "Reset Shared Preferences"), icon="msg_delete", red=True, on_click=lambda v: self._reset_all_preferences, link_alias="reset_shared_preferences"),
             Divider(text=get_string("reset_preferences_description", "Reset all application settings including themes, language, notifications, and user configurations. This action cannot be undone.")),
         ])
         
@@ -1787,7 +1787,7 @@ class UiTweaksPlugin(BasePlugin):
         
         settings.extend([
             self.Quanta_switch("enable_header_particles", get_string("particles", "Particles"), default=True, icon="msg_settings_ny", link_alias="enable_header_particles"),
-            Text(text=get_string("Language", "Language"), icon="msg_language", on_click=lambda v: self._open_language(), on_long_click=lambda v: self._toggle_branch_selector()),
+            Text(text=get_string("Language", "Language"), icon="msg_language", on_click=lambda v: self._open_language(), link_alias="language"),
         ])
         
         
