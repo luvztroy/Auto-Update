@@ -2696,7 +2696,8 @@ class UpdateBottomSheet:
                            sticker_pack=None, sticker_index=None, raw_resource=None, button_text="Download", 
                            button2_text=None, bottom_text=None, show_close_button=True, show_user_avatar=False, 
                            sticker_circle=True, sticker_size=90, description_centered=False, 
-                           on_button_click=None, on_button2_click=None, on_sticker_long_click=None):
+                           on_button_click=None, on_button2_click=None, on_sticker_long_click=None,
+                           title_subtitle_gap=15):
         from org.telegram.ui.ActionBar import BottomSheet, Theme
         from org.telegram.ui.Components import LayoutHelper, BackupImageView
         from org.telegram.messenger import AndroidUtilities
@@ -2708,13 +2709,18 @@ class UpdateBottomSheet:
         try:
             from org.telegram.messenger import LocaleController
             self.current_language = LocaleController.getInstance().getCurrentLocaleInfo().getLangCode()
-        except:
-            pass
+        except: pass
         
         self.bottom_sheet = BottomSheet(self.context, False, self.fragment.getResourceProvider())
         self.bottom_sheet.setApplyBottomPadding(False)
         self.bottom_sheet.setApplyTopPadding(False)
         self.bottom_sheet.fixNavigationBar(Theme.getColor(Theme.key_windowBackgroundWhite))
+        self.bottom_sheet.setCanDismissWithSwipe(False)
+        
+        OnClick = dynamic_proxy(find_class("android.view.View$OnClickListener"))
+        btn_height = (48 * (2 if button2_text and on_button2_click else 1)) + 28
+        
+        main_container = FrameLayout(self.context)
         
         linear_layout = LinearLayout(self.context)
         linear_layout.setOrientation(LinearLayout.VERTICAL)
@@ -2725,9 +2731,12 @@ class UpdateBottomSheet:
         
         scroll_view = NestedScrollView(self.context)
         scroll_view.addView(frame_layout)
-        self.bottom_sheet.setCustomView(scroll_view)
+        scroll_view.setClipToPadding(False)
+        scroll_view.setPadding(0, 0, 0, AndroidUtilities.dp(btn_height))
+        scroll_view.setFillViewport(False)
         
-        OnClick = dynamic_proxy(find_class("android.view.View$OnClickListener"))
+        max_scroll_h = int((AndroidUtilities.displaySize.y * 0.9 - AndroidUtilities.dp(btn_height)) / AndroidUtilities.density)
+        main_container.addView(scroll_view, LayoutHelper.createFrame(-1, max_scroll_h, Gravity.TOP))
         
         if show_close_button:
             close_view = ImageView(self.context)
@@ -2776,11 +2785,10 @@ class UpdateBottomSheet:
                 linear_layout.addView(lottie, LayoutHelper.createLinear(144, 144, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 16, 0, 0))
             elif sticker_pack:
                 self._load_sticker_avatar(avatar_view, sticker_pack, sticker_index or 0)
-        except:
-            pass
+        except: pass
         
         title_view = TextView(self.context)
-        title_view.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"))
+        title_view.setTypeface(AndroidUtilities.bold())
         title_view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20)
         title_view.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText))
         title_view.setText(title)
@@ -2793,15 +2801,13 @@ class UpdateBottomSheet:
             sub_view.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText))
             sub_view.setText(subtitle)
             sub_view.setGravity(Gravity.CENTER_HORIZONTAL)
-            linear_layout.addView(sub_view, LayoutHelper.createLinear(-1, -2, 0, 21, 15, 21, 8))
+            linear_layout.addView(sub_view, LayoutHelper.createLinear(-1, -2, 0, 21, title_subtitle_gap, 21, 8))
         
         if description:
             from org.telegram.ui.Components.spoilers import SpoilersTextView
             from org.telegram.messenger import MessageObject
-            
             desc_view = SpoilersTextView(self.context)
             desc_view.setGravity((Gravity.CENTER_HORIZONTAL if description_centered else Gravity.LEFT) | Gravity.TOP)
-            
             try:
                 from org.telegram.messenger import AndroidUtilities as AU
                 if hasattr(description, 'toString'):
@@ -2812,15 +2818,18 @@ class UpdateBottomSheet:
                     desc_view.setText(AU.replaceTags(str(description).replace("\\n", "\n")))
             except:
                 desc_view.setText(str(description))
-            
             desc_view.setTextColor(Theme.getColor(Theme.key_dialogTextBlack))
             desc_view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15)
-            try:
-                desc_view.setMovementMethod(AU.LinkMovementMethodMy())
-            except:
-                pass
+            try: desc_view.setMovementMethod(AU.LinkMovementMethodMy())
+            except: pass
             desc_view.setLinkTextColor(Theme.getColor(Theme.key_dialogTextLink))
             linear_layout.addView(desc_view, LayoutHelper.createLinear(-1, -2, Gravity.LEFT | Gravity.TOP, 23, 15, 23, 20))
+        
+        button_container = LinearLayout(self.context)
+        button_container.setOrientation(LinearLayout.VERTICAL)
+        button_container.setClickable(True)
+        button_container.setBackgroundColor(Theme.getColor(Theme.key_dialogBackground))
+        button_container.setPadding(AndroidUtilities.dp(14), AndroidUtilities.dp(14), AndroidUtilities.dp(14), AndroidUtilities.dp(14))
         
         self.download_button = TextView(self.context)
         self.download_button.setBackground(Theme.createSimpleSelectorRoundRectDrawable(
@@ -2831,13 +2840,11 @@ class UpdateBottomSheet:
         
         lang_display = self.current_language.upper()
         try:
-            langs = self.available_languages if isinstance(self.available_languages, list) else []
-            for lang in langs:
+            for lang in (self.available_languages if isinstance(self.available_languages, list) else []):
                 if isinstance(lang, dict) and lang.get('code') == self.current_language:
                     lang_display = lang.get('display_name', lang_display)
                     break
-        except:
-            pass
+        except: pass
         
         self.download_button.setText(f"{button_text} {lang_display}" if github_url else button_text)
         self.download_button.setTextColor(Theme.getColor(Theme.key_featuredStickers_buttonText))
@@ -2853,7 +2860,7 @@ class UpdateBottomSheet:
                 else:
                     sheet._on_download_click(url, name)
         self.download_button.setOnClickListener(DownloadClick())
-        linear_layout.addView(self.download_button, LayoutHelper.createLinear(-1, 48, Gravity.START, 14, 0, 14, 14))
+        button_container.addView(self.download_button, LayoutHelper.createLinear(-1, 48, Gravity.CENTER_HORIZONTAL, 0, 0, 0, 0))
         
         if button2_text and on_button2_click:
             from org.telegram.ui.Stories.recorder import ButtonWithCounterView
@@ -2864,7 +2871,9 @@ class UpdateBottomSheet:
                     on_button2_click()
                     if sheet.bottom_sheet: sheet.bottom_sheet.dismiss()
             btn2.setOnClickListener(Btn2Click())
-            linear_layout.addView(btn2, LayoutHelper.createLinear(-1, 48, Gravity.START, 14, 0, 14, 14))
+            button_container.addView(btn2, LayoutHelper.createLinear(-1, 48, Gravity.CENTER_HORIZONTAL, 0, 10, 0, 0))
+        
+        main_container.addView(button_container, LayoutHelper.createFrame(-1, -2, Gravity.BOTTOM))
         
         if bottom_text:
             bottom_view = TextView(self.context)
@@ -2872,7 +2881,12 @@ class UpdateBottomSheet:
             bottom_view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14)
             bottom_view.setText(bottom_text)
             bottom_view.setTextColor(Theme.getColor(Theme.key_dialogTextGray3))
-            linear_layout.addView(bottom_view, LayoutHelper.createLinear(-1, -2, Gravity.TOP, 24, 17, 24, 15))
+            bottom_view.setBackgroundColor(Theme.getColor(Theme.key_dialogBackground))
+            bottom_view.setPadding(AndroidUtilities.dp(24), AndroidUtilities.dp(8), AndroidUtilities.dp(24), 0)
+            main_container.addView(bottom_view, 1, LayoutHelper.createFrame(-1, -2, Gravity.BOTTOM, 0, 0, 0, btn_height))
+        
+        self.bottom_sheet.setCustomView(main_container)
+        self.bottom_sheet.nestedScrollChild = scroll_view
         
         self.status_text_view = TextView(self.context)
         self.status_text_view.setGravity(Gravity.CENTER)
@@ -3410,7 +3424,7 @@ hut = utilities
 available_languages = []
 
 
-def showupdatebottomsheet(title, subtitle=None, description=None, description_entities=None, github_url=None, plugin_name=None, sticker_pack=None, sticker_index=None, raw_resource=None, button_text="Download", button2_text=None, bottom_text=None, show_close_button=True, show_user_avatar=False, sticker_circle=True, sticker_size=90, description_centered=False, on_button_click=None, on_button2_click=None, on_sticker_long_click=None):
+def showupdatebottomsheet(title, subtitle=None, description=None, description_entities=None, github_url=None, plugin_name=None, sticker_pack=None, sticker_index=None, raw_resource=None, button_text="Download", button2_text=None, bottom_text=None, show_close_button=True, show_user_avatar=False, sticker_circle=True, sticker_size=90, description_centered=False, on_button_click=None, on_button2_click=None, on_sticker_long_click=None, title_subtitle_gap=15):
     try:
         from android_utils import run_on_ui_thread
         
@@ -3427,7 +3441,7 @@ def showupdatebottomsheet(title, subtitle=None, description=None, description_en
                     return
                 
                 bottom_sheet = UpdateBottomSheet(activity, activity, current_fragment, github_localization.localization_cache)
-                bottom_sheet.create_bottom_sheet(title, subtitle, description, description_entities, github_url, plugin_name, sticker_pack, sticker_index, raw_resource, button_text, button2_text, bottom_text, show_close_button, show_user_avatar, sticker_circle, sticker_size, description_centered, on_button_click, on_button2_click, on_sticker_long_click)
+                bottom_sheet.create_bottom_sheet(title, subtitle, description, description_entities, github_url, plugin_name, sticker_pack, sticker_index, raw_resource, button_text, button2_text, bottom_text, show_close_button, show_user_avatar, sticker_circle, sticker_size, description_centered, on_button_click, on_button2_click, on_sticker_long_click, title_subtitle_gap)
                 bottom_sheet.show()
                 
             except Exception as e:
