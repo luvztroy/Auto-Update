@@ -2735,8 +2735,21 @@ class UpdateBottomSheet:
         scroll_view.setPadding(0, 0, 0, AndroidUtilities.dp(btn_height))
         scroll_view.setFillViewport(False)
         
-        max_scroll_h = int((AndroidUtilities.displaySize.y * 0.9 - AndroidUtilities.dp(btn_height)) / AndroidUtilities.density)
-        main_container.addView(scroll_view, LayoutHelper.createFrame(-1, max_scroll_h, Gravity.TOP))
+        max_scroll_px = int(AndroidUtilities.displaySize.y * 0.9 - AndroidUtilities.dp(btn_height))
+        sv = scroll_view
+        OnGlobalLayoutListener = dynamic_proxy(find_class("android.view.ViewTreeObserver$OnGlobalLayoutListener"))
+        class MaxHeightEnforcer(OnGlobalLayoutListener):
+            def onGlobalLayout(self):
+                try:
+                    if sv.getHeight() > max_scroll_px:
+                        lp = sv.getLayoutParams()
+                        lp.height = max_scroll_px
+                        sv.setLayoutParams(lp)
+                    sv.getViewTreeObserver().removeOnGlobalLayoutListener(self)
+                except: pass
+        scroll_view.getViewTreeObserver().addOnGlobalLayoutListener(MaxHeightEnforcer())
+        
+        main_container.addView(scroll_view, LayoutHelper.createFrame(-1, -2, Gravity.TOP))
         
         if show_close_button:
             close_view = ImageView(self.context)
