@@ -2634,7 +2634,7 @@ class UiTweaksPlugin(BasePlugin):
                 subtitle = f"QuantaHut {self.quantahut_latest_version}"
             
             showupdatebottomsheet(
-                title="Plugin Update Available",
+                title="Update Available",
                 subtitle=subtitle,
                 description=self.changelog,
                 description_entities=getattr(self, 'changelog_entities', None),
@@ -2644,7 +2644,8 @@ class UiTweaksPlugin(BasePlugin):
                 sticker_size=sticker_size,
                 button_text="Update Now",
                 show_close_button=False,
-                on_button_click=self._download_and_install_update
+                on_button_click=self._download_and_install_update,
+                title_subtitle_gap=5
             )
         except Exception as e:
             self.log(f"Error showing update sheet: {e}")
