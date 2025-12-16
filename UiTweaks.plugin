@@ -13189,3 +13189,5 @@ class HideViaBotHook(WeakPluginHook, MethodHook):
         except Exception:
             pass
 
+
+

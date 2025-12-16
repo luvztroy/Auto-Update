@@ -3694,3 +3694,4 @@ class _PluginSettingsSearchFillItemsHook:
 
         except Exception as e:
             pass
+
