@@ -3790,7 +3790,6 @@ class _SafeModeHook(MethodHook):
             
             if key_code == KeyEvent.KEYCODE_VOLUME_DOWN:
                 current_time = System.currentTimeMillis()
-                self.plugin.log(f"Volume down detected! Action: {action}, Count: {self.plugin.safe_mode_volume_down_count}")
                 
                 if action == KeyEvent.ACTION_DOWN:
                     self.plugin.safe_mode_volume_down_press_time = current_time
@@ -3809,15 +3808,13 @@ class _SafeModeHook(MethodHook):
                     elif (current_time - self.plugin.safe_mode_last_volume_down_time) <= self.plugin.safe_mode_multi_tap_window:
                         self.plugin.safe_mode_volume_down_count += 1
                         self.plugin.safe_mode_last_volume_down_time = current_time
-                        self.plugin.log(f"Volume down count: {self.plugin.safe_mode_volume_down_count}/{self.plugin.safe_mode_required_taps}")
                         if self.plugin.safe_mode_volume_down_count >= self.plugin.safe_mode_required_taps:
                             self.plugin.safe_mode_volume_down_count = 0
-                            self.plugin.log("Safe Mode triggered! Enabling safe mode...")
                             self.plugin._on_safe_mode_detected()
                             param.setResult(True)
                             return
                         
                         param.setResult(True)
-        except Exception as e:
-            self.plugin.log(f"Error in SafeModeHook: {e}")
+        except Exception:
+            pass
 
