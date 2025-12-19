@@ -864,15 +864,6 @@ class UiTweaksPlugin(BasePlugin):
         self.contact_status_bind_view_holder_hook = None
         self.contact_status_activity_state = {}
         
-        self.safe_mode_hook_ref = None
-        self.safe_mode_last_volume_down_time = 0
-        self.safe_mode_volume_down_count = 0
-        self.safe_mode_multi_tap_window = 2000
-        self.safe_mode_required_taps = 5
-        self.safe_mode_cooldown = 5000
-        self.safe_mode_volume_down_press_time = 0
-        self.safe_mode_is_holding = False
-        
         self.no_quote_forward_menu_handle = None
         self.repeat_menu_handle = None
         
@@ -3131,9 +3122,6 @@ class UiTweaksPlugin(BasePlugin):
             if self.get_setting("enable_unify_username_behavior", False):
                 self._hook_unify_username_behavior()
             
-            if self.get_setting("enable_safe_mode", False):
-                self._hook_safe_mode()
-            
             if self.get_setting("hidefolders_enabled", False):
                 self._hook_folder_visibility()
             
@@ -4626,60 +4614,6 @@ class UiTweaksPlugin(BasePlugin):
             
             dialog.dismiss()
             
-        except Exception:
-            pass
-    
-    def _hook_safe_mode(self):
-        try:
-            LaunchActivityClass = self._get_class("org.telegram.ui.LaunchActivity")
-            if not LaunchActivityClass:
-                return
-            
-            methods = LaunchActivityClass.getClass().getDeclaredMethods()
-            dispatch_method = None
-            for method in methods:
-                if method.getName() == "dispatchKeyEvent":
-                    dispatch_method = method
-                    break
-            
-            if not dispatch_method:
-                return
-            
-            dispatch_method.setAccessible(True)
-            self.safe_mode_hook_ref = self.hook_method(dispatch_method, SafeModeHook(self))
-        except Exception:
-            pass
-    
-    def _on_safe_mode_detected(self):
-        try:
-            run_on_ui_thread(self._enable_safe_mode)
-        except Exception:
-            pass
-    
-    def _enable_safe_mode(self):
-        try:
-            from com.exteragram.messenger import ExteraConfig
-            from com.exteragram.messenger.plugins import PluginsController
-            from android.content import Context
-            from org.telegram.messenger import ApplicationLoader
-            
-            ExteraConfig.pluginsSafeMode = True
-            editor = ExteraConfig.editor
-            editor.putBoolean("pluginsSafeMode", True).apply()
-            
-            context = ApplicationLoader.applicationContext
-            plugin_prefs = context.getSharedPreferences("plugin_settings", Context.MODE_PRIVATE)
-            plugin_prefs.edit().putBoolean("had_crash", True).putString("crashed_plugin_id", "manual!").apply()
-            
-            PluginsController.getInstance().restart()
-            
-            try:
-                SafeModeBottomSheet = self._get_class("com.exteragram.messenger.plugins.ui.components.SafeModeBottomSheet")
-                fragment = get_last_fragment()
-                if fragment and SafeModeBottomSheet:
-                    SafeModeBottomSheet(fragment).show()
-            except Exception:
-                pass
         except Exception:
             pass
     
@@ -10893,51 +10827,6 @@ class PreferCommonGroupsTabHook(WeakPluginHook):
             pass
 
 
-class SafeModeHook(WeakPluginHook):
-    def __init__(self, plugin):
-        super().__init__(plugin)
-    
-    def before_hooked_method(self, param):
-        try:
-            from android.view import KeyEvent
-            from java.lang import System
-            
-            key_event = param.args[0]
-            if not key_event:
-                return
-            
-            key_code = key_event.getKeyCode()
-            action = key_event.getAction()
-            
-            if key_code == KeyEvent.KEYCODE_VOLUME_DOWN:
-                current_time = System.currentTimeMillis()
-                
-                if action == KeyEvent.ACTION_DOWN:
-                    self.plugin.safe_mode_volume_down_press_time = current_time
-                    self.plugin.safe_mode_is_holding = False
-                elif action == KeyEvent.ACTION_UP:
-                    press_duration = current_time - self.plugin.safe_mode_volume_down_press_time
-                    
-                    if press_duration > 500:
-                        self.plugin.safe_mode_is_holding = True
-                        self.plugin.safe_mode_volume_down_count = 0
-                        return
-                    
-                    if (current_time - self.plugin.safe_mode_last_volume_down_time) > self.plugin.safe_mode_cooldown:
-                        self.plugin.safe_mode_volume_down_count = 1
-                        self.plugin.safe_mode_last_volume_down_time = current_time
-                    elif (current_time - self.plugin.safe_mode_last_volume_down_time) <= self.plugin.safe_mode_multi_tap_window:
-                        self.plugin.safe_mode_volume_down_count += 1
-                        self.plugin.safe_mode_last_volume_down_time = current_time
-                        if self.plugin.safe_mode_volume_down_count >= self.plugin.safe_mode_required_taps:
-                            self.plugin.safe_mode_volume_down_count = 0
-                            self.plugin._on_safe_mode_detected()
-                            param.setResult(True)
-                            return
-                        
-                        param.setResult(True)
-        except Exception:
-            pass
 
 
 class ChatActionBarItemsHook(WeakPluginHook):
