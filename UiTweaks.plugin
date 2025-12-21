@@ -1788,6 +1788,8 @@ class UiTweaksPlugin(BasePlugin):
         settings.extend([
             self.Quanta_switch("enable_header_particles", get_string("particles", "Particles"), default=True, icon="msg_settings_ny", link_alias="enable_header_particles"),
             Text(text=get_string("Language", "Language"), icon="msg_language", on_click=lambda v: self._open_language(), link_alias="language"),
+            self.Quanta_switch("show_logs", get_string("enable_debug_logging", "Debug Logging"), default=False, icon="msg_emoji_objects_solar", link_alias="show_logs"),
+            self.Quanta_switch("enable_memory_warning", get_string("enable_memory_warning_alert", "Memory Warning Alert"), default=True, icon="msg_psa_solar", link_alias="enable_memory_warning"),
         ])
         
         
@@ -6445,60 +6447,7 @@ class UiTweaksPlugin(BasePlugin):
         
         return HookResult()
 
-    def _show_performance_warning(self):
-        try:
-            client_name = "AyuGram"
-            try:
-                ctx = ApplicationLoader.applicationContext
-                pkg = ctx.getPackageName()
-                if pkg == "com.exteragram.messenger":
-                    client_name = "exteraGram"
-            except Exception:
-                pass
-            
-            description_template = get_string("performance_warning_description", 
-                "UiTweaks adds advanced features in {client_name} but may impact device performance over time.")
-            description_text = description_template.replace("{client_name}", client_name)
 
-            memory_warning_enabled = self.get_setting("enable_memory_warning", True)
-            button_text = get_string("disable_memory_warning", "Disable Memory Warning") if memory_warning_enabled else get_string("enable_memory_warning", "Enable Memory Warning")
-
-            def on_button_click():
-                current_setting = self.get_setting("enable_memory_warning", True)
-                self.set_setting("enable_memory_warning", not current_setting)
-                self._apply_hooks()
-
-            def on_sticker_long_click(bottom_sheet_instance=None):
-                self._perform_haptic()
-                current_debug_setting = self.get_setting("show_logs", False)
-                new_debug_setting = not current_debug_setting
-                self.set_setting("show_logs", new_debug_setting)
-                
-                if bottom_sheet_instance and hasattr(bottom_sheet_instance, 'update_status'):
-                    enabled_text = get_string("enabled", "Enabled")
-                    disabled_text = get_string("disabled", "Disabled")
-                    debug_logging_text = get_string("debug_logging", "Debug logging")
-                    status_text = f"{debug_logging_text}: {enabled_text if new_debug_setting else disabled_text}"
-                    bottom_sheet_instance.update_status(status_text)
-
-            showupdatebottomsheet(
-                title=get_string("performance_warning", "Performance Warning"),
-                subtitle=get_string("performance_warning_subtitle", "Important Information"),
-                description=description_text,
-                github_url=None,
-                plugin_name="UiTweaks_PerformanceInfo",
-                sticker_pack="lidreron",
-                sticker_index=26,
-                button_text=button_text,
-                on_button_click=on_button_click,
-                on_sticker_long_click=on_sticker_long_click,
-                bottom_text=get_string("performance_warning_footer", 
-                    "For optimal performance, consider reviewing your enabled features regularly and keeping only what you need active."),
-                show_user_avatar=False,
-                description_centered=True
-            )
-        except Exception as e:
-            self.log(f"Error showing performance warning: {e}")
 
     def _show_confirmation_selector(self):
         confirmation_items = [
