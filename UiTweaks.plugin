@@ -12603,13 +12603,13 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
     def __init__(self, plugin):
         super().__init__()
         self._plugin_ref = weakref.ref(plugin)
+        self.listView = None
+        self.current_tab = 0
+        self.emoji_spans = {}
 
     @property
     def plugin(self):
         return self._plugin_ref()
-        self.listView = None
-        self.current_tab = 0
-        self.emoji_spans = {}
     
     def getTitle(self):
         return get_string("pinned_reactions_title", "Pinned Reactions")
