@@ -452,7 +452,6 @@ class QuantaHut(BasePlugin):
                         if self.quantahut.pills_container and items.size() > 0 and self.quantahut.get_setting("enable_plugin_filter_pills", True):
                             from org.telegram.ui.Components import UItem
                             try:
-                                quantahut_log(f"Creating pills item, items.size()={items.size()}")
                                 pills_item = UItem.asFullyCustom(self.quantahut.pills_container)
                                 insert_position = 1 if items.size() > 1 else items.size()
                                 items.add(insert_position, pills_item)
