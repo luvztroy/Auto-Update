@@ -2312,20 +2312,22 @@ class UiTweaksPlugin(BasePlugin):
             self.log(f"Error opening language selector: {e}")
     
     def _show_donation_info(self):
-        showupdatebottomsheet(
-            title=get_string("donation_info_title", "About Donations"),
-            subtitle=get_string("donation_info_subtitle", "Supporting UiTweaks Development"),
-            description=get_string("donation_info_description", 
-                "Donations are a way to appreciate the effort behind this Plugin. They don’t grant special privileges, though you may request a feature as thanks."),
-            github_url=None,
-            plugin_name="UiTweaks_DonationInfo",
-            sticker_pack="luvztroyIcons",
-            sticker_index=15,
-            button_text=get_string("understood", "Understood"),
-            bottom_text=get_string("donation_info_footer", "Thank you for considering supporting the development of UiTweaks!"),
-            show_user_avatar=False,
-            description_centered=True
-        )
+        try:
+            self.log("Opening donation info bottom sheet")
+            showupdatebottomsheet(
+                title=get_string("donation_info_title", "About Donations"),
+                description=get_string("donation_info_description", 
+                    "Donations are a way to appreciate the effort behind this Plugin. They don’t grant special privileges, though you may request a feature as thanks."),
+                github_url=None,
+                plugin_name="UiTweaks_DonationInfo",
+                sticker_pack="luvztroyIcons",
+                sticker_index=15,
+                button_text=get_string("understood", "Understood"),
+                show_user_avatar=False,
+                description_centered=True
+            )
+        except Exception as e:
+            self.log(f"Error showing donation info bottom sheet: {e}")
     
     def on_app_event(self, event_type: AppEvent):
         if event_type == AppEvent.START:
