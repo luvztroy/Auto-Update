@@ -1766,7 +1766,7 @@ class UiTweaksPlugin(BasePlugin):
             Header(text=get_string("support", "Support Development")),
             Text(text=get_string("boosty", "Boosty"), icon="boosty_icon", on_click=lambda v: self._open_boosty(), link_alias="boosty"),
             Text(text=get_string("ton_keeper", "Ton Keeper"), icon="ton_icon", on_click=lambda v: self._copy_ton_address(), link_alias="ton_keeper"),
-            Text(text=get_string("know_more", "Know more"), icon="msg_info", accent=True, on_click=lambda v: self._show_donation_info, on_long_click=lambda v: self._toggle_branch_selector()),
+            Text(text=get_string("know_more", "Know more"), icon="msg_info", accent=True, on_click=lambda v: self._show_donation_info(), on_long_click=lambda v: self._toggle_branch_selector()),
             Divider(text=get_string("another_services", "If the provided services are not available in your country, you can contact me via [direct message](https://t.me/luvztroy)")),
 
             
