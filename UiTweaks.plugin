@@ -42,12 +42,12 @@ from com.exteragram.messenger.plugins import PluginsController
 from com.exteragram.messenger.plugins.ui import PluginsActivity, PluginSettingsActivity
 
 from org.telegram.messenger import R as R_tg
-from org.telegram.messenger import MessagesController, UserConfig, ApplicationLoader, LocaleController, AndroidUtilities, MessagesStorage
+from org.telegram.messenger import MessagesController, UserConfig, ApplicationLoader, LocaleController, AndroidUtilities, MessagesStorage, ChatMessageSharedResources
 from org.telegram.messenger import UserObject, ChatObject, ImageLocation, MessageObject, DialogObject, NotificationCenter, BotWebViewVibrationEffect, SendMessagesHelper, CodeHighlighting, AccountInstance
 from org.telegram.ui.Components import EditTextBoldCursor, URLSpanUserMention
 from org.telegram.tgnet import TLRPC
-from org.telegram.ui.ActionBar import ActionBarPopupWindow, Theme, ActionBarMenuItem
-from org.telegram.ui.Components import AvatarDrawable, BackupImageView, LayoutHelper
+from org.telegram.ui.ActionBar import ActionBarPopupWindow, Theme, ActionBarMenuItem, ActionBarMenuSubItem
+from org.telegram.ui.Components import AvatarDrawable, BackupImageView, LayoutHelper, UItem
 from org.telegram.ui import ChatActivity, ProfileActivity, TopicsFragment, DialogsActivity, LaunchActivity
 from org.telegram.ui.ActionBar import BaseFragment
 from com.google.android.exoplayer2.util import Consumer
@@ -962,6 +962,13 @@ class UiTweaksPlugin(BasePlugin):
         self.hook_owner_channels_ref = None
         self.hook_remove_from_folders_ref = None
         self._remove_from_folders_state = {}
+        
+        self.hook_bookmark_create_view_ref = None
+        self.hook_bookmark_action_bar_ref = None
+        self._bookmark_helper = None
+        self._bookmark_fragment = None
+        self._bookmark_delegate = None
+        self._bookmark_menu_handle = None
         self.hook_in_message_translation_revert_ref = None
         self._in_message_translated = set()
         self.soundpool_instance = None
@@ -2094,6 +2101,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("enable_search_filter", get_string("enable_search_filter", "Search Filter"), False, lambda v: self._apply_hooks(), link_alias="enable_search_filter"),
             self.Quanta_switch("enable_old_forward", get_string("enable_old_forward", "Classic Forward Sheet"), False, lambda v: self._handle_forward_mode_change("enable_old_forward", v), link_alias="enable_old_forward"),
             self.Quanta_switch("enable_share_alert_forward", get_string("enable_share_alert_forward", "ShareAlert for All Forwards"), False, lambda v: self._handle_forward_mode_change("enable_share_alert_forward", v), link_alias="enable_share_alert_forward"),
+            self.Quanta_switch("enable_bookmark_chat", get_string("enable_bookmark_chat", "Bookmark Chat"), False, lambda v: self._apply_hooks(), link_alias="enable_bookmark_chat"),
             self.Quanta_switch("disable_link_preview", get_string("disable_link_preview", "Disable Link Preview"), False, lambda v: self._apply_hooks(), link_alias="disable_link_preview"),
             EditText(key="disable_link_preview_exclude_pattern", hint=get_string("disable_link_preview_pattern_hint", "Regex pattern to exclude"), default="", max_length=500, multiline=True) if self.get_setting("disable_link_preview", False) else None,
             Divider(text=get_string("disable_link_preview_info", "You can exclude links that match the regex pattern. Use regex101.com to check your pattern")) if self.get_setting("disable_link_preview", False) else None,
@@ -3382,6 +3390,8 @@ class UiTweaksPlugin(BasePlugin):
             "hook_hide_via_bot_ref",
             "hook_owner_channels_ref",
             "hook_remove_from_folders_ref",
+            "hook_bookmark_create_view_ref",
+            "hook_bookmark_action_bar_ref",
 
             "lifecycle_hook_resume",
             "lifecycle_hook_pause",
@@ -3627,6 +3637,9 @@ class UiTweaksPlugin(BasePlugin):
 
             if self.get_setting("remove_from_folders_on_leave", False):
                 self._hook_remove_from_folders()
+
+            if self.get_setting("enable_bookmark_chat", False):
+                self._hook_bookmark_chat()
 
         except Exception as e:
             pass
@@ -9489,6 +9502,445 @@ class UiTweaksPlugin(BasePlugin):
                     return ip
             return None
         except: return None
+
+    def _hook_bookmark_chat(self):
+        if self.hook_bookmark_create_view_ref:
+            return
+        try:
+            if not self._bookmark_helper:
+                self._bookmark_helper = _BookmarksHelper(self)
+            
+            self._bm_add_bookmark_menu_item()
+            self._bm_hook_chat_activity_create_view()
+        except: pass
+    
+    def _bm_add_bookmark_menu_item(self):
+        try:
+            if self._bookmark_menu_handle:
+                return
+            self._bookmark_menu_handle = quantahut.utilities.register_message_menu_item(
+                text=get_string("bookmark", "Bookmark"), option_id=2045, icon_res=R_tg.drawable.msg_fave,
+                condition_predicate=lambda m: m is not None and self.get_setting("enable_bookmark_chat", False),
+                on_click=self._bm_on_bookmark_click, insert_at_top=False
+            )
+        except: pass
+    
+    def _bm_remove_bookmark_menu_item(self):
+        try:
+            if self._bookmark_menu_handle:
+                quantahut.utilities.unregister_message_menu_item(self._bookmark_menu_handle)
+                self._bookmark_menu_handle = None
+        except: pass
+    
+    def _bm_on_bookmark_click(self, chat_activity, message, grouped_messages=None):
+        try:
+            if not message or not chat_activity or not self._bookmark_helper: return
+            acc, did = chat_activity.getCurrentAccount(), message.getDialogId()
+            ids = [msg.getId() for msg in grouped_messages.messages] if grouped_messages and hasattr(grouped_messages, 'messages') and grouped_messages.messages else [message.getId()]
+            result = self._bookmark_helper.toggle_bookmarks(acc, did, ids)
+            self._bm_show_bulletin(chat_activity, result)
+            self._bm_update_menu_visibility(chat_activity)
+        except: pass
+    
+    def _bm_show_bulletin(self, chat_activity, result):
+        try:
+            from org.telegram.messenger import R
+            if result == "limit_reached":
+                BulletinHelper.show_simple(get_string("bookmark_limit_reached", "You can save up to 30 messages per chat."), R.raw.error, chat_activity)
+            elif result == "added":
+                plugin_ref = weakref.ref(self)
+                def on_view():
+                    p = plugin_ref()
+                    if p: p._bm_open_bookmarks_fragment(chat_activity)
+                BulletinHelper.show_with_button(get_string("bookmark_added", "Added to bookmarks."), R.raw.tag_icon_3, get_string("view", "View"), on_view, chat_activity)
+            else:
+                BulletinHelper.show_simple(get_string("bookmark_removed", "Removed from bookmarks."), R.raw.tag_icon_3, chat_activity)
+        except: pass
+    
+    def _bm_hook_chat_activity_create_view(self):
+        try:
+            create_view_method = ChatActivity.getClass().getDeclaredMethod("createView", jclass("android.content.Context"))
+            create_view_method.setAccessible(True)
+            plugin_ref = weakref.ref(self)
+            
+            class CreateViewHook(MethodHook):
+                def after_hooked_method(self, param):
+                    try:
+                        p = plugin_ref()
+                        if p and p.get_setting("enable_bookmark_chat", False):
+                            p._bm_on_chat_activity_created(param.thisObject)
+                    except: pass
+            
+            self.hook_bookmark_create_view_ref = self.hook_method(create_view_method, CreateViewHook())
+        except: pass
+    
+    def _bm_on_chat_activity_created(self, chat_activity):
+        try:
+            self._bm_add_bookmarks_manager_menu_item(chat_activity)
+            self._bm_hook_action_bar_callback(chat_activity)
+        except: pass
+    
+    def _bm_add_bookmarks_manager_menu_item(self, chat_activity):
+        try:
+            headerItem = get_private_field(chat_activity, "headerItem")
+            if not headerItem: return
+            
+            try:
+                lazy_list = get_private_field(headerItem, "lazyList")
+                lazy_map = get_private_field(headerItem, "lazyMap")
+                
+                if lazy_list:
+                    def find_position(target):
+                        if target:
+                            for i in range(lazy_list.size()):
+                                if lazy_list.get(i) == target:
+                                    return i
+                        return None
+                    
+                    plugins_item = get_private_field(chat_activity, "pluginsMenuItem")
+                    admin_gap = get_private_field(chat_activity, "adminItemsGap")
+                    insert_position = find_position(plugins_item) or find_position(admin_gap) or lazy_list.size()
+                    
+                    ItemClass = jclass("org.telegram.ui.ActionBar.ActionBarMenuItem$Item")
+                    asSubItemMethod = ItemClass.getClass().getDeclaredMethod("asSubItem",
+                        jclass("java.lang.Integer").TYPE, jclass("java.lang.Integer").TYPE,
+                        jclass("android.graphics.drawable.Drawable"), jclass("java.lang.CharSequence"),
+                        jclass("java.lang.Boolean").TYPE, jclass("java.lang.Boolean").TYPE
+                    )
+                    asSubItemMethod.setAccessible(True)
+                    
+                    Integer = jclass("java.lang.Integer")
+                    our_item = asSubItemMethod.invoke(None, Integer(2046), Integer(R_tg.drawable.msg_fave_solar),
+                        None, get_string("bookmarks", "Bookmarks"), jclass("java.lang.Boolean")(True), jclass("java.lang.Boolean")(False))
+                    
+                    lazy_list.add(insert_position, our_item)
+                    if lazy_map:
+                        lazy_map.put(Integer(2046), our_item)
+                
+                self._bm_update_menu_visibility(chat_activity)
+            except:
+                self._bm_update_menu_visibility(chat_activity)
+        except: pass
+    
+    def _bm_update_menu_visibility(self, chat_activity):
+        try:
+            if not self._bookmark_helper: return
+            h = get_private_field(chat_activity, "headerItem")
+            if h:
+                h.setSubItemShown(2046, bool(self._bookmark_helper.get_bookmarked_message_ids(chat_activity.getCurrentAccount(), chat_activity.getDialogId())))
+        except: pass
+    
+    def _bm_hook_action_bar_callback(self, chat_activity):
+        try:
+            action_bar = get_private_field(chat_activity, "actionBar")
+            if not action_bar: return
+            
+            current_callback = get_private_field(action_bar, "actionBarMenuOnItemClick")
+            if not current_callback: return
+            
+            onItemClickMethod = current_callback.getClass().getDeclaredMethod("onItemClick", jclass("java.lang.Integer").TYPE)
+            onItemClickMethod.setAccessible(True)
+            plugin_ref = weakref.ref(self)
+            
+            class ActionBarItemClickHook(MethodHook):
+                def before_hooked_method(self, param):
+                    try:
+                        p = plugin_ref()
+                        if p and int(param.args[0]) == 2046:
+                            frag = get_last_fragment()
+                            if frag and isinstance(frag, ChatActivity):
+                                p._bm_open_bookmarks_fragment(frag)
+                                param.setResult(None)
+                    except: pass
+            
+            if self.hook_bookmark_action_bar_ref:
+                self.unhook_method(self.hook_bookmark_action_bar_ref)
+            self.hook_bookmark_action_bar_ref = self.hook_method(onItemClickMethod, ActionBarItemClickHook())
+        except: pass
+    
+    def _bm_open_bookmarks_fragment(self, chat_activity):
+        try:
+            self._bookmark_delegate = self._bm_create_bookmarks_delegate(chat_activity.getCurrentAccount(), chat_activity.getDialogId())
+            self._bookmark_fragment = UniversalFragment(self._bookmark_delegate)
+            chat_activity.presentFragment(self._bookmark_fragment)
+        except: pass
+    
+    def _bm_create_bookmarks_delegate(self, current_account, dialog_id):
+        plugin_ref = weakref.ref(self)
+        mc = MessagesController.getInstance(current_account)
+        
+        if DialogObject.isUserDialog(dialog_id):
+            user = mc.getUser(dialog_id)
+            chat_name = (user.first_name if user else None) or "User"
+        else:
+            chat = mc.getChat(-dialog_id)
+            chat_name = (chat.title if chat else None) or "Chat"
+        
+        CellDelegate = jclass("org.telegram.ui.Cells.ChatMessageCell$ChatMessageCellDelegate")
+        class BookmarkCellDelegate(dynamic_proxy(CellDelegate)):
+            def getTextSelectionHelper(self): return None
+            def didPressUrl(self, cell, url, longPress): pass
+            def canPerformActions(self): return False
+            def hasSelectedMessages(self): return False
+            def isProgressLoading(self, cell, type): return False
+            def getProgressLoadingLink(self, cell): return None
+            def getPinchToZoomHelper(self): return None
+            def getProgressLoadingBotButtonUrl(self, cell): return None
+            def keyboardIsOpened(self): return False
+            def isLandscape(self): return False
+            def canDrawOutboundsContent(self): return True
+            def shouldDrawThreadProgress(self, cell, delayed): return False
+            def getAdminRank(self, uid): return None
+            def shouldRepeatSticker(self, message): return True
+            def canPerformReply(self): return False
+            def drawingVideoPlayerContainer(self): return False
+            def needPlayMessage(self, cell, messageObject, muted): return False
+            def didPressAnimatedEmoji(self, cell, span): return False
+            def shouldShowTopicButton(self, cell): return False
+            def shouldShowDialogButton(self, cell): return False
+            def doNotShowLoadingReply(self, msg): return True
+            def isReplyOrSelf(self): return False
+            def videoTimerReached(self): pass
+        
+        class BookmarksDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentDelegate)):
+            def __init__(s):
+                super().__init__()
+                s.acc = current_account
+                s.dialog_id = dialog_id
+                s.title = chat_name
+                s.ctx = None
+                s.messages_data = []
+                s.shared_resources = None
+                s.delegate = BookmarkCellDelegate()
+            
+            def getTitle(s): return s.title
+            def beforeCreateView(s): return None
+            
+            def afterCreateView(s, v):
+                s.ctx = v.getContext()
+                try:
+                    wallpaper = Theme.getCachedWallpaper()
+                    if wallpaper: v.setBackground(wallpaper)
+                    else: v.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray))
+                    
+                    p = plugin_ref()
+                    if p and p._bookmark_fragment:
+                        listView = p._bookmark_fragment.listView
+                        listView.layoutManager.setStackFromEnd(True)
+                        listView.adapter.setUseSectionStyle(False)
+                        listView.adapter.setApplyBackground(False)
+                        
+                        if listView.getParent() == v:
+                            v.removeView(listView)
+                            container = LinearLayout(s.ctx)
+                            container.setOrientation(LinearLayout.VERTICAL)
+                            container.setBackgroundColor(0x00000000)
+                            container.addView(listView, LayoutHelper.createLinear(-1, -1))
+                            v.addView(container, LayoutHelper.createFrame(-1, -1))
+                except: pass
+                
+                s.shared_resources = ChatMessageSharedResources(s.ctx)
+                s._load_messages()
+                return None
+            
+            def _load_messages(s):
+                try:
+                    p = plugin_ref()
+                    if not p or not p._bookmark_helper: return
+                    storage = MessagesStorage.getInstance(s.acc)
+                    message_ids = p._bookmark_helper.get_bookmarked_message_ids(s.acc, s.dialog_id)
+                    
+                    s.messages_data = []
+                    for msg_id in message_ids:
+                        try:
+                            tlrpc_msg = storage.getMessage(s.dialog_id, msg_id)
+                            if tlrpc_msg:
+                                msg_obj = MessageObject(s.acc, tlrpc_msg, False, True)
+                                s.messages_data.append({'message_object': msg_obj, 'message_id': msg_id})
+                        except: pass
+                    
+                    s._update_list()
+                    
+                    if p._bookmark_fragment:
+                        action_bar = get_private_field(p._bookmark_fragment, "actionBar")
+                        if action_bar:
+                            action_bar.setSubtitle(get_string("bookmarks_count", "Bookmarks") + f" ({len(s.messages_data)}/30)")
+                except: pass
+            
+            def _update_list(s):
+                p = plugin_ref()
+                run_on_ui_thread(lambda: p and p._bookmark_fragment and p._bookmark_fragment.listView and p._bookmark_fragment.listView.getAdapter() and p._bookmark_fragment.listView.getAdapter().update(True))
+            
+            def fillItems(s, items, adapter):
+                if not s.messages_data or not s.ctx: return
+                p = plugin_ref()
+                if not p: return
+                ChatMessageCell = find_class("org.telegram.ui.Cells.ChatMessageCell")
+                for msg_item in s.messages_data:
+                    try:
+                        msg_obj, msg_id = msg_item['message_object'], msg_item['message_id']
+                        container = FrameLayout(s.ctx)
+                        cell = ChatMessageCell(s.ctx, s.acc, False, s.shared_resources, None)
+                        cell.setMessageObject(msg_obj, None, True, True, False)
+                        cell.setDelegate(s.delegate)
+                        container.addView(cell, LayoutHelper.createFrame(-1, -2))
+                        container.setOnClickListener(OnClickListener(lambda v, mo=msg_obj, mid=msg_id, did=s.dialog_id, acc=s.acc, cel=cell: p._bm_show_message_menu(cel, mo, mid, did, acc)))
+                        container.setBackground(Theme.getSelectorDrawable(False))
+                        item = UItem.asCustom(container)
+                        item.transparent = True
+                        items.add(item)
+                    except: pass
+            
+            def onClick(s, item, view, pos, x, y): pass
+            def onLongClick(s, item, view, pos, x, y): return False
+            def onFragmentCreate(s): pass
+            def onFragmentDestroy(s):
+                s.messages_data = []; s.shared_resources = None; s.ctx = None
+                p = plugin_ref()
+                if p: p._bookmark_fragment = None; p._bookmark_delegate = None
+            def onBackPressed(s):
+                p = plugin_ref()
+                if p: p._bookmark_fragment = None; p._bookmark_delegate = None
+                return None
+            def onMenuItemClick(s, mid): pass
+        
+        return BookmarksDelegate()
+    
+    def _bm_navigate_to_message(self, dialog_id, message_id, acc):
+        def run():
+            try:
+                frag = self._bookmark_fragment
+                if frag:
+                    b = Bundle()
+                    if DialogObject.isEncryptedDialog(dialog_id):
+                        b.putInt("enc_id", DialogObject.getEncryptedChatId(dialog_id))
+                    elif DialogObject.isUserDialog(dialog_id):
+                        b.putLong("user_id", dialog_id)
+                    else:
+                        b.putLong("chat_id", -dialog_id)
+                    b.putInt("message_id", message_id)
+                    self._bookmark_fragment = None
+                    frag.presentFragment(ChatActivity(b), True)
+            except: pass
+        run_on_ui_thread(run)
+    
+    def _bm_show_message_menu(self, cell, msg_obj, msg_id, dialog_id, acc):
+        try:
+            frag = self._bookmark_fragment
+            if not frag: return
+            activity = frag.getParentActivity()
+            if not activity: return
+            
+            popupLayout = ActionBarPopupWindow.ActionBarPopupWindowLayout(activity, R_tg.drawable.popup_fixed_alert, frag.getResourceProvider(), 0)
+            popupLayout.setMinimumWidth(AndroidUtilities.dp(200))
+            popupLayout.setBackgroundColor(Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground))
+            
+            plugin_ref, pw = weakref.ref(self), [None]
+            
+            def add_item(text, icon, action):
+                item = ActionBarMenuSubItem(activity, False, False, frag.getResourceProvider())
+                item.setMinimumWidth(AndroidUtilities.dp(200))
+                item.setTextAndIcon(text, icon)
+                item.setOnClickListener(OnClickListener(lambda v: (pw[0].dismiss() if pw[0] else None, action())))
+                popupLayout.addView(item)
+            
+            add_item(get_string("show_in_chat", "Show in Chat"), R_tg.drawable.msg_openin, lambda: self._bm_navigate_to_message(dialog_id, msg_id, acc))
+            if msg_obj.messageOwner and msg_obj.messageOwner.message:
+                from org.telegram.messenger import R
+                add_item(get_string("copy", "Copy"), R_tg.drawable.msg_copy, lambda: (AndroidUtilities.addToClipboard(msg_obj.messageOwner.message), BulletinHelper.show_simple(get_string("text_copied", "Text copied"), R.raw.copy, frag)))
+            
+            def remove():
+                p = plugin_ref()
+                if not p or not p._bookmark_helper: return
+                from org.telegram.messenger import R
+                p._bookmark_helper.remove_bookmark(acc, dialog_id, msg_id)
+                BulletinHelper.show_simple(get_string("bookmark_removed", "Removed from bookmarks"), R.raw.ic_delete, frag)
+                if p._bookmark_delegate and hasattr(p._bookmark_delegate, 'messages_data'):
+                    p._bookmark_delegate.messages_data = [m for m in p._bookmark_delegate.messages_data if m['message_id'] != msg_id]
+                if frag.listView and frag.listView.getAdapter(): frag.listView.getAdapter().update(True)
+            add_item(get_string("remove_bookmark", "Remove Bookmark"), R_tg.drawable.msg_unfave, remove)
+            
+            pw[0] = ActionBarPopupWindow(popupLayout, -2, -2)
+            pw[0].setOutsideTouchable(True)
+            pw[0].setClippingEnabled(True)
+            pw[0].setAnimationStyle(R_tg.style.PopupContextAnimation)
+            pw[0].setFocusable(True)
+            popupLayout.setFitItems(True)
+            loc = [0, 0]
+            cell.getLocationInWindow(loc)
+            pw[0].showAtLocation(cell, Gravity.TOP | Gravity.LEFT, loc[0], loc[1])
+            pw[0].dimBehind()
+        except: pass
+
+
+class _BookmarksHelper:
+    KEY_PREFIX = "bookmarks_"
+    MAX_PER_CHAT = 30
+
+    def __init__(self, plugin):
+        self.plugin = plugin
+        self.cache = {}
+
+    def _key(self, account_id, dialog_id):
+        return f"{self.KEY_PREFIX}{account_id}_{dialog_id}"
+
+    def _get_ids(self, key):
+        if key in self.cache:
+            return self.cache[key]
+        try:
+            raw = self.plugin.get_setting(key, "")
+            if not raw:
+                self.cache[key] = []
+                return []
+            seen, result = set(), []
+            for part in str(raw).split(','):
+                try:
+                    msg_id = int(part.strip())
+                    if msg_id and msg_id not in seen:
+                        seen.add(msg_id)
+                        result.append(msg_id)
+                except: continue
+            result = result[-self.MAX_PER_CHAT:]
+            self.cache[key] = result
+            return result
+        except: return []
+
+    def _persist(self, key, ids):
+        try:
+            normalized = list(dict.fromkeys(ids))[-self.MAX_PER_CHAT:] if ids else []
+            self.plugin.set_setting(key, ",".join(str(i) for i in normalized) if normalized else "")
+            self.cache[key] = normalized
+        except: pass
+
+    def is_bookmarked(self, account_id, dialog_id, message_id):
+        return message_id and message_id in self._get_ids(self._key(account_id, dialog_id))
+
+    def get_bookmarked_message_ids(self, account_id, dialog_id):
+        return list(self._get_ids(self._key(account_id, dialog_id)))
+
+    def toggle_bookmarks(self, account_id, dialog_id, message_ids):
+        ids = [m for m in message_ids if m]
+        if not ids: return "removed"
+        key = self._key(account_id, dialog_id)
+        current = self._get_ids(key)[:]
+        current_set = set(current)
+        if all(m in current_set for m in ids):
+            current = [m for m in current if m not in ids]
+            self._persist(key, current)
+            return "removed"
+        missing = [m for m in ids if m not in current_set]
+        if len(current) + len(missing) > self.MAX_PER_CHAT:
+            return "limit_reached"
+        self._persist(key, current + missing)
+        return "added"
+
+    def remove_bookmark(self, account_id, dialog_id, message_id):
+        key = self._key(account_id, dialog_id)
+        current = [m for m in self._get_ids(key) if m != message_id]
+        if len(current) != len(self._get_ids(key)):
+            self._persist(key, current)
+            return True
+        return False
 
 
 class SetDefaultSendAsHook(WeakPluginHook):
