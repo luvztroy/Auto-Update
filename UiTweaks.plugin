@@ -20,7 +20,7 @@ from ui.settings import Header, Switch, Divider, Selector, Text, EditText
 from ui.bulletin import BulletinHelper
 from ui.alert import AlertDialogBuilder
 
-from client_utils import get_last_fragment, get_send_messages_helper, get_messages_storage, run_on_queue, PLUGINS_QUEUE, get_messages_controller, get_account_instance, send_message, send_request, RequestCallback
+from client_utils import get_last_fragment, get_send_messages_helper, get_messages_storage, run_on_queue, PLUGINS_QUEUE, get_messages_controller, get_account_instance, send_message, send_request, RequestCallback, get_notification_center
 from android_utils import run_on_ui_thread, log, OnLongClickListener, OnClickListener
 from com.exteragram.messenger.plugins.ui.components.templates import UniversalFragment
 
@@ -960,6 +960,8 @@ class UiTweaksPlugin(BasePlugin):
         self.hook_in_message_translation_alert_ref = None
         
         self.hook_owner_channels_ref = None
+        self.hook_remove_from_folders_ref = None
+        self._remove_from_folders_state = {}
         self.hook_in_message_translation_revert_ref = None
         self._in_message_translated = set()
         self.soundpool_instance = None
@@ -1965,6 +1967,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("remove_greeting_sticker", get_string("remove_greeting_sticker", "Remove Greeting Sticker"), False, lambda v: self._apply_hooks(), link_alias="remove_greeting_sticker"),
             self.Quanta_switch("remove_https_from_links", get_string("remove_https_from_links", "Remove HTTPS From Links"), False, lambda v: self._apply_hooks(), link_alias="remove_https_from_links"),
             self.Quanta_switch("show_owner_channels", get_string("show_owner_channels", "Owned channels/groups like TDesktop"), False, lambda v: self._apply_hooks(), link_alias="show_owner_channels"),
+            self.Quanta_switch("remove_from_folders_on_leave", get_string("remove_from_folders_on_leave", "Remove chat from folders on leave"), False, lambda v: self._apply_hooks(), link_alias="remove_from_folders_on_leave"),
             self.Quanta_switch("enable_music_speed_control", get_string("enable_music_speed_control", "Music Speed Control"), False, lambda v: self._apply_hooks(), link_alias="enable_music_speed_control"),
             Divider(text=get_string("music_speed_control_info", "Enable playback speed control for all music files regardless of duration.")) if self.get_setting("enable_music_speed_control", False) else None,
 
@@ -3378,6 +3381,7 @@ class UiTweaksPlugin(BasePlugin):
             "hook_in_message_translation_revert_ref",
             "hook_hide_via_bot_ref",
             "hook_owner_channels_ref",
+            "hook_remove_from_folders_ref",
 
             "lifecycle_hook_resume",
             "lifecycle_hook_pause",
@@ -3620,6 +3624,9 @@ class UiTweaksPlugin(BasePlugin):
 
             if self.get_setting("show_owner_channels", False):
                 self._hook_owner_channels()
+
+            if self.get_setting("remove_from_folders_on_leave", False):
+                self._hook_remove_from_folders()
 
         except Exception as e:
             pass
@@ -9255,6 +9262,233 @@ class UiTweaksPlugin(BasePlugin):
             return r
         except:
             return LinearLayout(ctx)
+
+    def _hook_remove_from_folders(self):
+        if self.hook_remove_from_folders_ref:
+            return
+        try:
+            AC = find_class("org.telegram.ui.Components.AlertsCreator")
+            if not AC: return
+            
+            BF = find_class("org.telegram.ui.ActionBar.BaseFragment")
+            CC = find_class("org.telegram.tgnet.TLRPC$Chat")
+            UC = find_class("org.telegram.tgnet.TLRPC$User")
+            BCC = find_class("org.telegram.messenger.MessagesStorage$BooleanCallback")
+            RPC = find_class("org.telegram.ui.ActionBar.Theme$ResourcesProvider")
+            BT = jclass("java.lang.Boolean").TYPE
+            
+            mth = AC.getClass().getDeclaredMethod("createClearOrDeleteDialogAlert", BF, BT, BT, BT, CC, UC, BT, BT, BT, BCC, RPC)
+            mth.setAccessible(True)
+            plugin_ref = weakref.ref(self)
+            
+            class CreateDialogHook(MethodHook):
+                def before_hooked_method(self, param):
+                    try:
+                        p = plugin_ref()
+                        if not p or not p.get_setting("remove_from_folders_on_leave", False):
+                            return
+                        fr, cl, ad, ch, cb = param.args[0], param.args[1], param.args[2], param.args[4], param.args[9]
+                        if cl or ad or ch is None: return
+                        chat_id = -ch.id
+                        fwc = p._rff_get_filters_containing_chat(chat_id, fr)
+                        if not fwc: return
+                        cid = id(cb) if cb else 0
+                        p._remove_from_folders_state[cid] = {'checked': False, 'chat_id': chat_id, 'filters_count': len(fwc), 'fragment': fr}
+                        param.args[9] = p._rff_create_wrapped_callback(cb, cid)
+                    except: pass
+                    
+                def after_hooked_method(self, param):
+                    try:
+                        p = plugin_ref()
+                        if not p or not p.get_setting("remove_from_folders_on_leave", False):
+                            return
+                        fr, cl, ad, ch = param.args[0], param.args[1], param.args[2], param.args[4]
+                        if cl or ad or ch is None: return
+                        run_on_ui_thread(lambda: p._rff_inject_checkbox(fr, -ch.id))
+                    except: pass
+            
+            self.hook_remove_from_folders_ref = self.hook_method(mth, CreateDialogHook())
+        except: pass
+            
+    def _rff_create_wrapped_callback(self, original_callback, callback_id):
+        plugin_ref = weakref.ref(self)
+        BCC = find_class("org.telegram.messenger.MessagesStorage$BooleanCallback")
+        
+        class WrappedCallbackProxy(dynamic_proxy(BCC)):
+            def run(self, delete_for_all):
+                try:
+                    p = plugin_ref()
+                    if p:
+                        st = p._remove_from_folders_state.get(callback_id, {})
+                        if st.get('checked') and st.get('chat_id') and st.get('fragment'):
+                            p._rff_remove_from_all_folders(st['chat_id'], st['fragment'])
+                except: pass
+                finally:
+                    if original_callback: original_callback.run(delete_for_all)
+                    p = plugin_ref()
+                    if p: p._remove_from_folders_state.pop(callback_id, None)
+        return WrappedCallbackProxy()
+    
+    def _rff_inject_checkbox(self, fragment, chat_id):
+        try:
+            if not hasattr(fragment, 'visibleDialog') or not fragment.visibleDialog: return
+            dlg = fragment.visibleDialog
+            
+            cid = next((k for k, st in self._remove_from_folders_state.items() if st.get('chat_id') == chat_id), None)
+            if cid is None: return
+            st, fc = self._remove_from_folders_state[cid], self._remove_from_folders_state[cid].get('filters_count', 0)
+            
+            try:
+                cvf = dlg.getClass().getDeclaredField("customView")
+                cvf.setAccessible(True)
+                fl = cvf.get(dlg)
+            except:
+                try:
+                    cvf = dlg.getClass().getSuperclass().getDeclaredField("customView")
+                    cvf.setAccessible(True)
+                    fl = cvf.get(dlg)
+                except: return
+            
+            if not fl: return
+            ctx = fragment.getParentActivity()
+            if not ctx: return
+            
+            ec, mtv, TextView = 0, None, find_class("android.widget.TextView")
+            for i in range(fl.getChildCount()):
+                child = fl.getChildAt(i)
+                if child.getClass().getName().endswith("CheckBoxCell"): ec += 1
+                elif TextView and isinstance(child, TextView): mtv = child
+            
+            if mtv:
+                mtv.setPadding(mtv.getPaddingLeft(), mtv.getPaddingTop(), mtv.getPaddingRight(), mtv.getPaddingBottom() + AndroidUtilities.dp(48))
+                
+            CheckBoxCell = find_class("org.telegram.ui.Cells.CheckBoxCell")
+            cbx = CheckBoxCell(ctx, 1, None)
+            cbx.setBackgroundDrawable(Theme.getSelectorDrawable(False))
+            cbx.setText(get_string("remove_from_all_folders", "Remove from all folders") + f" ({fc})", "", False, False)
+            
+            LC = find_class("org.telegram.messenger.LocaleController")
+            is_rtl = LC.isRTL if LC else False
+            cbx.setPadding(AndroidUtilities.dp(8 if not is_rtl else 16), 0, AndroidUtilities.dp(16 if not is_rtl else 8), 0)
+            cbx.setChecked(False, False)
+            cbx.setOnClickListener(OnClickListener(lambda v: (st.__setitem__('checked', not st.get('checked', False)), cbx.setChecked(st['checked'], True))))
+            fl.addView(cbx, LayoutHelper.createFrame(-1, 48, Gravity.BOTTOM | Gravity.LEFT, 0, 0, 0, 48 * ec))
+        except: pass
+            
+    def _rff_get_filters_containing_chat(self, chat_id, fragment):
+        try:
+            flts = get_messages_controller().getDialogFilters()
+            if not flts or flts.size() == 0: return []
+            
+            cid_l = jclass("java.lang.Long").valueOf(chat_id)
+            res = []
+            for i in range(flts.size()):
+                f = flts.get(i)
+                if f.id == 0: continue
+                asf = f.getClass().getDeclaredField("alwaysShow")
+                asf.setAccessible(True)
+                asv = asf.get(f)
+                if asv and asv.contains(cid_l): res.append(f)
+            return res
+        except: return []
+            
+    def _rff_remove_from_all_folders(self, chat_id, fragment):
+        try:
+            mc, flts = get_messages_controller(), get_messages_controller().getDialogFilters()
+            if not flts or flts.size() == 0: return
+            
+            mod, cid_l = 0, jclass("java.lang.Long").valueOf(chat_id)
+            for i in range(flts.size()):
+                f = flts.get(i)
+                if f.id == 0: continue
+                asf = f.getClass().getDeclaredField("alwaysShow")
+                asf.setAccessible(True)
+                asv = asf.get(f)
+                if asv and asv.contains(cid_l):
+                    idx = asv.indexOf(cid_l)
+                    if idx >= 0: asv.remove(idx)
+                    f.pinnedDialogs.delete(chat_id)
+                    self._rff_update_filter_on_server(f, fragment)
+                    get_messages_storage().saveDialogFilter(f, False, True)
+                    mod += 1
+            if mod > 0:
+                nc, NC = get_notification_center(), find_class("org.telegram.messenger.NotificationCenter")
+                if nc and NC: nc.postNotificationName(NC.dialogFiltersUpdated)
+        except: pass
+            
+    def _rff_update_filter_on_server(self, flt, fragment):
+        try:
+            mc, MC = get_messages_controller(), find_class("org.telegram.messenger.MessagesController")
+            if not MC: return
+            
+            req = TLRPC.TL_messages_updateDialogFilter()
+            req.id, req.flags = flt.id, req.flags | 1
+            req.filter = TLRPC.TL_dialogFilter()
+            req.filter.id, flags = flt.id, flt.flags
+            
+            req.filter.contacts = (flags & MC.DIALOG_FILTER_FLAG_CONTACTS) != 0
+            req.filter.non_contacts = (flags & MC.DIALOG_FILTER_FLAG_NON_CONTACTS) != 0
+            req.filter.groups = (flags & MC.DIALOG_FILTER_FLAG_GROUPS) != 0
+            req.filter.broadcasts = (flags & MC.DIALOG_FILTER_FLAG_CHANNELS) != 0
+            req.filter.bots = (flags & MC.DIALOG_FILTER_FLAG_BOTS) != 0
+            req.filter.exclude_muted = (flags & MC.DIALOG_FILTER_FLAG_EXCLUDE_MUTED) != 0
+            req.filter.exclude_read = (flags & MC.DIALOG_FILTER_FLAG_EXCLUDE_READ) != 0
+            req.filter.exclude_archived = (flags & MC.DIALOG_FILTER_FLAG_EXCLUDE_ARCHIVED) != 0
+            
+            req.filter.title = TLRPC.TL_textWithEntities()
+            req.filter.title.text = flt.name or ""
+            req.filter.title.entities = flt.entities if hasattr(flt, 'entities') and flt.entities else jclass("java.util.ArrayList")()
+            req.filter.title_noanimate = getattr(flt, 'title_noanimate', False)
+            
+            if hasattr(flt, 'emoticon') and flt.emoticon:
+                req.filter.emoticon, req.filter.flags = flt.emoticon, req.filter.flags | 33554432
+            if hasattr(flt, 'color') and flt.color >= 0:
+                req.filter.color, req.filter.flags = flt.color, req.filter.flags | 134217728
+                
+            pinned_list = sorted([(flt.pinnedDialogs.keyAt(j), flt.pinnedDialogs.get(flt.pinnedDialogs.keyAt(j))) for j in range(flt.pinnedDialogs.size()) if flt.pinnedDialogs.keyAt(j) != 0], key=lambda x: x[1])
+            for did, _ in pinned_list:
+                ip = self._rff_create_input_peer(did, mc)
+                if ip: req.filter.pinned_peers.add(ip)
+            
+            asf = flt.getClass().getDeclaredField("alwaysShow")
+            asf.setAccessible(True)
+            for j in range(asf.get(flt).size()):
+                did = asf.get(flt).get(j)
+                if flt.pinnedDialogs.indexOfKey(did) < 0:
+                    ip = self._rff_create_input_peer(did, mc)
+                    if ip: req.filter.include_peers.add(ip)
+            
+            nsf = flt.getClass().getDeclaredField("neverShow")
+            nsf.setAccessible(True)
+            for j in range(nsf.get(flt).size()):
+                ip = self._rff_create_input_peer(nsf.get(flt).get(j), mc)
+                if ip: req.filter.exclude_peers.add(ip)
+                    
+            send_request(req, lambda r, e: None)
+        except: pass
+            
+    def _rff_create_input_peer(self, did, mc):
+        try:
+            DO = find_class("org.telegram.messenger.DialogObject")
+            if DO.isEncryptedDialog(did): return None
+            if did > 0:
+                user = mc.getUser(did)
+                if user:
+                    ip = TLRPC.TL_inputPeerUser()
+                    ip.user_id, ip.access_hash = did, user.access_hash
+                    return ip
+            else:
+                chat = mc.getChat(-did)
+                if chat:
+                    if ChatObject.isChannel(chat):
+                        ip = TLRPC.TL_inputPeerChannel()
+                        ip.channel_id, ip.access_hash = -did, chat.access_hash
+                    else:
+                        ip = TLRPC.TL_inputPeerChat()
+                        ip.chat_id = -did
+                    return ip
+            return None
+        except: return None
 
 
 class SetDefaultSendAsHook(WeakPluginHook):
