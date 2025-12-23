@@ -1126,26 +1126,46 @@ class UiTweaksPlugin(BasePlugin):
             pass
 
     def _execute_action_based_on_context(self):
+        PhotoViewer = self._get_class("org.telegram.ui.PhotoViewer")
+        LaunchActivityCls = self._get_class("org.telegram.ui.LaunchActivity")
+        DialogsActivityCls = self._get_class("org.telegram.ui.DialogsActivity")
+        ChatActivityCls = self._get_class("org.telegram.ui.ChatActivity")
+        StoryRecorder = self._get_class("org.telegram.ui.Stories.recorder.StoryRecorder")
+        BundleCls = self._get_class("android.os.Bundle")
+        
+        shake_in_settings = self.get_setting("shake_in_settings", False)
+        settings_classes = None
+        if shake_in_settings:
+            settings_classes = {
+                "general": self._get_class("com.exteragram.messenger.preferences.GeneralPreferencesActivity"),
+                "appearance": self._get_class("com.exteragram.messenger.preferences.AppearancePreferencesActivity"),
+                "chats": self._get_class("com.exteragram.messenger.preferences.ChatsPreferencesActivity"),
+                "other": self._get_class("com.exteragram.messenger.preferences.OtherPreferencesActivity"),
+                "plugins": self._get_class("com.exteragram.messenger.plugins.ui.PluginsActivity"),
+                "plugins_info": self._get_class("com.exteragram.messenger.plugins.ui.PluginsInfoActivity"),
+            }
+        
+        action_media = self.get_setting("shake_action_media_viewer", 0)
+        action_chats = self.get_setting("shake_action_chats_list", 0)
+        action_chat = self.get_setting("shake_action_inside_chat", 0)
+
         def action_runner():
             try:
-                PhotoViewer = _find_class_silent("org.telegram.ui.PhotoViewer")
                 if PhotoViewer:
                     inst = PhotoViewer.getInstance()
                     if inst is not None and inst.isVisible():
-                        action = self.get_setting("shake_action_media_viewer", 0)
-                        if action == 1:
+                        if action_media == 1:
                             m = inst.getClass().getDeclaredMethod("goToNext")
                             m.setAccessible(True)
                             m.invoke(inst)
-                        elif action == 2:
+                        elif action_media == 2:
                             m = inst.getClass().getDeclaredMethod("goToPrev")
                             m.setAccessible(True)
                             m.invoke(inst)
-                        elif action == 3:
+                        elif action_media == 3:
                             inst.closePhoto(True, False)
                         return
 
-                LaunchActivityCls = _find_class_silent("org.telegram.ui.LaunchActivity")
                 if not LaunchActivityCls or not LaunchActivityCls.instance:
                     return
 
@@ -1162,29 +1182,25 @@ class UiTweaksPlugin(BasePlugin):
 
                 current_fragment = fragments_stack.get(fragments_stack.size() - 1)
 
-                DialogsActivityCls = _find_class_silent("org.telegram.ui.DialogsActivity")
-                ChatActivityCls = _find_class_silent("org.telegram.ui.ChatActivity")
-
-                if self.get_setting("shake_in_settings", True):
+                if shake_in_settings and settings_classes:
                     try:
                         alias = None
+                        GeneralPrefs = settings_classes.get("general")
+                        AppearancePrefs = settings_classes.get("appearance")
+                        ChatsPrefs = settings_classes.get("chats")
+                        OtherPrefs = settings_classes.get("other")
+                        PluginsActivity = settings_classes.get("plugins")
+                        PluginsInfoActivity = settings_classes.get("plugins_info")
 
-                        GeneralPreferencesActivity = _find_class_silent("com.exteragram.messenger.preferences.GeneralPreferencesActivity")
-                        AppearancePreferencesActivity = _find_class_silent("com.exteragram.messenger.preferences.AppearancePreferencesActivity")
-                        ChatsPreferencesActivity = _find_class_silent("com.exteragram.messenger.preferences.ChatsPreferencesActivity")
-                        OtherPreferencesActivity = _find_class_silent("com.exteragram.messenger.preferences.OtherPreferencesActivity")
-                        PluginsActivityCls = _find_class_silent("com.exteragram.messenger.plugins.ui.PluginsActivity")
-                        PluginsInfoActivity = _find_class_silent("com.exteragram.messenger.plugins.ui.PluginsInfoActivity")
-
-                        if GeneralPreferencesActivity and isinstance(current_fragment, GeneralPreferencesActivity):
+                        if GeneralPrefs and isinstance(current_fragment, GeneralPrefs):
                             alias = "general"
-                        elif AppearancePreferencesActivity and isinstance(current_fragment, AppearancePreferencesActivity):
+                        elif AppearancePrefs and isinstance(current_fragment, AppearancePrefs):
                             alias = "appearance"
-                        elif ChatsPreferencesActivity and isinstance(current_fragment, ChatsPreferencesActivity):
+                        elif ChatsPrefs and isinstance(current_fragment, ChatsPrefs):
                             alias = "chats"
-                        elif OtherPreferencesActivity and isinstance(current_fragment, OtherPreferencesActivity):
+                        elif OtherPrefs and isinstance(current_fragment, OtherPrefs):
                             alias = "other"
-                        elif PluginsActivityCls and isinstance(current_fragment, PluginsActivityCls):
+                        elif PluginsActivity and isinstance(current_fragment, PluginsActivity):
                             alias = "plugins"
                         elif PluginsInfoActivity and isinstance(current_fragment, PluginsInfoActivity):
                             alias = "plugins"
@@ -1197,9 +1213,7 @@ class UiTweaksPlugin(BasePlugin):
                         pass
 
                 if DialogsActivityCls and isinstance(current_fragment, DialogsActivityCls):
-                    action = self.get_setting("shake_action_chats_list", 0)
-
-                    if action == 1:
+                    if action_chats == 1:
                         try:
                             list_view = _get_private_field_silent(current_fragment, "recyclerListView")
                             if not list_view:
@@ -1213,9 +1227,8 @@ class UiTweaksPlugin(BasePlugin):
                         except:
                             pass
 
-                    elif action == 2:
+                    elif action_chats == 2:
                         try:
-                            StoryRecorder = _find_class_silent("org.telegram.ui.Stories.recorder.StoryRecorder")
                             if StoryRecorder:
                                 try:
                                     activity = current_fragment.getParentActivity()
@@ -1241,20 +1254,18 @@ class UiTweaksPlugin(BasePlugin):
                         except:
                             pass
 
-                    elif action == 3:
+                    elif action_chats == 3:
                         try:
-                            BundleCls = _find_class_silent("android.os.Bundle")
-                            args = BundleCls()
-                            args.putInt("folderId", 1)
-                            new_fragment = DialogsActivityCls(args)
-                            current_fragment.presentFragment(new_fragment)
+                            if BundleCls:
+                                args = BundleCls()
+                                args.putInt("folderId", 1)
+                                new_fragment = DialogsActivityCls(args)
+                                current_fragment.presentFragment(new_fragment)
                         except:
                             pass
 
                 elif ChatActivityCls and isinstance(current_fragment, ChatActivityCls):
-                    action = self.get_setting("shake_action_inside_chat", 0)
-
-                    if action == 1:
+                    if action_chat == 1:
                         try:
                             try:
                                 current_fragment.openThisProfile()
@@ -1271,7 +1282,7 @@ class UiTweaksPlugin(BasePlugin):
                         except:
                             pass
 
-                    elif action == 2:
+                    elif action_chat == 2:
                         try:
                             enter_view = _get_private_field_silent(current_fragment, "chatActivityEnterView")
                             if enter_view:
@@ -1284,7 +1295,7 @@ class UiTweaksPlugin(BasePlugin):
                         except:
                             pass
 
-                    elif action == 3:
+                    elif action_chat == 3:
                         try:
                             dialog_id = None
                             try:
@@ -1304,7 +1315,7 @@ class UiTweaksPlugin(BasePlugin):
                         except:
                             pass
 
-                    elif action == 4:
+                    elif action_chat == 4:
                         try:
                             m = current_fragment.getClass().getDeclaredMethod("openScheduledMessages")
                             m.setAccessible(True)
@@ -1312,7 +1323,7 @@ class UiTweaksPlugin(BasePlugin):
                         except:
                             pass
 
-                    elif action == 5:
+                    elif action_chat == 5:
                         try:
                             current_fragment.scrollToLastMessage(False, False)
                         except Exception:
@@ -2142,7 +2153,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch(
                 "shake_in_settings",
                 get_string("shake_in_settings", "Allow device shake in settings"),
-                True,
+                False,
                 subtext=get_string("shake_in_settings_subtext", "When you shake your phone in the settings, exteraGram automatically copies the current page link."),
                 link_alias="shake_in_settings"
             ),
@@ -13748,37 +13759,46 @@ class HideViaBotHook(WeakPluginHook, MethodHook):
             pass
 
 
-class LifecycleHook(MethodHook):
+class LifecycleHook(WeakPluginHook, MethodHook):
     def __init__(self, plugin):
-        super().__init__()
-        self.plugin = plugin
+        WeakPluginHook.__init__(self, plugin)
+        MethodHook.__init__(self)
 
     def after_hooked_method(self, param):
-        if param.method.getName() == "onResume":
-            self.plugin._register_listener()
+        plugin = self.plugin
+        if plugin and param.method.getName() == "onResume":
+            plugin._register_listener()
 
     def before_hooked_method(self, param):
-        if param.method.getName() == "onPause":
-            self.plugin._unregister_listener()
+        plugin = self.plugin
+        if plugin and param.method.getName() == "onPause":
+            plugin._unregister_listener()
 
 
 class ShakeEventListener(dynamic_proxy(SensorEventListener)):
     def __init__(self, plugin):
         super().__init__()
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         self._gravity = [0.0, 0.0, 0.0]
         self._armed = True
 
+    @property
+    def plugin(self):
+        return self._plugin_ref()
+
     def onSensorChanged(self, event):
         try:
+            plugin = self.plugin
+            if not plugin:
+                return
             sensor_type = event.sensor.getType()
             if sensor_type == Sensor.TYPE_LINEAR_ACCELERATION:
                 x, y, z = event.values[0], event.values[1], event.values[2]
                 linear_g = math.sqrt(x*x + y*y + z*z) / SensorManager.GRAVITY_EARTH
-                threshold = self.plugin._get_shake_threshold()
+                threshold = plugin._get_shake_threshold()
                 if self._armed and linear_g > threshold:
                     self._armed = False
-                    self.plugin.handle_shake()
+                    plugin.handle_shake()
                 elif not self._armed and linear_g < threshold * 0.6:
                     self._armed = True
             elif sensor_type == Sensor.TYPE_ACCELEROMETER:
@@ -13793,10 +13813,10 @@ class ShakeEventListener(dynamic_proxy(SensorEventListener)):
                 lz = z - self._gravity[2]
                 linear_g = math.sqrt(lx*lx + ly*ly + lz*lz) / SensorManager.GRAVITY_EARTH
 
-                threshold = self.plugin._get_shake_threshold()
+                threshold = plugin._get_shake_threshold()
                 if self._armed and linear_g > threshold:
                     self._armed = False
-                    self.plugin.handle_shake()
+                    plugin.handle_shake()
                 elif not self._armed and linear_g < threshold * 0.6:
                     self._armed = True
         except Exception as e:
