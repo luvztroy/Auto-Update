@@ -9559,19 +9559,12 @@ class UiTweaksPlugin(BasePlugin):
     
     def _bm_hook_chat_activity_create_view(self):
         try:
-            create_view_method = ChatActivity.getClass().getDeclaredMethod("createView", jclass("android.content.Context"))
+            ChatActivityClass = self._get_class("org.telegram.ui.ChatActivity")
+            if not ChatActivityClass:
+                return
+            create_view_method = ChatActivityClass.getClass().getDeclaredMethod("createView", jclass("android.content.Context"))
             create_view_method.setAccessible(True)
-            plugin_ref = weakref.ref(self)
-            
-            class CreateViewHook(MethodHook):
-                def after_hooked_method(self, param):
-                    try:
-                        p = plugin_ref()
-                        if p and p.get_setting("enable_bookmark_chat", False):
-                            p._bm_on_chat_activity_created(param.thisObject)
-                    except: pass
-            
-            self.hook_bookmark_create_view_ref = self.hook_method(create_view_method, CreateViewHook())
+            self.hook_bookmark_create_view_ref = self.hook_method(create_view_method, BookmarkCreateViewHook(self))
         except: pass
     
     def _bm_on_chat_activity_created(self, chat_activity):
@@ -9640,22 +9633,10 @@ class UiTweaksPlugin(BasePlugin):
             
             onItemClickMethod = current_callback.getClass().getDeclaredMethod("onItemClick", jclass("java.lang.Integer").TYPE)
             onItemClickMethod.setAccessible(True)
-            plugin_ref = weakref.ref(self)
-            
-            class ActionBarItemClickHook(MethodHook):
-                def before_hooked_method(self, param):
-                    try:
-                        p = plugin_ref()
-                        if p and int(param.args[0]) == 2046:
-                            frag = get_last_fragment()
-                            if frag and isinstance(frag, ChatActivity):
-                                p._bm_open_bookmarks_fragment(frag)
-                                param.setResult(None)
-                    except: pass
             
             if self.hook_bookmark_action_bar_ref:
                 self.unhook_method(self.hook_bookmark_action_bar_ref)
-            self.hook_bookmark_action_bar_ref = self.hook_method(onItemClickMethod, ActionBarItemClickHook())
+            self.hook_bookmark_action_bar_ref = self.hook_method(onItemClickMethod, BookmarkActionBarClickHook(self))
         except: pass
     
     def _bm_open_bookmarks_fragment(self, chat_activity):
@@ -9878,8 +9859,12 @@ class _BookmarksHelper:
     MAX_PER_CHAT = 30
 
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         self.cache = {}
+    
+    @property
+    def plugin(self):
+        return self._plugin_ref()
 
     def _key(self, account_id, dialog_id):
         return f"{self.KEY_PREFIX}{account_id}_{dialog_id}"
@@ -9941,6 +9926,34 @@ class _BookmarksHelper:
             self._persist(key, current)
             return True
         return False
+
+
+class BookmarkCreateViewHook(WeakPluginHook):
+    def __init__(self, plugin):
+        super().__init__(plugin)
+    
+    def after_hooked_method(self, param):
+        try:
+            p = self.plugin
+            if p and p.get_setting("enable_bookmark_chat", False):
+                p._bm_on_chat_activity_created(param.thisObject)
+        except: pass
+
+
+class BookmarkActionBarClickHook(WeakPluginHook):
+    def __init__(self, plugin):
+        super().__init__(plugin)
+    
+    def before_hooked_method(self, param):
+        try:
+            p = self.plugin
+            if p and int(param.args[0]) == 2046:
+                frag = get_last_fragment()
+                ChatActivityClass = p._get_class("org.telegram.ui.ChatActivity")
+                if frag and ChatActivityClass and isinstance(frag, ChatActivityClass):
+                    p._bm_open_bookmarks_fragment(frag)
+                    param.setResult(None)
+        except: pass
 
 
 class SetDefaultSendAsHook(WeakPluginHook):
