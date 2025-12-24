@@ -2227,11 +2227,11 @@ class UiTweaksPlugin(BasePlugin):
         except Exception:
             return Switch(key=key, text=text, icon=icon, default=default, on_change=on_change, subtext=subtext) if subtext else Switch(key=key, text=text, icon=icon, default=default)
 
-    def Quanta_selector(self, key, text, items, default=0, on_change=None, subtext=None, link_alias=None):
+    def Quanta_selector(self, key, text, items, default=0, on_change=None, link_alias=None):
         try:
-            return Selector(key=key, text=text, items=items, link_alias=link_alias, default=default, on_change=on_change, subtext=subtext) if link_alias else Selector(key=key, text=text, items=items, default=default, on_change=on_change, subtext=subtext)
+            return Selector(key=key, text=text, items=items, link_alias=link_alias, default=default, on_change=on_change) if link_alias else Selector(key=key, text=text, items=items, default=default, on_change=on_change)
         except Exception:
-            return Selector(key=key, text=text, items=items, default=default, on_change=on_change, subtext=subtext) if subtext else Selector(key=key, text=text, items=items, default=default)
+            return Selector(key=key, text=text, items=items, default=default, on_change=on_change)
 
     def Quanta_text(self, text, icon=None, link_alias=None, create_sub_fragment=None, on_click=None, accent=None):
         try:
