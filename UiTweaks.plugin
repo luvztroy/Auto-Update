@@ -9701,8 +9701,13 @@ class UiTweaksPlugin(BasePlugin):
                 s.ctx = v.getContext()
                 try:
                     wallpaper = Theme.getCachedWallpaper()
-                    if wallpaper: v.setBackground(wallpaper)
-                    else: v.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray))
+                    if wallpaper:
+                        copied_state = wallpaper.getConstantState()
+                        if copied_state:
+                            wallpaper_copy = copied_state.newDrawable().mutate()
+                            v.setBackground(wallpaper_copy)
+                    else:
+                        v.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray))
                     
                     p = plugin_ref()
                     if p and p._bookmark_fragment:
