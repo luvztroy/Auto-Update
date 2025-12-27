@@ -1038,27 +1038,6 @@ class UiTweaksPlugin(BasePlugin):
                 pass
         return la
 
-    def _setup_device_shake_hooks(self):
-        try:
-            LaunchActivityClass = self._get_class("org.telegram.ui.LaunchActivity")
-            if not LaunchActivityClass:
-                return
-            hook = LifecycleHook(self)
-            try:
-                on_resume = LaunchActivityClass.getClass().getDeclaredMethod("onResume")
-                on_resume.setAccessible(True)
-                self.lifecycle_hook_resume = self.hook_method(on_resume, hook)
-            except Exception:
-                pass
-            try:
-                on_pause = LaunchActivityClass.getClass().getDeclaredMethod("onPause")
-                on_pause.setAccessible(True)
-                self.lifecycle_hook_pause = self.hook_method(on_pause, hook)
-            except Exception:
-                pass
-        except Exception:
-            pass
-
     def _parse_shake_sensitivity_index(self, value):
         idx = 1
         if isinstance(value, str):
@@ -1517,7 +1496,6 @@ class UiTweaksPlugin(BasePlugin):
         self.add_hook("TL_messages_forwardMessages")
 
         self._setup_sensor()
-        self._setup_device_shake_hooks()
         self._register_listener()
 
         self._apply_hooks()
@@ -3217,7 +3195,11 @@ class UiTweaksPlugin(BasePlugin):
         global uitweaks_plugin_instance
         uitweaks_plugin_instance = None
 
-
+    def on_app_event(self, event_type: AppEvent):
+        if event_type == AppEvent.RESUME:
+            self._register_listener()
+        elif event_type == AppEvent.PAUSE:
+            self._unregister_listener()
 
     def _cleanup_activity_resources(self):
         try:
