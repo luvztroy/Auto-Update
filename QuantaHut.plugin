@@ -40,6 +40,7 @@ __name__ = "QuantaHut"
 __description__ = "Library for Quanta plugins"
 __icon__ = "luvztroyIcons/14"
 __id__ = "quantahut"
+__type__ = "plugin"
 __version__ = "1.5.1.4-Beta"
 __author__ = "@luvztroy"
 __min_version__ = "12.1.1"
@@ -72,6 +73,7 @@ class QuantaHut(BasePlugin):
         self._all_items_cache = {}
         self._search_history = {}
         self._activity_refs = {}
+        self.plugin_types_cache = {}
         self.settings_search_create_view_hook = None
         self.settings_search_fill_items_hook = None
 
@@ -415,6 +417,16 @@ class QuantaHut(BasePlugin):
                         if searching:
                             return
                         
+                        items_to_remove = []
+                        for i in range(items.size()):
+                            item = items.get(i)
+                            if hasattr(item, 'id') and item.id == 1 and hasattr(item, 'plugin') and item.plugin:
+                                if self.quantahut.get_plugin_type(str(item.plugin.getId())) == "lib":
+                                    items_to_remove.append(i)
+                        
+                        for i in reversed(items_to_remove):
+                            items.remove(i)
+                        
                         current_filter = self.quantahut.current_filter
                         if current_filter != 0:
                             plugins_controller = PluginsController.getInstance()
@@ -501,6 +513,31 @@ class QuantaHut(BasePlugin):
             return query in searchable
         except:
             return False
+    
+    def get_plugin_type(self, plugin_id):
+        if plugin_id in self.plugin_types_cache:
+            return self.plugin_types_cache[plugin_id]
+        
+        try:
+            import re
+            from com.exteragram.messenger.plugins import PluginsController
+            engine = PluginsController.getInstance().getPluginEngine(plugin_id)
+            
+            if not engine:
+                return "plugin"
+            
+            plugin_path = engine.getPluginPath(plugin_id)
+            if not plugin_path or not os.path.exists(plugin_path):
+                return "plugin"
+            
+            with open(plugin_path, 'r', encoding='utf-8') as f:
+                match = re.search(r'__type__\s*=\s*["\']([^"\']+)["\']', f.read())
+            
+            plugin_type = match.group(1) if match else "plugin"
+            self.plugin_types_cache[plugin_id] = plugin_type
+            return plugin_type
+        except:
+            return "plugin"
     
     def _get_selected_branch(self):
         branch_index = self.get_setting("language_fetch", DEFAULT_BRANCH)
@@ -704,8 +741,10 @@ class QuantaHut(BasePlugin):
         self._all_items_cache.clear()
         self._search_history.clear()
         self._activity_refs.clear()
+        self.plugin_types_cache.clear()
         
         self.log("Plugin unloading...")
+
 
     def _setup_custom_badges_hooks(self):
         try:
@@ -1469,6 +1508,8 @@ class QuantaHut(BasePlugin):
             for key in all_plugins.keySet().toArray():
                 plugin = all_plugins.get(key)
                 if plugin:
+                    if self.get_plugin_type(str(plugin.getId())) == "lib":
+                        continue
                     counts[0] += 1
                     if plugin.isEnabled():
                         counts[1] += 1
