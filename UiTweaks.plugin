@@ -62,6 +62,7 @@ QuantaHut = quantahut
 
 __id__ = "ui_tweaks"
 __name__ = "UiTweaks"
+__type__ = "plugin"
 __description__ = "Well sometimes you just need to tweak things... (requires QuantaHut)"
 __version__ = "1.8.3.5-Beta"
 __author__ = "@luvztroy"
