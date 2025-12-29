@@ -2204,7 +2204,7 @@ class QuantaDeeplinkHook:
             if not data:
                 return
             url = str(data)
-            if url == "tg://quanta" or url == "tg:quanta":
+            if url == "tg://ui/update":
                 run_on_ui_thread(check_quanta_updates)
                 param.setResult(None)
             elif url == "tg://restart":
