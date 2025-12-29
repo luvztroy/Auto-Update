@@ -1839,8 +1839,8 @@ class UiTweaksPlugin(BasePlugin):
             ])
         
         settings.extend([
-            self.Quanta_switch("enable_header_particles", get_string("particles", "Particles"), default=True, icon="msg_settings_ny", link_alias="enable_header_particles"),
             Text(text=get_string("Language", "Language"), icon="msg_language", on_click=lambda v: self._open_language(), link_alias="language"),
+            self.Quanta_switch("enable_header_particles", get_string("particles", "Particles"), default=True, icon="msg_settings_ny", link_alias="enable_header_particles"),
             self.Quanta_switch("show_logs", get_string("enable_debug_logging", "Debug Logging"), default=False, icon="msg_emoji_objects_solar", link_alias="show_logs"),
             self.Quanta_switch("enable_memory_warning", get_string("enable_memory_warning_alert", "Memory Warning Alert"), default=True, icon="msg_psa_solar", link_alias="enable_memory_warning"),
         ])
