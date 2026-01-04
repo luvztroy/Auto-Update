@@ -79,13 +79,6 @@ CUSTOM_MENTION_ID = 99998
 DEBOUNCE_TIME = 0.5
 
 
-class WeakPluginHook:
-    def __init__(self, plugin):
-        self._plugin_ref = weakref.ref(plugin)
-    
-    @property
-    def plugin(self):
-        return self._plugin_ref()
 
 
 def show_confirmation_selector():
@@ -283,7 +276,12 @@ class NonClickablePreviewPresentFragmentHook:
             open_profile_item.setTextAndIcon(item_text, item_icon)
             open_profile_item.setMinimumWidth(160)
             
-            click_listener = OnClickListener(lambda *args: self._open_profile(fragment, dialog_id))
+            fragment_ref = weakref.ref(fragment)
+            def on_open_profile_click(*args, ref=fragment_ref, did=dialog_id):
+                f = ref()
+                if f:
+                    self._open_profile(f, did)
+            click_listener = OnClickListener(on_open_profile_click)
             open_profile_item.setOnClickListener(click_listener)
             
             preview_menu.addView(open_profile_item)
@@ -302,7 +300,12 @@ class NonClickablePreviewPresentFragmentHook:
             open_chat_item.setTextAndIcon(item_text, item_icon)
             open_chat_item.setMinimumWidth(160)
             
-            click_listener = OnClickListener(lambda *args: self._open_chat(fragment))
+            fragment_ref = weakref.ref(fragment)
+            def on_open_chat_click(*args, ref=fragment_ref):
+                f = ref()
+                if f:
+                    self._open_chat(f)
+            click_listener = OnClickListener(on_open_chat_click)
             open_chat_item.setOnClickListener(click_listener)
             
             preview_menu.addView(open_chat_item)
@@ -340,9 +343,9 @@ class NonClickablePreviewPresentFragmentHook:
             pass
 
 
-class AddToFolderAllTabsHook(WeakPluginHook):
+class AddToFolderAllTabsHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
@@ -392,7 +395,7 @@ class AddToFolderAllTabsHook(WeakPluginHook):
         except Exception:
             pass
 
-class UnreadCountHook(WeakPluginHook):
+class UnreadCountHook:
     def __init__(self, plugin_instance):
         super().__init__(plugin_instance)
     
@@ -543,14 +546,15 @@ class UnreadCountHook(WeakPluginHook):
             pass
 
 
-class ContactStatusUpdateRowsIdsHook(WeakPluginHook):
+class ContactStatusUpdateRowsIdsHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def before_hooked_method(self, param):
         activity = param.thisObject
-        state = self.plugin.contact_status_activity_state.setdefault(activity, {"mutualRow": -1})
+        activity_id = id(activity)
+        state = self.plugin.contact_status_activity_state.setdefault(activity_id, {"mutualRow": -1})
 
         state["shouldInsertMutual"] = False
 
@@ -564,7 +568,8 @@ class ContactStatusUpdateRowsIdsHook(WeakPluginHook):
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
         activity = param.thisObject
-        state = self.plugin.contact_status_activity_state.get(activity)
+        activity_id = id(activity)
+        state = self.plugin.contact_status_activity_state.get(activity_id)
         if not state:
             return
 
@@ -693,15 +698,16 @@ class ContactStatusUpdateRowsIdsHook(WeakPluginHook):
         return -1
 
 
-class ContactStatusListAdapterGetItemViewTypeHook(WeakPluginHook):
+class ContactStatusListAdapterGetItemViewTypeHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
     def before_hooked_method(self, param):
         adapter = param.thisObject
         activity = self._get_activity_from_adapter(adapter)
-        state = self.plugin.contact_status_activity_state.get(activity) if self.plugin else None
+        activity_id = id(activity) if activity else None
+        state = self.plugin.contact_status_activity_state.get(activity_id) if self.plugin and activity_id else None
         if not state:
             return
         position_arg = param.args[0]
@@ -725,9 +731,9 @@ class ContactStatusListAdapterGetItemViewTypeHook(WeakPluginHook):
             return None
 
 
-class ContactStatusListAdapterCreateViewHolderHook(WeakPluginHook):
+class ContactStatusListAdapterCreateViewHolderHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.ArgumentEqual(1, 1024))
     def before_hooked_method(self, param):
@@ -775,9 +781,9 @@ class ContactStatusListAdapterCreateViewHolderHook(WeakPluginHook):
             return None
 
 
-class ContactStatusListAdapterBindViewHolderHook(WeakPluginHook):
+class ContactStatusListAdapterBindViewHolderHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.ArgumentNotNull(0), HookFilter.ArgumentNotNull(1))
     def after_hooked_method(self, param):
@@ -788,7 +794,8 @@ class ContactStatusListAdapterBindViewHolderHook(WeakPluginHook):
             position = position_arg
         adapter = param.thisObject
         activity = self._get_activity_from_adapter(adapter)
-        state = self.plugin.contact_status_activity_state.get(activity) if self.plugin else None
+        activity_id = id(activity) if activity else None
+        state = self.plugin.contact_status_activity_state.get(activity_id) if self.plugin and activity_id else None
         if not state or position != state.get("mutualRow", -1):
             return
 
@@ -1265,9 +1272,9 @@ class UiTweaksPlugin(BasePlugin):
             OnItemClick = ActionBarMenuCls.getClass().getDeclaredMethod("onItemClick", find_class("java.lang.Integer").TYPE)
             OnItemClick.setAccessible(True)
 
-            class _UT_AddSelectAllMenu(WeakPluginHook):
+            class _UT_AddSelectAllMenu:
                 def __init__(self, plugin):
-                    super().__init__(plugin)
+                    self.plugin = plugin
 
                 @hook_filters(HookFilter.Condition("param.thisObject != null"))
                 def after_hooked_method(self, param):
@@ -1316,9 +1323,9 @@ class UiTweaksPlugin(BasePlugin):
                     except Exception:
                         pass
 
-            class _UT_InterceptSelectAllClick(WeakPluginHook):
+            class _UT_InterceptSelectAllClick:
                 def __init__(self, plugin):
-                    super().__init__(plugin)
+                    self.plugin = plugin
 
                 @hook_filters(HookFilter.ArgumentNotNull(0))
                 def before_hooked_method(self, param):
@@ -2229,9 +2236,9 @@ class UiTweaksPlugin(BasePlugin):
                 resetItems_method = DrawerLayoutAdapter.getClass().getDeclaredMethod("resetItems")
                 resetItems_method.setAccessible(True)
 
-                class DrawerResetHook(WeakPluginHook):
+                class DrawerResetHook:
                     def __init__(self, plugin):
-                        super().__init__(plugin)
+                        self.plugin = plugin
 
                     @hook_filters(HookFilter.Condition("param.thisObject != null"))
                     def after_hooked_method(self, param):
@@ -2266,9 +2273,9 @@ class UiTweaksPlugin(BasePlugin):
                 )
                 click_method.setAccessible(True)
 
-                class DrawerClickHook(WeakPluginHook):
+                class DrawerClickHook:
                     def __init__(self, plugin):
-                        super().__init__(plugin)
+                        self.plugin = plugin
 
                     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(1))
                     def before_hooked_method(self, param):
@@ -2300,9 +2307,9 @@ class UiTweaksPlugin(BasePlugin):
                         setText_method = DrawerCell.getClass().getDeclaredMethod("setText", jclass("java.lang.CharSequence"))
                         setText_method.setAccessible(True)
 
-                        class DrawerCellHook(WeakPluginHook):
+                        class DrawerCellHook:
                             def __init__(self, plugin):
-                                super().__init__(plugin)
+                                self.plugin = plugin
 
                             def before_hooked_method(self, param):
                                 try:
@@ -2327,9 +2334,9 @@ class UiTweaksPlugin(BasePlugin):
                         m = C.getClass().getDeclaredMethod("onResume")
                         m.setAccessible(True)
 
-                        class ResumeHook(WeakPluginHook):
+                        class ResumeHook:
                             def __init__(self, plugin):
-                                super().__init__(plugin)
+                                self.plugin = plugin
                                 self._getter = getter
 
                             def after_hooked_method(self, param):
@@ -4876,7 +4883,7 @@ class UiTweaksPlugin(BasePlugin):
             
             plugin_ref = self
             
-            class SetForwardListenerHook(WeakPluginHook):
+            class SetForwardListenerHook:
                 def __init__(hook_self):
                     super().__init__(plugin_ref)
                     hook_self.layout = layout
@@ -4967,7 +4974,7 @@ class UiTweaksPlugin(BasePlugin):
             
             plugin_ref = self
             
-            class OpenForwardHook(WeakPluginHook):
+            class OpenForwardHook:
                 def __init__(hook_self):
                     super().__init__(plugin_ref)
                 
@@ -5004,7 +5011,7 @@ class UiTweaksPlugin(BasePlugin):
             
             plugin_ref = self
             
-            class AddToSelectedMessagesHook(WeakPluginHook):
+            class AddToSelectedMessagesHook:
                 def __init__(hook_self):
                     super().__init__(plugin_ref)
                 
@@ -5777,9 +5784,9 @@ class UiTweaksPlugin(BasePlugin):
             )
             search_method.setAccessible(True)
             
-            class SearchHook(WeakPluginHook):
+            class SearchHook:
                 def __init__(self, plugin):
-                    super().__init__(plugin)
+                    self.plugin = plugin
                 
                 @hook_filters(HookFilter.ArgumentNotNull(0))
                 def before_hooked_method(self, param):
@@ -5874,9 +5881,9 @@ class UiTweaksPlugin(BasePlugin):
             if not CodepointsLengthInputFilterClass:
                 return
             
-            class LimitHook(WeakPluginHook):
+            class LimitHook:
                 def __init__(self, plugin):
-                    super().__init__(plugin)
+                    self.plugin = plugin
                 
                 @hook_filters(HookFilter.Condition("param.thisObject != null"))
                 def after_hooked_method(self, param):
@@ -6704,7 +6711,12 @@ class UiTweaksPlugin(BasePlugin):
             selector_color = Theme.getColor(Theme.key_actionBarActionModeDefaultSelector)
             search_filter_button.setBackgroundDrawable(Theme.createSelectorDrawable(selector_color, 1))
             
-            search_filter_button.setOnClickListener(OnClickListener(lambda v: self._show_search_filter_selector(chat_activity)))
+            chat_activity_ref = weakref.ref(chat_activity)
+            def on_search_filter_click(v, ref=chat_activity_ref):
+                ca = ref()
+                if ca:
+                    self._show_search_filter_selector(ca)
+            search_filter_button.setOnClickListener(OnClickListener(on_search_filter_click))
             
             left_margin = 48
             try:
@@ -6953,7 +6965,12 @@ class UiTweaksPlugin(BasePlugin):
             select_all_item.setIcon(R_tg.drawable.msg_select_between_solar)
             select_all_item.setContentDescription("Select All")
             select_all_item.setDuplicateParentStateEnabled(False)
-            select_all_item.setOnClickListener(OnClickListener(lambda v: self._select_all_media(shared_media_layout)))
+            shared_media_layout_ref = weakref.ref(shared_media_layout)
+            def on_select_all_click(v, ref=shared_media_layout_ref):
+                sml = ref()
+                if sml:
+                    self._select_all_media(sml)
+            select_all_item.setOnClickListener(OnClickListener(on_select_all_click))
             
             action_mode_layout.addView(select_all_item, 2, LinearLayout.LayoutParams(AndroidUtilities.dp(54), LinearLayout.LayoutParams.MATCH_PARENT))
             action_mode_views.add(2, select_all_item)
@@ -7129,9 +7146,9 @@ class UiTweaksPlugin(BasePlugin):
             resetItems_method = DrawerLayoutAdapter.getClass().getDeclaredMethod("resetItems")
             resetItems_method.setAccessible(True)
             
-            class DrawerResetHook(WeakPluginHook):
+            class DrawerResetHook:
                 def __init__(self, plugin):
-                    super().__init__(plugin)
+                    self.plugin = plugin
                 
                 @hook_filters(HookFilter.Condition("param.thisObject != null"))
                 def after_hooked_method(self, param):
@@ -7193,9 +7210,9 @@ class UiTweaksPlugin(BasePlugin):
                 jclass("java.lang.Integer").TYPE)
             click_method.setAccessible(True)
             
-            class DrawerClickHook(WeakPluginHook):
+            class DrawerClickHook:
                 def __init__(self, plugin):
-                    super().__init__(plugin)
+                    self.plugin = plugin
                 
                 @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0), HookFilter.ArgumentNotNull(1))
                 def before_hooked_method(self, param):
@@ -7264,9 +7281,9 @@ class UiTweaksPlugin(BasePlugin):
             onDraw_method = DrawerActionCell.getClass().getDeclaredMethod("onDraw", jclass("android.graphics.Canvas"))
             onDraw_method.setAccessible(True)
             
-            class DrawerCellDrawHook(WeakPluginHook):
+            class DrawerCellDrawHook:
                 def __init__(self, plugin):
-                    super().__init__(plugin)
+                    self.plugin = plugin
                 
                 @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
                 def after_hooked_method(self, param):
@@ -8848,7 +8865,7 @@ class UiTweaksPlugin(BasePlugin):
                     )
                     getSwipeMethod.setAccessible(True)
 
-                    class GetSwipeActionHook(WeakPluginHook):
+                    class GetSwipeActionHook:
                         def __init__(self, plugin_instance):
                             super().__init__(plugin_instance)
 
@@ -8874,7 +8891,7 @@ class UiTweaksPlugin(BasePlugin):
             )
             constructor.setAccessible(True)
             
-            class SwipeGestureSettingsViewHook(WeakPluginHook):
+            class SwipeGestureSettingsViewHook:
                 def __init__(self, plugin_instance):
                     super().__init__(plugin_instance)
                 
@@ -8957,7 +8974,7 @@ class UiTweaksPlugin(BasePlugin):
                 )
                 getMovementFlagsMethod.setAccessible(True)
 
-                class GetMovementFlagsHook(WeakPluginHook):
+                class GetMovementFlagsHook:
                     def __init__(self, plugin_instance):
                         super().__init__(plugin_instance)
 
@@ -8999,9 +9016,9 @@ class UiTweaksPlugin(BasePlugin):
             show_method = bottom_sheet_class.getClass().getDeclaredMethod("show")
             show_method.setAccessible(True)
             
-            class ShareAlertShowHook(WeakPluginHook):
+            class ShareAlertShowHook:
                 def __init__(self, plugin):
-                    super().__init__(plugin)
+                    self.plugin = plugin
                     self.processed_instances = set()
                 
                 @hook_filters(HookFilter.Condition("param.thisObject != null"))
@@ -9402,7 +9419,7 @@ class UiTweaksPlugin(BasePlugin):
             )
             getMovementFlagsMethod.setAccessible(True)
             
-            class DisableTopicSwipeHook(WeakPluginHook):
+            class DisableTopicSwipeHook:
                 def __init__(self, plugin_instance):
                     super().__init__(plugin_instance)
                 
@@ -9444,9 +9461,9 @@ class UiTweaksPlugin(BasePlugin):
             method = drawer_adapter_class.getClass().getDeclaredMethod("notifyDataSetChanged")
             method.setAccessible(True)
 
-            class DrawerAdapterHook(WeakPluginHook):
+            class DrawerAdapterHook:
                 def __init__(self, plugin):
-                    super().__init__(plugin)
+                    self.plugin = plugin
 
                 @hook_filters(HookFilter.Condition("param.thisObject != null"))
                 def after_hooked_method(self, param):
@@ -9481,9 +9498,9 @@ class UiTweaksPlugin(BasePlugin):
             method = constructors[0]
             method.setAccessible(True)
 
-            class ProfileCellHook(WeakPluginHook):
+            class ProfileCellHook:
                 def __init__(self, plugin):
-                    super().__init__(plugin)
+                    self.plugin = plugin
 
                 @hook_filters(HookFilter.Condition("param.thisObject != null"))
                 def after_hooked_method(self, param):
@@ -10462,9 +10479,9 @@ class _BookmarksHelper:
         return False
 
 
-class BookmarkCreateViewHook(WeakPluginHook):
+class BookmarkCreateViewHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     def after_hooked_method(self, param):
         try:
@@ -10474,9 +10491,9 @@ class BookmarkCreateViewHook(WeakPluginHook):
         except: pass
 
 
-class BookmarkActionBarClickHook(WeakPluginHook):
+class BookmarkActionBarClickHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     def before_hooked_method(self, param):
         try:
@@ -10490,9 +10507,9 @@ class BookmarkActionBarClickHook(WeakPluginHook):
         except: pass
 
 
-class SetDefaultSendAsHook(WeakPluginHook):
+class SetDefaultSendAsHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.ArgumentNotNull(0), HookFilter.ArgumentNotNull(1))
     def after_hooked_method(self, param):
@@ -10520,9 +10537,9 @@ class SetDefaultSendAsHook(WeakPluginHook):
             pass
 
 
-class SendAsPopupHook(WeakPluginHook):
+class SendAsPopupHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.ArgumentNotNull(3), HookFilter.ArgumentNotNull(4))
     def after_hooked_method(self, param):
@@ -10561,9 +10578,9 @@ class SendAsPopupHook(WeakPluginHook):
             pass
 
 
-class BirthdayAlertHook(WeakPluginHook):
+class BirthdayAlertHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
@@ -10591,9 +10608,9 @@ class BirthdayAlertHook(WeakPluginHook):
 
 
 
-class ConfirmationHook(WeakPluginHook):
+class ConfirmationHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
         self.pending_params: List[Any] = [] 
         self.pending_group_id: Optional[str] = None 
         self.is_resending = False
@@ -10835,9 +10852,9 @@ class ConfirmationHook(WeakPluginHook):
         self._reset_pending()
 
 
-class DialogsActivityHook(WeakPluginHook):
+class DialogsActivityHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
@@ -10863,9 +10880,9 @@ class DialogsActivityHook(WeakPluginHook):
             pass
 
 
-class DialogsActivityDestroyHook(WeakPluginHook):
+class DialogsActivityDestroyHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def before_hooked_method(self, param):
@@ -10880,9 +10897,9 @@ class DialogsActivityDestroyHook(WeakPluginHook):
             pass
 
 
-class ChatActivityCleanupHook(WeakPluginHook):
+class ChatActivityCleanupHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
@@ -10900,9 +10917,9 @@ class ChatActivityCleanupHook(WeakPluginHook):
             pass
 
 
-class DialogCellHook(WeakPluginHook):
+class DialogCellHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
@@ -10926,9 +10943,9 @@ class DialogCellHook(WeakPluginHook):
         except Exception as e:
             pass
 
-class SendImageWithHighQualityByDefault(WeakPluginHook):
+class SendImageWithHighQualityByDefault:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
         self._cached_fields = {}
 
     def isEnabled(self):
@@ -11009,9 +11026,9 @@ class PhotoCellSetHighQualityHook:
             pass
 
 
-class SwipePreventionHook(WeakPluginHook, MethodReplacement):
+class SwipePreventionHook(MethodReplacement):
     def __init__(self, plugin: UiTweaksPlugin):
-        WeakPluginHook.__init__(self, plugin)
+        self.plugin = plugin
 
     def replace_hooked_method(self, param):
         try:
@@ -11068,9 +11085,9 @@ class SwipePreventionHook(WeakPluginHook, MethodReplacement):
             return True
 
 
-class DeepLinkHook(WeakPluginHook):
+class DeepLinkHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
         self.pending_intent = None
         self.pending_param = None
         self.is_processing = False
@@ -11201,9 +11218,9 @@ class DeepLinkHook(WeakPluginHook):
         self.is_processing = False
 
 
-class SetCommandHook(WeakPluginHook):
+class SetCommandHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.ArgumentNotNull(0), HookFilter.ArgumentNotNull(1))
     def before_hooked_method(self, param):
@@ -11222,9 +11239,9 @@ class SetCommandHook(WeakPluginHook):
             self.plugin.command_from_message_click = False
 
 
-class StarReactionMenuHook(WeakPluginHook):
+class StarReactionMenuHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
         self._items_field = None
         self._visible_reactions_field = None
 
@@ -11311,9 +11328,9 @@ class StarReactionMenuHook(WeakPluginHook):
             pass
 
 
-class StarReactionVisibleListHook(WeakPluginHook):
+class StarReactionVisibleListHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.ArgumentNotNull(0))
     def before_hooked_method(self, param):
@@ -11355,9 +11372,9 @@ class StarReactionVisibleListHook(WeakPluginHook):
             pass
 
 
-class StarReactionGradientHook(WeakPluginHook):
+class StarReactionGradientHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def before_hooked_method(self, param):
@@ -11384,9 +11401,9 @@ class StarReactionGradientHook(WeakPluginHook):
             pass
 
 
-class StarReactionLayoutDrawHook(WeakPluginHook):
+class StarReactionLayoutDrawHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.ArgumentNotNull(0))
     def before_hooked_method(self, param):
@@ -11432,9 +11449,9 @@ class StarReactionLayoutDrawHook(WeakPluginHook):
             pass
 
 
-class DownloadManagerHook(WeakPluginHook):
+class DownloadManagerHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def before_hooked_method(self, param):
@@ -11444,9 +11461,9 @@ class DownloadManagerHook(WeakPluginHook):
         except Exception as e:
             pass
 
-class ProxyButtonHook(WeakPluginHook):
+class ProxyButtonHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
@@ -11474,9 +11491,9 @@ class ProxyButtonHook(WeakPluginHook):
         except Exception as e:
             pass
 
-class ArticleViewerFixHook(WeakPluginHook):
+class ArticleViewerFixHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     def before_hooked_method(self, param):
         try:
@@ -11486,9 +11503,9 @@ class ArticleViewerFixHook(WeakPluginHook):
             pass
 
 
-class WebAppSwipePreventionHook(WeakPluginHook):
+class WebAppSwipePreventionHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     def after_hooked_method(self, param):
         try:
@@ -11499,9 +11516,9 @@ class WebAppSwipePreventionHook(WeakPluginHook):
             pass
 
 
-class PhoneFormatHook(WeakPluginHook):
+class PhoneFormatHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     def after_hooked_method(self, param):
         try:
@@ -11533,9 +11550,9 @@ class PhoneFormatHook(WeakPluginHook):
             return False
 
 
-class MessagesControllerGetDialogsHook(WeakPluginHook):
+class MessagesControllerGetDialogsHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
         self._processed_accounts = set()
 
     def _remove_folder_dialog(self, dialog_list, dialog_object):
@@ -11575,9 +11592,9 @@ class MessagesControllerGetDialogsHook(WeakPluginHook):
             pass
 
 
-class ChatUtilsHasArchivedHook(WeakPluginHook):
+class ChatUtilsHasArchivedHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.RESULT_NOT_NULL)
     def after_hooked_method(self, param):
@@ -11588,9 +11605,9 @@ class ChatUtilsHasArchivedHook(WeakPluginHook):
             pass
 
 
-class ExteraConfigArchivedHook(WeakPluginHook):
+class ExteraConfigArchivedHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
     def before_hooked_method(self, param):
@@ -11603,9 +11620,9 @@ class ExteraConfigArchivedHook(WeakPluginHook):
             pass
 
 
-class MessagesControllerSendTypingHook(WeakPluginHook):
+class MessagesControllerSendTypingHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def before_hooked_method(self, param):
@@ -11624,9 +11641,9 @@ class MessagesControllerSendTypingHook(WeakPluginHook):
             pass
 
 
-class UpdateBotButtonHook(WeakPluginHook):
+class UpdateBotButtonHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def replace_hooked_method(self, param):
@@ -11652,9 +11669,9 @@ class UpdateBotButtonHook(WeakPluginHook):
 
 
 
-class VoiceMessageControlHook(WeakPluginHook):
+class VoiceMessageControlHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentIsTrue(2))
     def before_hooked_method(self, param):
@@ -11695,9 +11712,9 @@ class VoiceMessageControlHook(WeakPluginHook):
             pass
 
 
-class VideoMessageControlHook(WeakPluginHook):
+class VideoMessageControlHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentIsTrue(2))
     def before_hooked_method(self, param):
@@ -11725,11 +11742,19 @@ class VideoMessageControlHook(WeakPluginHook):
 
 
 
-class GifSpoilerHook(WeakPluginHook):
+class GifSpoilerHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
         self.added_items = []
-        self.current_viewer = None
+        self._current_viewer_ref = None
+
+    @property
+    def current_viewer(self):
+        return self._current_viewer_ref() if self._current_viewer_ref else None
+    
+    @current_viewer.setter
+    def current_viewer(self, value):
+        self._current_viewer_ref = weakref.ref(value) if value else None
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
@@ -11784,7 +11809,15 @@ class GifSpoilerHook(WeakPluginHook):
                 get_string("hide_with_spoiler", "Hide with spoiler"),
                 False,
                 resources_provider)
-            spoiler_item.setOnClickListener(OnClickListener(lambda *_: self.send_gif_with_spoiler(viewer, document, delegate)))
+            viewer_ref = weakref.ref(viewer)
+            document_ref = weakref.ref(document)
+            delegate_ref = weakref.ref(delegate) if delegate else None
+            def on_spoiler_click(*_, v_ref=viewer_ref, d_ref=document_ref, del_ref=delegate_ref):
+                v, d = v_ref(), d_ref()
+                dl = del_ref() if del_ref else None
+                if v and d:
+                    self.send_gif_with_spoiler(v, d, dl)
+            spoiler_item.setOnClickListener(OnClickListener(on_spoiler_click))
             self.added_items.append(spoiler_item)
 
             self.plugin.log("GIF Menu: Creating caption menu item")
@@ -11794,7 +11827,12 @@ class GifSpoilerHook(WeakPluginHook):
                 get_string("send_with_caption", "Send with Caption"),
                 False,
                 resources_provider)
-            caption_item.setOnClickListener(OnClickListener(lambda *_: self.show_caption_dialog(viewer, document, delegate)))
+            def on_caption_click(*_, v_ref=viewer_ref, d_ref=document_ref, del_ref=delegate_ref):
+                v, d = v_ref(), d_ref()
+                dl = del_ref() if del_ref else None
+                if v and d:
+                    self.show_caption_dialog(v, d, dl)
+            caption_item.setOnClickListener(OnClickListener(on_caption_click))
             self.added_items.append(caption_item)
 
             self.plugin.log(f"GIF Menu: Successfully added {len(self.added_items)} menu items")
@@ -12030,9 +12068,9 @@ class GifSpoilerHook(WeakPluginHook):
             pass
 
 
-class GifDismissHook(WeakPluginHook):
+class GifDismissHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def before_hooked_method(self, param):
@@ -12046,9 +12084,9 @@ class GifDismissHook(WeakPluginHook):
             self.plugin.log(f"GIF Menu: Error in dismiss hook cleanup: {e}")
 
 
-class ProcessExternalUrlHook(WeakPluginHook):
+class ProcessExternalUrlHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.ArgumentNotNull(1))
     def before_hooked_method(self, param):
@@ -12073,9 +12111,9 @@ class ProcessExternalUrlHook(WeakPluginHook):
             return True
 
 
-class CreateViewHook(WeakPluginHook, MethodHook):
+class CreateViewHook(MethodHook):
     def __init__(self, plugin):
-        WeakPluginHook.__init__(self, plugin)
+        self.plugin = plugin
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
@@ -12167,9 +12205,9 @@ class CreateViewHook(WeakPluginHook, MethodHook):
                     
                     ObserverProxy = dynamic_proxy(NotificationCenterDelegate)
                     
-                    class UnreadObserver(WeakPluginHook, ObserverProxy):
+                    class UnreadObserver(ObserverProxy):
                         def __init__(self, plugin_ref, chat_ref, back_btn_id):
-                            WeakPluginHook.__init__(self, plugin_ref)
+                            self.plugin = plugin_ref
                             ObserverProxy.__init__(self)
                             self.chat_activity = chat_ref
                             self.back_button_id = back_btn_id
@@ -12252,9 +12290,9 @@ class CreateViewHook(WeakPluginHook, MethodHook):
             pass
 
 
-class FragmentDestroyHook(WeakPluginHook, MethodHook):
+class FragmentDestroyHook(MethodHook):
     def __init__(self, plugin):
-        WeakPluginHook.__init__(self, plugin)
+        self.plugin = plugin
         MethodHook.__init__(self)
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
@@ -12291,9 +12329,9 @@ class FragmentDestroyHook(WeakPluginHook, MethodHook):
             pass
 
 
-class ForwardConfirmationHook(WeakPluginHook):
+class ForwardConfirmationHook:
     def __init__(self, plugin: UiTweaksPlugin, reflected_method):
-        super().__init__(plugin)
+        self.plugin = plugin
         self.reflected_method = reflected_method
         self._suppress_next = False
 
@@ -12434,9 +12472,9 @@ class JoinConfirmationClickListener(dynamic_proxy(find_class("android.view.View$
             return "this chat"
 
 
-class FillActionModeMenuHook(WeakPluginHook):
+class FillActionModeMenuHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     @hook_filters(HookFilter.ArgumentNotNull(0))
     def after_hooked_method(self, param):
@@ -12456,9 +12494,9 @@ class FillActionModeMenuHook(WeakPluginHook):
         except Exception as e:
             traceback.print_exc()
 
-class PerformMenuActionHook(WeakPluginHook):
+class PerformMenuActionHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
     def before_hooked_method(self, param):
@@ -12494,9 +12532,9 @@ class PerformMenuActionHook(WeakPluginHook):
             traceback.print_exc()
 
 
-class JoinConfirmationHook(WeakPluginHook):
+class JoinConfirmationHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param: Any):
@@ -12541,9 +12579,9 @@ def uitweaks_log(message: str):
         log(f"[UiTweaks] {message}")
 
 
-class MessagePreviewViewHook(WeakPluginHook):
+class MessagePreviewViewHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
@@ -12555,9 +12593,9 @@ class MessagePreviewViewHook(WeakPluginHook):
             pass
 
 
-class DisableAutoWebLoginHook(WeakPluginHook):
+class DisableAutoWebLoginHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
         uitweaks_log("DisableAutoWebLoginHook initialized")
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
@@ -12573,9 +12611,9 @@ class DisableAutoWebLoginHook(WeakPluginHook):
             uitweaks_log("Error clearing autologinDomains: " + str(e))
 
 
-class DoNotSharePhoneNumberHook(WeakPluginHook):
+class DoNotSharePhoneNumberHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
         self.fill_items_hook = None
 
     def setup(self):
@@ -12621,9 +12659,9 @@ class _ContactAddActivityFillItemsHook:
             pass
 
 
-class PreferCommonGroupsTabHook(WeakPluginHook):
+class PreferCommonGroupsTabHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
     def after_hooked_method(self, param):
@@ -12646,9 +12684,9 @@ class PreferCommonGroupsTabHook(WeakPluginHook):
 
 
 
-class ChatActionBarItemsHook(WeakPluginHook):
+class ChatActionBarItemsHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
@@ -12850,9 +12888,9 @@ class ChatActionBarItemsHook(WeakPluginHook):
             self.plugin.log(f"Error hooking AI Summarize action bar callback: {e}")
 
 
-class ChatActionBarMenuItemClickHook(WeakPluginHook):
+class ChatActionBarMenuItemClickHook:
     def __init__(self, plugin, chat_activity):
-        super().__init__(plugin)
+        self.plugin = plugin
         self.chat_activity = chat_activity
     
     def get_unread_count(self, chat_activity):
@@ -12911,10 +12949,10 @@ class ChatActionBarMenuItemClickHook(WeakPluginHook):
         
         Callback = jclass("org.telegram.messenger.Utilities$Callback")
         
-        class DataCallback(WeakPluginHook, dynamic_proxy(Callback)):
+        class DataCallback(dynamic_proxy(Callback)):
             def __init__(self, plugin_ref, activity_ref):
-                WeakPluginHook.__init__(self, plugin_ref)
-                super(WeakPluginHook, self).__init__()
+                self.plugin = plugin_ref
+                super().__init__()
                 self.activity = activity_ref
             
             def run(self, data):
@@ -12935,9 +12973,19 @@ class ChatActionBarMenuItemClickHook(WeakPluginHook):
                         run_on_ui_thread(loading.dismiss)
                         
                         if messages:
-                            run_on_ui_thread(lambda: ChatActionBarMenuItemClickHook(self.plugin, chat_activity).show_alert(chat_activity, messages))
+                            chat_activity_ref_inner = weakref.ref(chat_activity)
+                            def do_show_alert(*args, ca_ref=chat_activity_ref_inner, msgs=messages):
+                                ca = ca_ref()
+                                if ca:
+                                    ChatActionBarMenuItemClickHook(self.plugin, ca).show_alert(ca, msgs)
+                            run_on_ui_thread(do_show_alert)
                         else:
-                            run_on_ui_thread(lambda: BulletinHelper.of(chat_activity).createErrorBulletin("No messages to summarize").show())
+                            chat_activity_ref_inner = weakref.ref(chat_activity)
+                            def do_show_bulletin(*args, ca_ref=chat_activity_ref_inner):
+                                ca = ca_ref()
+                                if ca:
+                                    BulletinHelper.of(ca).createErrorBulletin("No messages to summarize").show()
+                            run_on_ui_thread(do_show_bulletin)
                     except Exception as e:
                         self.plugin.log(f"Error fetching messages for summarization: {e}")
                         run_on_ui_thread(loading.dismiss)
@@ -13264,9 +13312,9 @@ def show_duration_selector_sheet(context, on_duration_selected, plugin=None):
     sheet = builder.create()
     sheet.show()
 
-class DeleteWithDurationFillItemsHook(WeakPluginHook):
+class DeleteWithDurationFillItemsHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
     def after_hooked_method(self, param):
@@ -13299,9 +13347,9 @@ class DeleteWithDurationFillItemsHook(WeakPluginHook):
         except Exception as e:
             self.plugin.log(f"Error adding duration item: {e}")
 
-class DeleteWithDurationOnClickHook(WeakPluginHook):
+class DeleteWithDurationOnClickHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
     def before_hooked_method(self, param):
@@ -13329,9 +13377,9 @@ class DeleteWithDurationOnClickHook(WeakPluginHook):
             self.plugin.log(f"Error handling duration click: {e}")
 
 
-class SleepTimerConstructorHook(WeakPluginHook, MethodHook):
+class SleepTimerConstructorHook(MethodHook):
     def __init__(self, plugin):
-        WeakPluginHook.__init__(self, plugin)
+        self.plugin = plugin
         MethodHook.__init__(self)
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
@@ -13347,9 +13395,9 @@ class SleepTimerConstructorHook(WeakPluginHook, MethodHook):
             pass
 
 
-class SleepTimerClickHook(WeakPluginHook, MethodHook):
+class SleepTimerClickHook(MethodHook):
     def __init__(self, plugin):
-        WeakPluginHook.__init__(self, plugin)
+        self.plugin = plugin
         MethodHook.__init__(self)
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
@@ -13463,9 +13511,9 @@ class SleepTimerClickHook(WeakPluginHook, MethodHook):
             self.plugin.log(f"Error in sleep timer: {e}")
 
 
-class AdaptiveAudioHook(WeakPluginHook):
+class AdaptiveAudioHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
@@ -13532,9 +13580,9 @@ class AdaptiveAudioHook(WeakPluginHook):
             pass
 
 
-class MusicSpeedControlHook(WeakPluginHook):
+class MusicSpeedControlHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
         self._is_music_field = None
         self._playback_button_field = None
         self._title_text_view_field = None
@@ -13611,17 +13659,17 @@ class MusicSpeedControlHook(WeakPluginHook):
             pass
 
 
-class SendCommentsAfterForwardHook(WeakPluginHook):
+class SendCommentsAfterForwardHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     def before_hooked_method(self, param):
         return None
 
 
-class CheckSendButtonHook(WeakPluginHook):
+class CheckSendButtonHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
@@ -13632,9 +13680,9 @@ class CheckSendButtonHook(WeakPluginHook):
             pass
 
 
-class AlwaysVisibleScheduleButtonHook(WeakPluginHook):
+class AlwaysVisibleScheduleButtonHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def replace_hooked_method(self, param):
@@ -13709,7 +13757,7 @@ class DisableFireUpdateHook:
         param.setResult(None)
 
 
-class ReplyInAnotherChatLayoutHook(WeakPluginHook):
+class ReplyInAnotherChatLayoutHook:
     def __init__(self, plugin_instance):
         super().__init__(plugin_instance)
     
@@ -13780,7 +13828,7 @@ class ReplyInAnotherChatDialogsHook:
             pass
 
 
-class AllowReplyButtonHook(WeakPluginHook):
+class AllowReplyButtonHook:
     def __init__(self, plugin_instance):
         super().__init__(plugin_instance)
     
@@ -13902,10 +13950,10 @@ class RemoveHttpsHook(MethodHook):
             pass
 
 
-class DirectProfileHook(WeakPluginHook):
+class DirectProfileHook:
     
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def before_hooked_method(self, param):
@@ -14004,9 +14052,9 @@ class RemoveGreetingStickerHook(MethodReplacement):
         return result
 
 
-class MotionEventSwipeHook(WeakPluginHook, MethodHook):
+class MotionEventSwipeHook(MethodHook):
     def __init__(self, plugin):
-        WeakPluginHook.__init__(self, plugin)
+        self.plugin = plugin
         MethodHook.__init__(self)
         self.last_x = 0
         self.last_y = 0
@@ -14037,13 +14085,26 @@ class MotionEventSwipeHook(WeakPluginHook, MethodHook):
                         chat_activity = param.thisObject
                         try:
                             current_message = get_private_field(chat_activity, "selectedObject")
-                            if current_message:
-                                if swipe_action == 1:
-                                    run_on_ui_thread(lambda: self.plugin._save_to_saved_messages(chat_activity, current_message))
-                                elif swipe_action == 2:
-                                    run_on_ui_thread(lambda: self.plugin._show_translate_alert(chat_activity, current_message))
-                                elif swipe_action == 3:
-                                    run_on_ui_thread(lambda: self.plugin._show_share_alert(chat_activity, current_message))
+                            chat_activity_ref = weakref.ref(chat_activity)
+                            msg_ref = weakref.ref(current_message)
+                            if swipe_action == 1:
+                                def do_save_1(*args, ca_ref=chat_activity_ref, m_ref=msg_ref):
+                                    ca, msg = ca_ref(), m_ref()
+                                    if ca and msg:
+                                        self.plugin._save_to_saved_messages(ca, msg)
+                                run_on_ui_thread(do_save_1)
+                            elif swipe_action == 2:
+                                def do_translate_1(*args, ca_ref=chat_activity_ref, m_ref=msg_ref):
+                                    ca, msg = ca_ref(), m_ref()
+                                    if ca and msg:
+                                        self.plugin._show_translate_alert(ca, msg)
+                                run_on_ui_thread(do_translate_1)
+                            elif swipe_action == 3:
+                                def do_share_1(*args, ca_ref=chat_activity_ref, m_ref=msg_ref):
+                                    ca, msg = ca_ref(), m_ref()
+                                    if ca and msg:
+                                        self.plugin._show_share_alert(ca, msg)
+                                run_on_ui_thread(do_share_1)
                         except Exception as e:
                             pass
         
@@ -14051,9 +14112,9 @@ class MotionEventSwipeHook(WeakPluginHook, MethodHook):
             pass
 
 
-class SwipeReplyHook(WeakPluginHook, MethodHook):
+class SwipeReplyHook(MethodHook):
     def __init__(self, plugin):
-        WeakPluginHook.__init__(self, plugin)
+        self.plugin = plugin
         MethodHook.__init__(self)
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
@@ -14086,13 +14147,31 @@ class SwipeReplyHook(WeakPluginHook, MethodHook):
             param.setResult(None)
             
             if action == 1:
-                run_on_ui_thread(lambda: self.plugin._save_to_saved_messages(chat_activity, message_object))
+                chat_activity_ref = weakref.ref(chat_activity)
+                msg_ref = weakref.ref(message_object)
+                def do_save(*args, ca_ref=chat_activity_ref, m_ref=msg_ref):
+                    ca, msg = ca_ref(), m_ref()
+                    if ca and msg:
+                        self.plugin._save_to_saved_messages(ca, msg)
+                run_on_ui_thread(do_save)
             
             elif action == 2:
-                run_on_ui_thread(lambda: self.plugin._show_translate_alert(chat_activity, message_object))
+                chat_activity_ref = weakref.ref(chat_activity)
+                msg_ref = weakref.ref(message_object)
+                def do_translate(*args, ca_ref=chat_activity_ref, m_ref=msg_ref):
+                    ca, msg = ca_ref(), m_ref()
+                    if ca and msg:
+                        self.plugin._show_translate_alert(ca, msg)
+                run_on_ui_thread(do_translate)
             
             elif action == 3:
-                run_on_ui_thread(lambda: self.plugin._show_share_alert(chat_activity, message_object))
+                chat_activity_ref = weakref.ref(chat_activity)
+                msg_ref = weakref.ref(message_object)
+                def do_share(*args, ca_ref=chat_activity_ref, m_ref=msg_ref):
+                    ca, msg = ca_ref(), m_ref()
+                    if ca and msg:
+                        self.plugin._show_share_alert(ca, msg)
+                run_on_ui_thread(do_share)
         
         except Exception as e:
             pass
@@ -14111,9 +14190,9 @@ SEARCH_FILTER_CONTACTS = 9
 SEARCH_FILTER_MENTIONS = 10
 
 
-class PlaySoundHook(WeakPluginHook):
+class PlaySoundHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def before_hooked_method(self, param):
@@ -14167,9 +14246,9 @@ class PlaySoundHook(WeakPluginHook):
                 pass
 
 
-class SoundPoolLoadHook(WeakPluginHook):
+class SoundPoolLoadHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     @hook_filters(HookFilter.ArgumentNotNull(0), HookFilter.ArgumentNotNull(1))
     def after_hooked_method(self, param):
@@ -14190,10 +14269,10 @@ class SoundPoolLoadHook(WeakPluginHook):
             pass
 
 
-class SetVisibleReactionsListHook(WeakPluginHook, MethodHook):
+class SetVisibleReactionsListHook(MethodHook):
     
     def __init__(self, plugin):
-        WeakPluginHook.__init__(self, plugin)
+        self.plugin = plugin
         MethodHook.__init__(self)
         self.processed_count = 0
     
@@ -14308,9 +14387,9 @@ class SetVisibleReactionsListHook(WeakPluginHook, MethodHook):
             return "TL_chatReactionsAll"
 
 
-class SearchLinksReplacement(WeakPluginHook, MethodHook):
+class SearchLinksReplacement(MethodHook):
     def __init__(self, plugin_instance):
-        WeakPluginHook.__init__(self, plugin_instance)
+        self.plugin = plugin_instance
         MethodHook.__init__(self)
     
     @hook_filters(HookFilter.ArgumentNotNull(0))
@@ -14368,9 +14447,9 @@ class SendMessageParamsHook:
             pass
 
 
-class SearchFilterOpenSearchHook(WeakPluginHook):
+class SearchFilterOpenSearchHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
@@ -14388,9 +14467,9 @@ class SearchFilterOpenSearchHook(WeakPluginHook):
             pass
 
 
-class SearchFilterSendRequestHook(WeakPluginHook):
+class SearchFilterSendRequestHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     @hook_filters(HookFilter.ArgumentNotNull(0))
     def before_hooked_method(self, param):
@@ -14765,9 +14844,9 @@ class UnifyUsernameProcessClickHook(MethodHook):
             pass
 
 
-class UnifyUsernameBindViewHook(WeakPluginHook, MethodHook):
+class UnifyUsernameBindViewHook(MethodHook):
     def __init__(self, plugin):
-        WeakPluginHook.__init__(self, plugin)
+        self.plugin = plugin
         MethodHook.__init__(self)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0), HookFilter.ArgumentNotNull(1))
@@ -14849,9 +14928,9 @@ class UnifyUsernameBindViewHook(WeakPluginHook, MethodHook):
             pass
 
 
-class EditFileNameSetItemOptionsHook(WeakPluginHook, MethodHook):
+class EditFileNameSetItemOptionsHook(MethodHook):
     def __init__(self, plugin):
-        WeakPluginHook.__init__(self, plugin)
+        self.plugin = plugin
         MethodHook.__init__(self)
     
     @hook_filters(HookFilter.ArgumentNotNull(0))
@@ -14914,9 +14993,9 @@ class OpenForwardHook(MethodHook):
             param.args[0] = False
 
 
-class UiTweaksSettingsHeaderHook(WeakPluginHook):
+class UiTweaksSettingsHeaderHook:
     def __init__(self, plugin):
-        super().__init__(plugin)
+        self.plugin = plugin
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
     def after_hooked_method(self, param):
@@ -14956,9 +15035,9 @@ class UiTweaksSettingsHeaderHook(WeakPluginHook):
             pass
 
 
-class HideViaBotHook(WeakPluginHook, MethodHook):
+class HideViaBotHook(MethodHook):
     def __init__(self, plugin):
-        WeakPluginHook.__init__(self, plugin)
+        self.plugin = plugin
         MethodHook.__init__(self)
     
     @hook_filters(HookFilter.ArgumentNotNull(2))
