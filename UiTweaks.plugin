@@ -827,7 +827,7 @@ class UiTweaksPlugin(BasePlugin):
         self.hook_star_reaction_gradient_ref = None
         self.hook_star_reaction_layout_draw_ref = None
         self.hook_disable_auto_web_login_ref = None
-        self.hook_do_not_share_phone_number_ref = None
+
         self.hook_prefer_common_groups_tab_ref = None
         self.hook_non_clickable_dispatch_ref = None
         self.hook_non_clickable_present_ref = None
@@ -2438,7 +2438,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("confirm_deeplinks", get_string("confirm_deeplinks", "Confirm Telegram Deep Links"), False, lambda v: self._apply_hooks(), link_alias="confirm_deeplinks"),
             self.Quanta_switch("confirm_ayugram_deeplinks", get_string("confirm_ayugram_deeplinks", "Confirm AyuGram Deep Links"), False, lambda v: self._apply_hooks(), link_alias="confirm_ayugram_deeplinks"),
             self.Quanta_switch("disable_auto_web_login", get_string("disable_auto_web_login", "Disable Auto Web Login"), False, lambda v: self._apply_hooks(), link_alias="disable_auto_web_login"),
-            self.Quanta_switch("do_not_share_phone_number", get_string("do_not_share_phone_number", "Do Not Share My Phone Number"), False, lambda v: self._apply_hooks(), link_alias="do_not_share_phone_number"),
+
             self.Quanta_switch("hide_phone_number", get_string("hide_phone_number", "Hide Phone Number in Profiles"), False, lambda v: self._apply_hooks(), link_alias="hide_phone_number"),
             Divider(text=get_string("hide_phone_number_info", "This will hide the recipient's phone number from their profile.")),
             
@@ -3784,7 +3784,6 @@ class UiTweaksPlugin(BasePlugin):
             "hook_message_preview_view_ref",
             "hook_browser_open_url_ref",
             "hook_disable_auto_web_login_ref",
-            "hook_do_not_share_phone_number_ref",
             "hook_prefer_common_groups_tab_ref",
             "hook_non_clickable_dispatch_ref",
             "hook_non_clickable_present_ref",
@@ -3985,8 +3984,7 @@ class UiTweaksPlugin(BasePlugin):
             
             if self.get_setting("disable_auto_web_login", False):
                 self._hook_disable_auto_web_login()
-            if self.get_setting("do_not_share_phone_number", False):
-                self._hook_do_not_share_phone_number()
+
             if self.get_setting("prefer_common_groups_tab", False):
                 self._hook_prefer_common_groups_tab()
             
@@ -8736,13 +8734,6 @@ class UiTweaksPlugin(BasePlugin):
         except Exception as e:
             pass
 
-    def _hook_do_not_share_phone_number(self):
-        try:
-            self.do_not_share_hook = DoNotSharePhoneNumberHook(self)
-            self.do_not_share_hook.setup()
-        except Exception:
-            self.do_not_share_hook = None
-
     def _hook_prefer_common_groups_tab(self):
         try:
             SharedMediaLayoutClass = self._get_class("org.telegram.ui.Components.SharedMediaLayout")
@@ -12554,52 +12545,6 @@ class DisableAutoWebLoginHook:
             uitweaks_log("Error clearing autologinDomains: " + str(e))
 
 
-class DoNotSharePhoneNumberHook:
-    def __init__(self, plugin):
-        self.plugin = plugin
-        self.fill_items_hook = None
-
-    def setup(self):
-        try:
-            ContactAddActivity = self.plugin._get_class("org.telegram.ui.ContactAddActivity")
-            if not ContactAddActivity:
-                return
-            activity_class = ContactAddActivity.getClass()
-            array_list_class = jclass("java.util.ArrayList")
-            universal_adapter = self.plugin._get_class("org.telegram.ui.Components.UniversalAdapter")
-            method = activity_class.getDeclaredMethod("fillItems", array_list_class, universal_adapter)
-            method.setAccessible(True)
-            self.fill_items_hook = self.plugin.hook_method(method, _ContactAddActivityFillItemsHook(), priority=0)
-        except Exception:
-            pass
-
-    def teardown(self):
-        if self.fill_items_hook:
-            self.plugin.unhook_method(self.fill_items_hook)
-            self.fill_items_hook = None
-        if hasattr(self, "do_not_share_hook") and self.do_not_share_hook:
-            self.do_not_share_hook.teardown()
-            self.do_not_share_hook = None
-
-    def on_plugin_unload(self):
-        self.teardown()
-
-
-class _ContactAddActivityFillItemsHook:
-    @hook_filters(HookFilter.Condition("param.thisObject != null"))
-    def before_hooked_method(self, param):
-        activity = param.thisObject
-        try:
-            activity_class = activity.getClass()
-            check_share_field = activity_class.getDeclaredField("checkShare")
-            check_share_field.setAccessible(True)
-            if check_share_field.getBoolean(activity):
-                first_set_field = activity_class.getDeclaredField("firstSet")
-                first_set_field.setAccessible(True)
-                if first_set_field.getBoolean(activity):
-                    check_share_field.setBoolean(activity, False)
-        except Exception:
-            pass
 
 
 class PreferCommonGroupsTabHook:
