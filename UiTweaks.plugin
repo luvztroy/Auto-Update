@@ -1987,7 +1987,7 @@ class UiTweaksPlugin(BasePlugin):
                 s.root = None
 
             def getTitle(s):
-                return get_string("recent_chats_fragment", "Recent Chats")
+                return get_string("recent_chats", "Recent Chats")
 
             def beforeCreateView(s):
                 return None
@@ -2138,8 +2138,8 @@ class UiTweaksPlugin(BasePlugin):
                     if not ctx:
                         return
                     b = AlertDialogBuilder(ctx)
-                    b.set_title("Clear Recent Chats")
-                    b.set_message("Clear all recent chats?")
+                    b.set_title(get_string("clear_recent_chats", "Clear Recent Chats"))
+                    b.set_message(get_string("clear_recent_chats_confirm", "Are you sure you want to clear all recent chats?"))
 
                     def yes(d, w):
                         plugin._recent_chats_fragment_clear(s.acc)
@@ -2150,8 +2150,8 @@ class UiTweaksPlugin(BasePlugin):
                     def no(d, w):
                         d.dismiss()
 
-                    b.set_positive_button("Clear", yes)
-                    b.set_negative_button("Cancel", no)
+                    b.set_positive_button(get_string("clear", "Clear"), yes)
+                    b.set_negative_button(get_string("cancel", "Cancel"), no)
                     b.make_button_red(AlertDialogBuilder.BUTTON_POSITIVE)
                     b.show()
 
@@ -2202,7 +2202,7 @@ class UiTweaksPlugin(BasePlugin):
                             if not UserConfig.getInstance(current_account).isClientActivated():
                                 return
                             Item = jclass("org.telegram.ui.Adapters.DrawerLayoutAdapter$Item")
-                            text = get_string("recent_chats_fragment", "Recent Chats")
+                            text = get_string("recent_chats", "Recent Chats")
                             icon = R_tg.drawable.msg_topics_solar
                             items.add(0, Item(1004, text, icon))
                         except Exception:
@@ -2460,7 +2460,7 @@ class UiTweaksPlugin(BasePlugin):
             self.Quanta_switch("fab_settings_shortcut", get_string("fab_settings_shortcut", "FAB Shortcut"), False, lambda v: self._apply_hooks(), link_alias="fab_settings_shortcut"),
             self.Quanta_selector("fab_action_selector", get_string("fab_action_selector", "Action"), [get_string("fab_action_uitweaks_settings", "UiTweaks Settings"), get_string("fab_action_archived_chats", "Archived Chats")], 0, lambda v: self._apply_hooks(), link_alias="fab_action_selector") if self.get_setting("fab_settings_shortcut", False) else None,
             self.Quanta_switch("quick_access_gift_market", get_string("quick_access_gift_market", "Quick Access to Gift Market"), False, lambda v: self._apply_hooks(), link_alias="quick_access_gift_market"),
-            self.Quanta_switch("recent_chats_fragment", get_string("recent_chats_fragment", "Recent Chats Fragment"), False, lambda v: self._apply_hooks(), link_alias="recent_chats_fragment"),
+            self.Quanta_switch("recent_chats_fragment", get_string("recent_chats_fragment", "Recent Chats Manager"), False, lambda v: self._apply_hooks(), link_alias="recent_chats_fragment"),
 
             Header(text=get_string("emoji_set", "Emoji set")),
             self.Quanta_switch("emoji_set", get_string("emoji_set", "Emoji set"), False, lambda v: self._on_emoji_set_toggle(v), link_alias="emoji_set"),
