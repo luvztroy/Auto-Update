@@ -553,8 +553,7 @@ class ContactStatusUpdateRowsIdsHook:
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def before_hooked_method(self, param):
         activity = param.thisObject
-        activity_id = id(activity)
-        state = self.plugin.contact_status_activity_state.setdefault(activity_id, {"mutualRow": -1})
+        state = self.plugin.contact_status_activity_state.setdefault(activity, {"mutualRow": -1})
 
         state["shouldInsertMutual"] = False
 
@@ -568,8 +567,7 @@ class ContactStatusUpdateRowsIdsHook:
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
         activity = param.thisObject
-        activity_id = id(activity)
-        state = self.plugin.contact_status_activity_state.get(activity_id)
+        state = self.plugin.contact_status_activity_state.get(activity)
         if not state:
             return
 
@@ -682,16 +680,16 @@ class ContactStatusUpdateRowsIdsHook:
     def _calculate_insert_position(self, activity):
         anchors = [
             "phoneRow",
-            "infoHeaderRow",
-            "infoHeaderRowEmpty",
-            "userInfoRow",
-            "usernameRow",
-            "birthdayRow",
-            "bizHoursRow",
-            "bizLocationRow",
-            "noteRow",
         ]
         for name in anchors:
+            value = self._get_int_field(activity, name)
+            if value != -1:
+                return value + 1
+        fallback_anchors = [
+            "infoHeaderRow",
+            "infoHeaderRowEmpty", 
+        ]
+        for name in fallback_anchors:
             value = self._get_int_field(activity, name)
             if value != -1:
                 return value + 1
@@ -706,8 +704,7 @@ class ContactStatusListAdapterGetItemViewTypeHook:
     def before_hooked_method(self, param):
         adapter = param.thisObject
         activity = self._get_activity_from_adapter(adapter)
-        activity_id = id(activity) if activity else None
-        state = self.plugin.contact_status_activity_state.get(activity_id) if self.plugin and activity_id else None
+        state = self.plugin.contact_status_activity_state.get(activity) if self.plugin else None
         if not state:
             return
         position_arg = param.args[0]
@@ -718,9 +715,9 @@ class ContactStatusListAdapterGetItemViewTypeHook:
         if position == state.get("mutualRow", -1):
             try:
                 INTEGER_CLASS = jclass("java.lang.Integer")
-                param.setResult(INTEGER_CLASS(1024))
+                param.setResult(INTEGER_CLASS(2))
             except Exception:
-                param.setResult(1024)
+                param.setResult(2)
 
     def _get_activity_from_adapter(self, adapter):
         try:
@@ -730,55 +727,6 @@ class ContactStatusListAdapterGetItemViewTypeHook:
         except Exception:
             return None
 
-
-class ContactStatusListAdapterCreateViewHolderHook:
-    def __init__(self, plugin):
-        self.plugin = plugin
-
-    @hook_filters(HookFilter.ArgumentEqual(1, 1024))
-    def before_hooked_method(self, param):
-        view_type = param.args[1]
-        if view_type != 1024:
-            return
-
-        try:
-            adapter = param.thisObject
-            activity = self._get_activity_from_adapter(adapter)
-
-            context = None
-            parent = param.args[0]
-            if parent is not None:
-                try:
-                    context = parent.getContext()
-                except Exception:
-                    context = None
-            if context is None and activity is not None:
-                for getter in ("getParentActivity", "getContext"):
-                    try:
-                        method = getattr(activity, getter)
-                        context = method()
-                        if context:
-                            break
-                    except Exception:
-                        continue
-            if context is None:
-                raise ValueError("No context available for mutual cell")
-
-            from org.telegram.ui.Cells import TextDetailCell
-            cell = TextDetailCell(context)
-            holder_class = jclass("org.telegram.ui.Components.RecyclerListView$Holder")
-            holder = holder_class(cell)
-            param.setResult(holder)
-        except Exception:
-            pass
-
-    def _get_activity_from_adapter(self, adapter):
-        try:
-            field = adapter.getClass().getDeclaredField("this$0")
-            field.setAccessible(True)
-            return field.get(adapter)
-        except Exception:
-            return None
 
 
 class ContactStatusListAdapterBindViewHolderHook:
@@ -794,8 +742,7 @@ class ContactStatusListAdapterBindViewHolderHook:
             position = position_arg
         adapter = param.thisObject
         activity = self._get_activity_from_adapter(adapter)
-        activity_id = id(activity) if activity else None
-        state = self.plugin.contact_status_activity_state.get(activity_id) if self.plugin and activity_id else None
+        state = self.plugin.contact_status_activity_state.get(activity) if self.plugin else None
         if not state or position != state.get("mutualRow", -1):
             return
 
@@ -897,7 +844,6 @@ class UiTweaksPlugin(BasePlugin):
         self.hook_unread_count_ref = None
         self.contact_status_update_rows_hook = None
         self.contact_status_get_item_view_type_hook = None
-        self.contact_status_create_view_holder_hook = None
         self.contact_status_bind_view_holder_hook = None
         self.contact_status_activity_state = {}
         
@@ -3853,7 +3799,6 @@ class UiTweaksPlugin(BasePlugin):
             "hook_account_visibility_profile_ref",
             "contact_status_update_rows_hook",
             "contact_status_get_item_view_type_hook",
-            "contact_status_create_view_holder_hook",
             "contact_status_bind_view_holder_hook",
             "safe_mode_hook_ref",
             "hook_folder_visibility_ref",
@@ -5212,18 +5157,6 @@ class UiTweaksPlugin(BasePlugin):
                 self.contact_status_get_item_view_type_hook = self.hook_method(
                     get_item_view_type,
                     ContactStatusListAdapterGetItemViewTypeHook(self),
-                    priority=0,
-                )
-
-                on_create_view_holder = list_adapter_class.getDeclaredMethod(
-                    "onCreateViewHolder",
-                    view_group,
-                    int_type,
-                )
-                on_create_view_holder.setAccessible(True)
-                self.contact_status_create_view_holder_hook = self.hook_method(
-                    on_create_view_holder,
-                    ContactStatusListAdapterCreateViewHolderHook(self),
                     priority=0,
                 )
 
