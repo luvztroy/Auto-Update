@@ -2296,12 +2296,287 @@ class Callback1(dynamic_proxy(Utilities.Callback)):
             quantahut_log(f"Callback error: {str(e)}")
 
 
+class LocalizationDatabase:
+    def __init__(self):
+        import sqlite3
+        
+        cache_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        self.db_path = os.path.join(cache_dir, "quantahut_localization.db")
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        self.conn.row_factory = sqlite3.Row
+        self._create_tables()
+        self._lock = threading.Lock()
+    
+    def _create_tables(self):
+        cursor = self.conn.cursor()
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS localization (
+                cache_key TEXT PRIMARY KEY,
+                value TEXT,
+                plugin_id TEXT,
+                language TEXT,
+                key TEXT,
+                timestamp REAL
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_plugin_lang 
+            ON localization(plugin_id, language)
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS emoji_cache (
+                emoji_name TEXT PRIMARY KEY,
+                emoji_id TEXT
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_cache (
+                username TEXT PRIMARY KEY,
+                user_id TEXT
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS text_template_cache (
+                template_name TEXT PRIMARY KEY,
+                template_content TEXT
+            )
+        ''')
+        
+        self.conn.commit()
+    
+    def get_localized_string(self, cache_key: str) -> Optional[str]:
+        try:
+            with self._lock:
+                cursor = self.conn.cursor()
+                cursor.execute('SELECT value FROM localization WHERE cache_key = ?', (cache_key,))
+                row = cursor.fetchone()
+                return row['value'] if row else None
+        except Exception as e:
+            log(f"[QuantaHut] Error getting localized string: {e}")
+            return None
+    
+    def set_localized_string(self, cache_key: str, value: str, plugin_id: str, language: str, key: str):
+        try:
+            with self._lock:
+                cursor = self.conn.cursor()
+                cursor.execute('''
+                    INSERT OR REPLACE INTO localization 
+                    (cache_key, value, plugin_id, language, key, timestamp)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (cache_key, value, plugin_id, language, key, time.time()))
+                self.conn.commit()
+        except Exception as e:
+            log(f"[QuantaHut] Error setting localized string: {e}")
+    
+    def clear_language_data(self, plugin_id: str, language: str):
+        try:
+            with self._lock:
+                cursor = self.conn.cursor()
+                cursor.execute('''
+                    DELETE FROM localization 
+                    WHERE plugin_id = ? AND language = ?
+                ''', (plugin_id, language))
+                self.conn.commit()
+        except Exception as e:
+            log(f"[QuantaHut] Error clearing language data: {e}")
+    
+    def get_emoji_id(self, emoji_name: str) -> Optional[str]:
+        try:
+            with self._lock:
+                cursor = self.conn.cursor()
+                cursor.execute('SELECT emoji_id FROM emoji_cache WHERE emoji_name = ?', (emoji_name,))
+                row = cursor.fetchone()
+                return row['emoji_id'] if row else None
+        except Exception as e:
+            log(f"[QuantaHut] Error getting emoji ID: {e}")
+            return None
+    
+    def set_emoji_id(self, emoji_name: str, emoji_id: str):
+        try:
+            with self._lock:
+                cursor = self.conn.cursor()
+                cursor.execute('''
+                    INSERT OR REPLACE INTO emoji_cache (emoji_name, emoji_id)
+                    VALUES (?, ?)
+                ''', (emoji_name, emoji_id))
+                self.conn.commit()
+        except Exception as e:
+            log(f"[QuantaHut] Error setting emoji ID: {e}")
+    
+    def get_user_id(self, username: str) -> Optional[str]:
+        try:
+            with self._lock:
+                cursor = self.conn.cursor()
+                cursor.execute('SELECT user_id FROM user_cache WHERE username = ?', (username,))
+                row = cursor.fetchone()
+                return row['user_id'] if row else None
+        except Exception as e:
+            log(f"[QuantaHut] Error getting user ID: {e}")
+            return None
+    
+    def set_user_id(self, username: str, user_id: str):
+        try:
+            with self._lock:
+                cursor = self.conn.cursor()
+                cursor.execute('''
+                    INSERT OR REPLACE INTO user_cache (username, user_id)
+                    VALUES (?, ?)
+                ''', (username, user_id))
+                self.conn.commit()
+        except Exception as e:
+            log(f"[QuantaHut] Error setting user ID: {e}")
+    
+    def get_text_template(self, template_name: str) -> Optional[str]:
+        try:
+            with self._lock:
+                cursor = self.conn.cursor()
+                cursor.execute('SELECT template_content FROM text_template_cache WHERE template_name = ?', (template_name,))
+                row = cursor.fetchone()
+                return row['template_content'] if row else None
+        except Exception as e:
+            log(f"[QuantaHut] Error getting text template: {e}")
+            return None
+    
+    def set_text_template(self, template_name: str, template_content: str):
+        try:
+            with self._lock:
+                cursor = self.conn.cursor()
+                cursor.execute('''
+                    INSERT OR REPLACE INTO text_template_cache (template_name, template_content)
+                    VALUES (?, ?)
+                ''', (template_name, template_content))
+                self.conn.commit()
+        except Exception as e:
+            log(f"[QuantaHut] Error setting text template: {e}")
+    
+    def get_database_stats(self):
+        try:
+            with self._lock:
+                cursor = self.conn.cursor()
+                
+                cursor.execute('SELECT COUNT(*) as count FROM localization')
+                loc_count = cursor.fetchone()['count']
+                
+                cursor.execute('SELECT COUNT(*) as count FROM emoji_cache')
+                emoji_count = cursor.fetchone()['count']
+                
+                cursor.execute('SELECT COUNT(*) as count FROM user_cache')
+                user_count = cursor.fetchone()['count']
+                
+                cursor.execute('SELECT COUNT(*) as count FROM text_template_cache')
+                template_count = cursor.fetchone()['count']
+                
+                cursor.execute('SELECT DISTINCT plugin_id, language FROM localization')
+                plugins = cursor.fetchall()
+                
+                return {
+                    'localization_count': loc_count,
+                    'emoji_count': emoji_count,
+                    'user_count': user_count,
+                    'template_count': template_count,
+                    'plugins': [(p['plugin_id'], p['language']) for p in plugins]
+                }
+        except Exception as e:
+            log(f"[QuantaHut] Error getting database stats: {e}")
+            return None
+    
+    def get_all_strings_for_language(self, plugin_id: str, language: str):
+        try:
+            with self._lock:
+                cursor = self.conn.cursor()
+                cursor.execute('''
+                    SELECT key, value FROM localization 
+                    WHERE plugin_id = ? AND language = ?
+                    ORDER BY key
+                ''', (plugin_id, language))
+                return {row['key']: row['value'] for row in cursor.fetchall()}
+        except Exception as e:
+            log(f"[QuantaHut] Error getting strings: {e}")
+            return {}
+    
+    def close(self):
+        try:
+            if self.conn:
+                self.conn.close()
+        except Exception as e:
+            log(f"[QuantaHut] Error closing database: {e}")
+
+
 class GitHubLocalization:
     def __init__(self):
-        self.localization_cache = JsonCacheFile("quantahut_localization_cache", {})
-        self.emoji_cache = JsonCacheFile("quantahut_emoji_cache", {})
-        self.user_cache = JsonCacheFile("quantahut_user_cache", {})
-        self.text_template_cache = JsonCacheFile("quantahut_text_template_cache", {})
+        self.db = LocalizationDatabase()
+        self.localization_cache = None
+        self._migrate_from_json()
+    
+    def _migrate_from_json(self):
+        try:
+            cache_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "cache")
+            json_files = [
+                ("quantahut_localization_cache", "localization"),
+                ("quantahut_emoji_cache", "emoji"),
+                ("quantahut_user_cache", "user"),
+                ("quantahut_text_template_cache", "template")
+            ]
+            
+            for json_filename, data_type in json_files:
+                json_path = os.path.join(cache_dir, json_filename)
+                migrated_path = f"{json_path}.migrated"
+                if os.path.exists(migrated_path):
+                    continue
+                
+                if not os.path.exists(json_path):
+                    continue
+                
+                try:
+                    with open(json_path, 'r') as f:
+                        json_data = json.load(f)
+                    
+                    if not json_data:
+                        os.rename(json_path, migrated_path)
+                        continue
+                    
+                    if data_type == "localization":
+                        migrated_count = 0
+                        for key, value in json_data.items():
+                            if key.endswith('_timestamp'):
+                                continue
+                            
+                            parts = key.split('_', 2)
+                            if len(parts) >= 3:
+                                plugin_id, language, string_key = parts[0], parts[1], parts[2]
+                                cache_key = f"{plugin_id}_{language}_{string_key}"
+                                self.db.set_localized_string(cache_key, value, plugin_id, language, string_key)
+                                migrated_count += 1
+                        
+                        if migrated_count > 0:
+                            pass
+                    
+                    elif data_type == "emoji":
+                        for emoji_name, emoji_id in json_data.items():
+                            self.db.set_emoji_id(emoji_name, emoji_id)
+                    
+                    elif data_type == "user":
+                        for username, user_id in json_data.items():
+                            self.db.set_user_id(username, user_id)
+                    
+                    elif data_type == "template":
+                        for template_name, template_content in json_data.items():
+                            self.db.set_text_template(template_name, template_content)
+                    
+                    os.rename(json_path, migrated_path)
+                    
+                except Exception as e:
+                    pass
+        
+        except Exception as e:
+            pass
     
     def _get_base_url(self):
         try:
@@ -2333,7 +2608,7 @@ class GitHubLocalization:
             current_language = "en"
         cache_key = f"{plugin_id}_{current_language}_{key}"
         
-        cached_value = self.localization_cache.content.get(cache_key)
+        cached_value = self.db.get_localized_string(cache_key)
         if cached_value is not None:
             return cached_value
         
@@ -2347,42 +2622,16 @@ class GitHubLocalization:
             with urllib.request.urlopen(f"{base_url}/{plugin_id}%20{language}.json") as response:
                 data = json.loads(response.read().decode('utf-8'))
                 
-                cache_key = f"{plugin_id}_{language}"
-                old_data = self.localization_cache.content.get(cache_key, {})
+                if not data:
+                    return "no_data"
                 
-                if not force_refresh and old_data == data:
-                    return "no_changes_detected"
-                
-                if old_data:
-                    changes = []
-                    for key in set(data.keys()) | set(old_data.keys()):
-                        if key not in old_data:
-                            changes.append(f"+{key}")
-                        elif key not in data:
-                            changes.append(f"-{key}")
-                        elif data[key] != old_data[key]:
-                            changes.append(f"~{key}")
-                    
-                    if changes:
-                        quantahut_log(f"Changes: {', '.join(changes[:10])}{'...' if len(changes) > 10 else ''}")
-                else:
-                    quantahut_log(f"First time caching {len(data)} keys")
-                
-                keys_to_remove = []
-                prefix = f"{plugin_id}_{language}_"
-                for key in self.localization_cache.content.keys():
-                    if key.startswith(prefix) and not key.endswith('_timestamp'):
-                        keys_to_remove.append(key)
-                
-                for key in keys_to_remove:
-                    del self.localization_cache.content[key]
-                
-                self.localization_cache.content[cache_key] = data
+                quantahut_log(f"Downloaded {len(data)} localization keys for {plugin_id} ({language})")
+                self.db.clear_language_data(plugin_id, language)
                 for trans_key, trans_value in data.items():
-                    self.localization_cache.content[f"{plugin_id}_{language}_{trans_key}"] = trans_value
+                    cache_key = f"{plugin_id}_{language}_{trans_key}"
+                    self.db.set_localized_string(cache_key, trans_value, plugin_id, language, trans_key)
                 
-                self.localization_cache.content[f"{plugin_id}_{language}_timestamp"] = time.time()
-                self.localization_cache.write()
+                quantahut_log(f"Cached {len(data)} strings for {plugin_id} ({language})")
                 return "updated"
                 
         except Exception as e:
@@ -2390,34 +2639,22 @@ class GitHubLocalization:
             raise
 
     def get_emoji_id(self, emoji_name: str) -> str:
-        cached = self.emoji_cache.content.get(emoji_name)
-        if cached:
-            return cached
-        return None
+        return self.db.get_emoji_id(emoji_name)
 
     def cache_emoji_id(self, emoji_name: str, emoji_id: str):
-        self.emoji_cache.content[emoji_name] = emoji_id
-        self.emoji_cache.write()
+        self.db.set_emoji_id(emoji_name, emoji_id)
 
     def get_user_id(self, username: str) -> str:
-        cached = self.user_cache.content.get(username)
-        if cached:
-            return cached
-        return None
+        return self.db.get_user_id(username)
 
     def cache_user_id(self, username: str, user_id: str):
-        self.user_cache.content[username] = user_id
-        self.user_cache.write()
+        self.db.set_user_id(username, user_id)
 
     def get_string_template(self, template_name: str) -> str:
-        cached = self.text_template_cache.content.get(template_name)
-        if cached:
-            return cached
-        return None
+        return self.db.get_text_template(template_name)
 
     def cache_text_template(self, template_name: str, template_content: str):
-        self.text_template_cache.content[template_name] = template_content
-        self.text_template_cache.write()
+        self.db.set_text_template(template_name, template_content)
 
 github_localization = GitHubLocalization()
 
@@ -2426,6 +2663,40 @@ def get_localized_string(plugin_id: str, key: str, default: str = None) -> str:
 
 def download_localization(plugin_id: str, language: str = "en", force_refresh: bool = False):
     github_localization.download_localization(plugin_id, language, force_refresh)
+
+def show_database_info():
+    stats = github_localization.db.get_database_stats()
+    if stats:
+        info_lines = [
+            f"=== SQLite Database Info ===",
+            f"Localization strings: {stats['localization_count']}",
+            f"Emoji cache: {stats['emoji_count']}",
+            f"User cache: {stats['user_count']}",
+            f"Text templates: {stats['template_count']}",
+            f"",
+            f"Available plugins/languages:"
+        ]
+        for plugin_id, lang in stats['plugins']:
+            strings = github_localization.db.get_all_strings_for_language(plugin_id, lang)
+            info_lines.append(f"  - {plugin_id} ({lang}): {len(strings)} strings")
+            if len(strings) <= 5:
+                for key, value in list(strings.items())[:5]:
+                    info_lines.append(f"      {key}: {value[:50]}...")
+        
+        message = "\n".join(info_lines)
+        log(f"[QuantaHut] {message}")
+        
+        try:
+            from ui.bulletin import BulletinHelper
+            BulletinHelper.show_info("Check logs for database info")
+        except:
+            pass
+        
+        return message
+    else:
+        log("[QuantaHut] Failed to get database stats")
+        return "Error getting database info"
+
 
 def restart_app(fragment=None):
     try:
@@ -2759,19 +3030,16 @@ def perform_haptic(host=None):
     except:
         pass
 
-__all__ = ("get_localized_string", "download_localization", "JsonCacheFile", "utilities", "hut", "showupdatebottomsheet", "show_restart_bulletin", "MultiSelectorBottomSheet", "export_plugin_settings", "export_all_plugin_settings", "perform_haptic")
+__all__ = ("get_localized_string", "download_localization", "JsonCacheFile", "utilities", "hut", "showbottomsheet", "show_restart_bulletin", "MultiSelectorBottomSheet", "export_plugin_settings", "export_all_plugin_settings", "perform_haptic", "BottomSheetHelper")
 
-class UpdateBottomSheet:
-    def __init__(self, context, activity, fragment, available_languages=None, localization_cache=None):
+class BottomSheetHelper:
+    def __init__(self, context, activity, fragment):
         self.context = context
         self.activity = activity
         self.fragment = fragment
         self.bottom_sheet = None
         self.download_button = None
         self.current_language = "en"
-        self.available_languages = available_languages or []
-        self.selected_github_url = None
-        self.localization_cache = localization_cache
         self.status_text_view = None
 
     def _load_sticker_avatar(self, avatar_view, pack_name, index):
