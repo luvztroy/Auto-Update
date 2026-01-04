@@ -3040,6 +3040,7 @@ class BottomSheetHelper:
         self.bottom_sheet = None
         self.download_button = None
         self.current_language = "en"
+        self.selected_github_url = None
         self.status_text_view = None
 
     def _load_sticker_avatar(self, avatar_view, pack_name, index):
