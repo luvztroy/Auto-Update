@@ -84,24 +84,24 @@ class QuantaHut(BasePlugin):
     
     def create_settings(self):
         return [
-            Header(text=get_string("uitweaks_settings", "Categories")),
+            Header(text=getString("uitweaks_settings", "Categories")),
             
             Text(
-                text=get_string("plugins_engine", "Plugin Engine"),
+                text=getString("plugins_engine", "Plugin Engine"),
                 icon="msg_plugins",
                 link_alias="plugin_engine",
                 create_sub_fragment=self._create_plugin_engine_settings
             ),
             
             Text(
-                text=get_string("localization", "Localization"),
+                text=getString("localization", "Localization"),
                 icon="msg_language",
                 link_alias="localization",
                 create_sub_fragment=self._create_localization_settings
             ),
             
             Text(
-                text=get_string("others", "Others"),
+                text=getString("others", "Others"),
                 icon="msg_fave",
                 link_alias="others",
                 create_sub_fragment=self._create_others_settings
@@ -110,33 +110,33 @@ class QuantaHut(BasePlugin):
     
     def _create_plugin_engine_settings(self):
         return [
-            Header(text=get_string("plugin_engine", "Plugin Engine Features")),
-            Switch(key="enable_enhanced_plugin_search", text=get_string("enhanced_plugin_search", "Enhanced Plugin Search"), default=True, icon="msg_search", link_alias="enhanced_plugin_search"),
-            Switch(key="enable_plugin_filter_pills", text=get_string("plugin_filter_pills", "Plugin Filter Pills"), default=True, icon="menu_tag_filter_solar", link_alias="plugin_filter_pills"),
-            Switch(key="enable_plugin_settings_search", text=get_string("plugin_settings_search", "Plugin Settings Search"), default=True, icon="msg_search", link_alias="plugin_settings_search"),
-            Switch(key="enable_safe_mode", text=get_string("safe_mode", "Safe Mode"), default=False, icon="msg_secret", link_alias="enable_safe_mode"),
-            Divider(text=get_string("safe_mode_subtext", "Press volume down 5 times quickly to enable plugin safe mode ~ In Safe Mode, all plugins are inactive. This allows you to safely find and disable a problematic plugin.")),
+            Header(text=getString("plugin_engine", "Plugin Engine Features")),
+            Switch(key="enable_enhanced_plugin_search", text=getString("enhanced_plugin_search", "Enhanced Plugin Search"), default=True, icon="msg_search", link_alias="enhanced_plugin_search"),
+            Switch(key="enable_plugin_filter_pills", text=getString("plugin_filter_pills", "Plugin Filter Pills"), default=True, icon="menu_tag_filter_solar", link_alias="plugin_filter_pills"),
+            Switch(key="enable_plugin_settings_search", text=getString("plugin_settings_search", "Plugin Settings Search"), default=True, icon="msg_search", link_alias="plugin_settings_search"),
+            Switch(key="enable_safe_mode", text=getString("safe_mode", "Safe Mode"), default=False, icon="msg_secret", link_alias="enable_safe_mode"),
+            Divider(text=getString("safe_mode_subtext", "Press volume down 5 times quickly to enable plugin safe mode ~ In Safe Mode, all plugins are inactive. This allows you to safely find and disable a problematic plugin.")),
             
-            Header(text=get_string("export", "Export")),
-            Text(text=get_string("export_all_settings", "Export All Plugin Settings"), icon="msg_photo_rotate_solar", on_click=self._export_all_settings, link_alias="export_all_settings"),
-            Text(text=get_string("export_all_plugins", "Export All Plugins"), icon="msg_photo_rotate_solar", on_click=self._export_all_plugins, link_alias="export_all_plugins"),
+            Header(text=getString("export", "Export")),
+            Text(text=getString("export_all_settings", "Export All Plugin Settings"), icon="msg_photo_rotate_solar", on_click=self._export_all_settings, link_alias="export_all_settings"),
+            Text(text=getString("export_all_plugins", "Export All Plugins"), icon="msg_photo_rotate_solar", on_click=self._export_all_plugins, link_alias="export_all_plugins"),
         ]
     
     def _create_localization_settings(self):
         show_branch_selector = self.get_setting("show_branch_selector", False)
         
         settings = [
-            Header(text=get_string("localization_settings", "Localization Settings")),
+            Header(text=getString("localization_settings", "Localization Settings")),
         ]
         
         if show_branch_selector:
             settings.append(
-                Selector(key="language_fetch", text=get_string("language_fetch", "Check Language Files"), items=[get_string("branch_main", "Main"), get_string("branch_beta", "Beta")], default=DEFAULT_BRANCH, icon="msg_folders", link_alias="language_fetch")
+                Selector(key="language_fetch", text=getString("language_fetch", "Check Language Files"), items=[getString("branch_main", "Main"), getString("branch_beta", "Beta")], default=DEFAULT_BRANCH, icon="msg_folders", link_alias="language_fetch")
             )
         
         settings.extend([
-            Text(text=get_string("reset_language_preference", "Reset Language Preference"), red=True, on_click=self._reset_language_preference, on_long_click=self._toggle_branch_selector, icon="msg_delete"),
-            Text(text=get_string("clear_file_cache", "Clear File Cache"), red=True, on_click=self._clear_file_cache, icon="msg_delete", link_alias="clear_file_cache"),
+            Text(text=getString("reset_language_preference", "Reset Language Preference"), red=True, on_click=self._reset_language_preference, on_long_click=self._toggle_branch_selector, icon="msg_delete"),
+            Text(text=getString("clear_file_cache", "Clear File Cache"), red=True, on_click=self._clear_file_cache, icon="msg_delete", link_alias="clear_file_cache"),
             Divider(text=self._get_cache_info_text()),
         ])
         
@@ -144,13 +144,13 @@ class QuantaHut(BasePlugin):
     
     def _create_others_settings(self):
         return [
-            Header(text=get_string("updates", "Updates")),
-            Text(text=get_string("check_update", "Check for Plugin Updates"), accent=True, icon="msg_download_solar", on_click=lambda v: check_quanta_updates(), link_alias="check_update"),
+            Header(text=getString("updates", "Updates")),
+            Text(text=getString("check_update", "Check for Plugin Updates"), accent=True, icon="msg_download_solar", on_click=lambda v: check_quanta_updates(), link_alias="check_update"),
             
-            Header(text=get_string("general", "General")),
-            Switch(key="enable_header_particles", text=get_string("particles", "Particles"), default=True, icon="msg_settings_ny", link_alias="enable_header_particles"),
-            Switch(key="show_logs", text=get_string("enable_debug_logging_quantahut", "Enable Debug Logging"), default=DEFAULT_SHOW_LOGS, icon="menu_intro_solar", link_alias="show_logs"),
-            Switch(key="show_restart_menu", text=get_string("quantahut_show_restart", "Show Restart in Drawer"), default=DEFAULT_SHOW_RESTART_MENU, icon="msg_retry", on_change=self._on_restart_toggle_changed, link_alias="show_restart_menu"),
+            Header(text=getString("general", "General")),
+            Switch(key="enable_header_particles", text=getString("particles", "Particles"), default=True, icon="msg_settings_ny", link_alias="enable_header_particles"),
+            Switch(key="show_logs", text=getString("enable_debug_logging_quantahut", "Enable Debug Logging"), default=DEFAULT_SHOW_LOGS, icon="menu_intro_solar", link_alias="show_logs"),
+            Switch(key="show_restart_menu", text=getString("quantahut_show_restart", "Show Restart in Drawer"), default=DEFAULT_SHOW_RESTART_MENU, icon="msg_retry", on_change=self._on_restart_toggle_changed, link_alias="show_restart_menu"),
         ]
 
     def on_plugin_load(self):
@@ -561,7 +561,7 @@ class QuantaHut(BasePlugin):
             if enabled:
                 self.restart_menu_item = self.add_menu_item(MenuItemData(
                     menu_type=MenuItemType.DRAWER_MENU,
-                    text=get_string("quantahut_restart_drawer", "Restart App"),
+                    text=getString("quantahut_restart_drawer", "Restart App"),
                     icon="msg_retry",
                     priority=150,
                     on_click=self._on_restart_menu_clicked,
@@ -601,11 +601,11 @@ class QuantaHut(BasePlugin):
             from ui.bulletin import BulletinHelper
             prefs = get_private_field(PluginsController.getInstance(), "preferences")
             prefs.edit().remove("plugin_setting_ui_tweaks_selected_language").apply()
-            run_on_ui_thread(lambda: BulletinHelper.show_success(get_string("language_pref_reset_success", "Language preference has been reset")))
+            run_on_ui_thread(lambda: BulletinHelper.show_success(getString("language_pref_reset_success", "Language preference has been reset")))
         except Exception as e:
             try:
                 from ui.bulletin import BulletinHelper
-                run_on_ui_thread(lambda: BulletinHelper.show_error(get_string("language_pref_reset_failed", "Failed to reset language preference")))
+                run_on_ui_thread(lambda: BulletinHelper.show_error(getString("language_pref_reset_failed", "Failed to reset language preference")))
             except Exception:
                 pass
             quantahut_log(f"Error resetting language preference: {e}")
@@ -636,14 +636,14 @@ class QuantaHut(BasePlugin):
                         formatted_langs.append(lang.upper())
                 
                 lang_text = ', '.join(formatted_langs)
-                info_parts.append(get_string("cache_info", "Cached {count} strings across languages: {languages}").format(count=string_count, languages=lang_text))
+                info_parts.append(getString("cache_info", "Cached {count} strings across languages: {languages}").format(count=string_count, languages=lang_text))
             
             if not info_parts:
-                return get_string("cache_info", "No cached data")
+                return getString("cache_info", "No cached data")
             
             return " | ".join(info_parts)
         except Exception as e:
-            return get_string("cache_info", "Cache status unavailable")
+            return getString("cache_info", "Cache status unavailable")
 
     def register_message_context_menu_item(self, *args, **kwargs):
         return utilities.register_message_menu_item(*args, **kwargs)
@@ -865,7 +865,7 @@ class QuantaHut(BasePlugin):
             timestamp_key = "quantaconfig_timestamp"
             
             if not force_refresh:
-                cached_badges = github_localization.get_string_template(cache_key)
+                cached_badges = github_localization.getString_template(cache_key)
                 if cached_badges:
                     return json.loads(cached_badges)
             
@@ -892,7 +892,7 @@ class QuantaHut(BasePlugin):
     def _should_refresh_quantaconfig(self, max_age_hours=6):
         try:
             timestamp_key = "quantaconfig_timestamp"
-            cached_timestamp = github_localization.get_string_template(timestamp_key)
+            cached_timestamp = github_localization.getString_template(timestamp_key)
             
             if not cached_timestamp:
                 return True
@@ -1084,10 +1084,10 @@ class QuantaHut(BasePlugin):
                     changes_count = 1
                 
                 if changes_count == 0:
-                    BulletinHelper.show_error(get_string("settings_same_as_current", "It looks like the settings are the same as the current ones."))
+                    BulletinHelper.show_error(getString("settings_same_as_current", "It looks like the settings are the same as the current ones."))
                     return
                 
-                subtitle = get_string("changes_will_be_applied_singular", "{count} change will be applied to the current settings.").format(count=changes_count) if changes_count == 1 else get_string("changes_will_be_applied_plural", "{count} changes will be applied to the current settings.").format(count=changes_count)
+                subtitle = getString("changes_will_be_applied_singular", "{count} change will be applied to the current settings.").format(count=changes_count) if changes_count == 1 else getString("changes_will_be_applied_plural", "{count} changes will be applied to the current settings.").format(count=changes_count)
                 
                 def on_import_click():
                     self._import_from_message(message_object)
@@ -1095,8 +1095,8 @@ class QuantaHut(BasePlugin):
                 showbottomsheet(
                     title=getString("apply_settings_confirmation", "Are you sure you want to apply these settings?"),
                     subtitle=subtitle,
-                    button_text=get_string("yes_apply", "Yes, apply"),
-                    button2_text=get_string("no_leave_as_is", "No, leave as is"),
+                    button_text=getString("yes_apply", "Yes, apply"),
+                    button2_text=getString("no_leave_as_is", "No, leave as is"),
                     show_close_button=False,
                     raw_resource=R_tg.raw.email_check_inbox,
                     on_button_click=on_import_click,
@@ -1142,10 +1142,10 @@ class QuantaHut(BasePlugin):
                         
                         controller.loadPluginSettings(plugin_id)
             
-            BulletinHelper.show_success(get_string("imported_settings_from_plugins", "Imported settings from {count} plugins").format(count=len(all_settings)))
+            BulletinHelper.show_success(getString("imported_settings_from_plugins", "Imported settings from {count} plugins").format(count=len(all_settings)))
             
         except Exception as e:
-            BulletinHelper.show_error(get_string("failed_to_import_settings", "Failed to import settings"))
+            BulletinHelper.show_error(getString("failed_to_import_settings", "Failed to import settings"))
 
     def _export_all_settings(self, view):
         export_all_plugin_settings()
@@ -1155,9 +1155,9 @@ class QuantaHut(BasePlugin):
         self.set_setting("show_branch_selector", not current, reload_settings=True)
         
         if not current:
-            BulletinHelper.show_success(get_string("branch_selector_enabled", "Branch selector enabled!"))
+            BulletinHelper.show_success(getString("branch_selector_enabled", "Branch selector enabled!"))
         else:
-            BulletinHelper.show_info(get_string("branch_selector_disabled", "Branch selector hidden"))
+            BulletinHelper.show_info(getString("branch_selector_disabled", "Branch selector hidden"))
     
     def _export_all_plugins(self, view):
         try:
@@ -1167,14 +1167,14 @@ class QuantaHut(BasePlugin):
             plugin_files = plugins_dir.listFiles()
             
             if not plugin_files or len(plugin_files) == 0:
-                BulletinHelper.show_error(get_string("no_plugins_to_export", "No plugins to export"))
+                BulletinHelper.show_error(getString("no_plugins_to_export", "No plugins to export"))
                 return
             
             plugin_ids = [str(f.getName()).replace(".py", "") for f in plugin_files if f.isFile() and str(f.getName()).endswith(".py")]
             self._export_plugins_by_ids(plugin_ids, "Plugins Backup")
         except Exception as e:
             self.log(f"Error exporting plugins: {e}")
-            BulletinHelper.show_error(get_string("failed_to_export_plugins", "Failed to export plugins"))
+            BulletinHelper.show_error(getString("failed_to_export_plugins", "Failed to export plugins"))
     
     def _export_plugins_by_ids(self, plugin_ids, prefix="Plugins"):
         try:
@@ -1225,7 +1225,7 @@ class QuantaHut(BasePlugin):
             fos.close()
             
             if exported_count == 0:
-                BulletinHelper.show_error(get_string("no_plugins_exported", "No plugins were exported"))
+                BulletinHelper.show_error(getString("no_plugins_exported", "No plugins were exported"))
                 return
             
             def open_share():
@@ -1242,14 +1242,14 @@ class QuantaHut(BasePlugin):
                     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     
                     context.startActivity(intent)
-                    BulletinHelper.show_success(get_string("exported_plugins_count", "Exported {count} plugins").format(count=exported_count))
+                    BulletinHelper.show_success(getString("exported_plugins_count", "Exported {count} plugins").format(count=exported_count))
                 except Exception as e:
                     self.log(f"Error sharing: {e}")
             
             run_on_ui_thread(open_share)
         except Exception as e:
             self.log(f"Error exporting plugins: {e}")
-            BulletinHelper.show_error(get_string("failed_to_export_plugins", "Failed to export plugins"))
+            BulletinHelper.show_error(getString("failed_to_export_plugins", "Failed to export plugins"))
     
     def _add_filter_pills(self, activity):
         try:
@@ -1269,12 +1269,12 @@ class QuantaHut(BasePlugin):
             pills_layout.setOrientation(LinearLayout.HORIZONTAL)
             pills_layout.setPadding(int(AndroidUtilities.dp(12)), int(AndroidUtilities.dp(15)), int(AndroidUtilities.dp(12)), int(AndroidUtilities.dp(8)))
             filters = [
-                (get_string("filter_all", "All"), 0),
-                (get_string("filter_recently_updated", "Recently Updated"), 3),
-                (get_string("filter_enabled", "Enabled"), 1),
-                (get_string("filter_disabled", "Disabled"), 2),
-                (get_string("filter_has_settings", "Has Settings"), 4),
-                (get_string("filter_errors", "Errors"), 5)
+                (getString("filter_all", "All"), 0),
+                (getString("filter_recently_updated", "Recently Updated"), 3),
+                (getString("filter_enabled", "Enabled"), 1),
+                (getString("filter_disabled", "Disabled"), 2),
+                (getString("filter_has_settings", "Has Settings"), 4),
+                (getString("filter_errors", "Errors"), 5)
             ]
             self.filter_pills = []
             self.filter_base_texts = {}
@@ -1347,12 +1347,12 @@ class QuantaHut(BasePlugin):
             popup_window = [None]
             
             export_item = ActionBarMenuSubItem(self.stored_context, True, False, None)
-            export_item.setTextAndIcon(get_string("export_plugins_in_filter", "Export Plugins"), R_tg.drawable.msg_shareout)
+            export_item.setTextAndIcon(getString("export_plugins_in_filter", "Export Plugins"), R_tg.drawable.msg_shareout)
             export_item.setOnClickListener(OnClickListener(lambda v=None: (popup_window[0].dismiss(), self._export_filter_plugins(filter_id))))
             popup_layout.addView(export_item)
             
             delete_item = ActionBarMenuSubItem(self.stored_context, False, True, None)
-            delete_item.setTextAndIcon(get_string("delete_plugins_in_filter", "Delete Plugins"), R_tg.drawable.msg_delete)
+            delete_item.setTextAndIcon(getString("delete_plugins_in_filter", "Delete Plugins"), R_tg.drawable.msg_delete)
             delete_item.setColors(Theme.getColor(Theme.key_text_RedBold), Theme.getColor(Theme.key_text_RedRegular))
             delete_item.setOnClickListener(OnClickListener(lambda v=None: (popup_window[0].dismiss(), self._confirm_delete_filter_plugins(filter_id))))
             popup_layout.addView(delete_item)
@@ -1375,7 +1375,7 @@ class QuantaHut(BasePlugin):
             
             plugin_ids = self._get_plugins_in_filter(filter_id)
             if not plugin_ids:
-                run_on_ui_thread(lambda: BulletinHelper.show_info(get_string("no_plugins_in_filter", "No plugins in this filter")))
+                run_on_ui_thread(lambda: BulletinHelper.show_info(getString("no_plugins_in_filter", "No plugins in this filter")))
                 return
             
             filter_name = self.filter_base_texts.get(filter_id, "")
@@ -1392,7 +1392,7 @@ class QuantaHut(BasePlugin):
             plugin_ids = self._get_plugins_in_filter(filter_id)
             
             if not plugin_ids:
-                run_on_ui_thread(lambda: BulletinHelper.show_info(get_string("no_plugins_in_filter", "No plugins in this filter")))
+                run_on_ui_thread(lambda: BulletinHelper.show_info(getString("no_plugins_in_filter", "No plugins in this filter")))
                 return
             
             plugins_controller = PluginsController.getInstance()
@@ -1416,12 +1416,12 @@ class QuantaHut(BasePlugin):
             def show_selector():
                 showmultiselector(
                     items=plugin_names,
-                    title=get_string("select_plugins_to_delete", "Select Plugins to Delete"),
-                    subtitle=get_string("select_plugins_subtitle", "Choose which plugins to remove from {filter}").format(filter=filter_name),
+                    title=getString("select_plugins_to_delete", "Select Plugins to Delete"),
+                    subtitle=getString("select_plugins_subtitle", "Choose which plugins to remove from {filter}").format(filter=filter_name),
                     setting_keys=plugin_names,
                     plugin_instance=self,
                     on_action_click=on_delete_clicked,
-                    action_text=get_string("delete", "Delete"),
+                    action_text=getString("delete", "Delete"),
                     show_count=False,
                     show_select_all=True
                 )
@@ -1486,7 +1486,7 @@ class QuantaHut(BasePlugin):
                     if error:
                         BulletinHelper.show_error(str(error))
                     else:
-                        msg = get_string("deleted_plugins_count", "Deleted {count} plugins").format(count=count)
+                        msg = getString("deleted_plugins_count", "Deleted {count} plugins").format(count=count)
                         BulletinHelper.show_success(msg)
                 
                 run_on_ui_thread(update_ui)
@@ -1496,7 +1496,7 @@ class QuantaHut(BasePlugin):
                 plugins_controller.deletePlugin(plugin_id, Callback1(on_complete) if is_last else None)
         except Exception as e:
             self.log(f"Error deleting plugins: {e}")
-            run_on_ui_thread(lambda: BulletinHelper.show_error(get_string("failed_to_delete_plugins", "Failed to delete plugins")))
+            run_on_ui_thread(lambda: BulletinHelper.show_error(getString("failed_to_delete_plugins", "Failed to delete plugins")))
     
     def _get_plugin_counts(self):
         try:
@@ -1616,20 +1616,20 @@ class QuantaHut(BasePlugin):
                 zip_file.close()
                 
                 if plugin_count == 0:
-                    BulletinHelper.show_error(get_string("no_plugins_in_file", "No plugins found in file"))
+                    BulletinHelper.show_error(getString("no_plugins_in_file", "No plugins found in file"))
                     return
                 
-                subtitle = get_string("plugins_will_be_imported_singular", "{count} plugin will be imported.").format(count=plugin_count) if plugin_count == 1 else get_string("plugins_will_be_imported_plural", "{count} plugins will be imported.").format(count=plugin_count)
+                subtitle = getString("plugins_will_be_imported_singular", "{count} plugin will be imported.").format(count=plugin_count) if plugin_count == 1 else getString("plugins_will_be_imported_plural", "{count} plugins will be imported.").format(count=plugin_count)
                 
                 def on_import_click():
                     self._import_plugins_from_message(message_object)
                 
                 showbottomsheet(
-                    title=get_string("import_plugins_confirmation", "Import Plugins?"),
+                    title=getString("import_plugins_confirmation", "Import Plugins?"),
                     subtitle=subtitle,
-                    description=get_string("import_plugins_description", "Existing plugins with the same name will be replaced."),
-                    button_text=get_string("yes_import", "Yes, import"),
-                    button2_text=get_string("cancel", "Cancel"),
+                    description=getString("import_plugins_description", "Existing plugins with the same name will be replaced."),
+                    button_text=getString("yes_import", "Yes, import"),
+                    button2_text=getString("cancel", "Cancel"),
                     show_close_button=False,
                     raw_resource=R_tg.raw.email_check_inbox,
                     on_button_click=on_import_click,
@@ -1638,7 +1638,7 @@ class QuantaHut(BasePlugin):
                 
             except Exception as e:
                 self.log(f"Error showing import sheet: {e}")
-                BulletinHelper.show_error(get_string("failed_to_read_plugins_file", "Failed to read plugins file"))
+                BulletinHelper.show_error(getString("failed_to_read_plugins_file", "Failed to read plugins file"))
         
         run_on_ui_thread(show_sheet)
     
@@ -1664,12 +1664,12 @@ class QuantaHut(BasePlugin):
                     title_field = loading_view_class.getDeclaredField("title")
                     title_field.setAccessible(True)
                     title_view = title_field.get(loading_view[0])
-                    title_view.setText(get_string("importing_plugins", "Importing plugins..."))
+                    title_view.setText(getString("importing_plugins", "Importing plugins..."))
                     
                     subtitle_field = loading_view_class.getDeclaredField("subtitle")
                     subtitle_field.setAccessible(True)
                     subtitle_view = subtitle_field.get(loading_view[0])
-                    subtitle_view.setText(get_string("importing_plugins_info", "Please keep this window open while plugins are importing."))
+                    subtitle_view.setText(getString("importing_plugins_info", "Please keep this window open while plugins are importing."))
                 except Exception as e:
                     quantahut_log(f"Could not change loading view text: {e}")
                 
@@ -1813,9 +1813,9 @@ class QuantaHut(BasePlugin):
                                 
                                 def reload_callback():
                                     dismiss_dialog()
-                                    msg = get_string("imported_plugins_count_reloaded", "Imported {count} plugins successfully!").format(count=imported_count)
+                                    msg = getString("imported_plugins_count_reloaded", "Imported {count} plugins successfully!").format(count=imported_count)
                                     if skipped_count > 0:
-                                        msg += " " + get_string("plugins_skipped_count", "({count} skipped)").format(count=skipped_count)
+                                        msg += " " + getString("plugins_skipped_count", "({count} skipped)").format(count=skipped_count)
                                     run_on_ui_thread(lambda: BulletinHelper.show_success(msg))
                                 
                                 python_engine.loadPlugins(R(reload_callback))
@@ -1826,13 +1826,13 @@ class QuantaHut(BasePlugin):
                 else:
                     dismiss_dialog()
                     if skipped_count > 0:
-                        run_on_ui_thread(lambda: BulletinHelper.show_info(get_string("no_plugins_imported_skipped", "No plugins imported ({count} skipped - same or newer version)").format(count=skipped_count)))
+                        run_on_ui_thread(lambda: BulletinHelper.show_info(getString("no_plugins_imported_skipped", "No plugins imported ({count} skipped - same or newer version)").format(count=skipped_count)))
                     else:
-                        run_on_ui_thread(lambda: BulletinHelper.show_error(get_string("no_plugins_imported", "No plugins were imported")))
+                        run_on_ui_thread(lambda: BulletinHelper.show_error(getString("no_plugins_imported", "No plugins were imported")))
                     
             except Exception as e:
                 self.log(f"Error importing plugins: {e}")
-                run_on_ui_thread(lambda: BulletinHelper.show_error(get_string("failed_to_import_plugins", "Failed to import plugins")))
+                run_on_ui_thread(lambda: BulletinHelper.show_error(getString("failed_to_import_plugins", "Failed to import plugins")))
         
         run_on_queue(do_import)
 
@@ -2229,7 +2229,7 @@ class QuantaDeeplinkHook:
                     self.plugin._process_badges_from_data(badges_data)
                     self.plugin.log(f"Refreshed {len(self.plugin.custom_badges)} badges")
                     current_fragment = get_last_fragment()
-                    BulletinHelper.show_success(get_string("refreshed_badges", "Refreshed {count} badges from QuantaConfig").format(count=len(self.plugin.custom_badges)), current_fragment)
+                    BulletinHelper.show_success(getString("refreshed_badges", "Refreshed {count} badges from QuantaConfig").format(count=len(self.plugin.custom_badges)), current_fragment)
                 else:
                     self.plugin.log("No badges data received")
             except Exception as e:
@@ -2650,7 +2650,7 @@ class GitHubLocalization:
     def cache_user_id(self, username: str, user_id: str):
         self.db.set_user_id(username, user_id)
 
-    def get_string_template(self, template_name: str) -> str:
+    def getString_template(self, template_name: str) -> str:
         return self.db.get_text_template(template_name)
 
     def cache_text_template(self, template_name: str, template_content: str):
@@ -2726,8 +2726,8 @@ def show_restart_bulletin(message=None, button_text=None):
         def _on_restart():
             restart_app(fragment)
         
-        default_message = get_string("restart_to_apply_changes", "Restart app to apply changes")
-        default_button = get_string("restart", "Restart")
+        default_message = getString("restart_to_apply_changes", "Restart app to apply changes")
+        default_button = getString("restart", "Restart")
         
         BulletinHelper.show_with_button(
             message or default_message,
@@ -2756,11 +2756,11 @@ def check_quanta_updates():
                     py_instance._check_for_updates(show_on_load=True)
                     time.sleep(2)
                     if not (hasattr(py_instance, 'update_available') and py_instance.update_available):
-                        run_on_ui_thread(lambda: BulletinHelper.show_success(get_string("already_uptodate", "Already up to date")))
+                        run_on_ui_thread(lambda: BulletinHelper.show_success(getString("already_uptodate", "Already up to date")))
                 else:
-                    run_on_ui_thread(lambda: BulletinHelper.show_error(get_string("uitweaks_not_found", "UiTweaks not found")))
+                    run_on_ui_thread(lambda: BulletinHelper.show_error(getString("uitweaks_not_found", "UiTweaks not found")))
             else:
-                run_on_ui_thread(lambda: BulletinHelper.show_error(get_string("uitweaks_not_found", "UiTweaks not found")))
+                run_on_ui_thread(lambda: BulletinHelper.show_error(getString("uitweaks_not_found", "UiTweaks not found")))
                         
         except Exception as e:
             quantahut_log(f"Error in quanta_update: {e}")
@@ -2912,12 +2912,12 @@ def export_all_plugin_settings(include_sensitive=None):
             if fragment:
                 context = fragment.getParentActivity()
                 builder = AlertDialog.Builder(context)
-                builder.setTitle(get_string("export_warning_title", "Export Settings"))
-                builder.setMessage(get_string("export_warning_message", "Some plugins contain sensitive data.Would you like to Include them?"))
+                builder.setTitle(getString("export_warning_title", "Export Settings"))
+                builder.setMessage(getString("export_warning_message", "Some plugins contain sensitive data.Would you like to Include them?"))
                 
                 checkbox_cell = CheckBoxCell(context, 1)
                 checkbox_cell.setBackgroundDrawable(Theme.getSelectorDrawable(False))
-                checkbox_cell.setText(get_string("include_api_keys", "Include sensitive data"), "", False, False)
+                checkbox_cell.setText(getString("include_api_keys", "Include sensitive data"), "", False, False)
                 
                 OnClickInterface = find_class("android.view.View$OnClickListener")
                 OnClick = dynamic_proxy(OnClickInterface)
@@ -2936,8 +2936,8 @@ def export_all_plugin_settings(include_sensitive=None):
                     def onClick(self, dialog, which):
                         export_all_plugin_settings(include_sensitive=checkbox_cell.isChecked())
                 
-                builder.setPositiveButton(get_string("export", "Export"), ExportClick())
-                builder.setNegativeButton(get_string("cancel", "Cancel"), None)
+                builder.setPositiveButton(getString("export", "Export"), ExportClick())
+                builder.setNegativeButton(getString("cancel", "Cancel"), None)
                 run_on_ui_thread(lambda: builder.show())
             return
         
@@ -3321,8 +3321,8 @@ class BottomSheetHelper:
                 run_on_ui_thread(lambda: self.bottom_sheet.dismiss())
                 if show_restart:
                     run_on_ui_thread(lambda: show_restart_bulletin(
-                        message=get_string("restart_to_apply_localization", "Restart app to apply localization changes"),
-                        button_text=get_string("restart", "Restart")))
+                        message=getString("restart_to_apply_localization", "Restart app to apply localization changes"),
+                        button_text=getString("restart", "Restart")))
             import threading
             threading.Timer(2.0, delayed).start()
 
@@ -3434,7 +3434,7 @@ def showmultiselector(items, title, subtitle, setting_keys, plugin_instance, max
                 selected_keys = [setting_keys[i] for i in selected_indices]
                 should_restart = on_selection_change(selected_keys)
                 if should_restart:
-                    action_button.setText(get_string("restart_to_apply_changes", "Restart to apply changes"))
+                    action_button.setText(getString("restart_to_apply_changes", "Restart to apply changes"))
                 else:
                     update_action_button_text()
         
@@ -3445,7 +3445,7 @@ def showmultiselector(items, title, subtitle, setting_keys, plugin_instance, max
             select_all_text_view = TextView(context)
             select_all_text_view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14)
             select_all_text_view.setTextColor(Theme.getColor(Theme.key_featuredStickers_addButton))
-            select_all_text_view.setText(get_string("select_all", "Select All"))
+            select_all_text_view.setText(getString("select_all", "Select All"))
             select_all_text_view.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT)
             select_all_text_view.setPadding(AndroidUtilities.dp(24), AndroidUtilities.dp(10), AndroidUtilities.dp(10), AndroidUtilities.dp(10))
             select_all_button[0] = select_all_text_view
@@ -3456,13 +3456,13 @@ def showmultiselector(items, title, subtitle, setting_keys, plugin_instance, max
                         selected_items.clear()
                         for checkbox in checkboxes.values():
                             checkbox.setChecked(False, True)
-                        select_all_text_view.setText(get_string("select_all", "Select All"))
+                        select_all_text_view.setText(getString("select_all", "Select All"))
                     else:
                         selected_items.clear()
                         for i in range(len(items)):
                             selected_items.add(i)
                             checkboxes[i].setChecked(True, True)
-                        select_all_text_view.setText(get_string("deselect_all", "Deselect All"))
+                        select_all_text_view.setText(getString("deselect_all", "Deselect All"))
                     
                     update_action_button_text()
                     
@@ -3533,9 +3533,9 @@ def showmultiselector(items, title, subtitle, setting_keys, plugin_instance, max
                         
                         if show_select_all and select_all_button[0]:
                             if len(selected_items) == len(items):
-                                select_all_button[0].setText(get_string("deselect_all", "Deselect All"))
+                                select_all_button[0].setText(getString("deselect_all", "Deselect All"))
                             else:
-                                select_all_button[0].setText(get_string("select_all", "Select All"))
+                                select_all_button[0].setText(getString("select_all", "Select All"))
                         
                         if on_selection_changed:
                             on_selection_changed(list(selected_items))
@@ -3850,7 +3850,7 @@ def quantahut_log(string: str):
     if setting_getter and setting_getter("show_logs", DEFAULT_SHOW_LOGS):
         log(f"[QuantaHut] {string}")
 
-def get_string(key: str, default: str = None, plugin_id: str = "UiTweaks") -> str:
+def getString(key: str, default: str = None, plugin_id: str = "UiTweaks") -> str:
     fallback = default if default is not None else key
     try:
         result = get_localized_string(plugin_id, key, fallback)
@@ -3864,7 +3864,7 @@ __all__ = [
     'showupdatebottomsheet',
     'utilities',
     'available_languages',
-    'get_string',
+    'getString',
     'quantahut_log',
     'QuantaHutPlugin',
     'cleanup_quantahut_hooks'
@@ -4034,7 +4034,7 @@ class _PluginSettingsSearchFillItemsHook:
                     
                     UItem = jclass("org.telegram.ui.Components.UItem")
                     TextSetting = jclass("com.exteragram.messenger.plugins.models.TextSetting")
-                    items.add(UItem.asHeader(get_string("recent_searches", "Recent searches")))
+                    items.add(UItem.asHeader(getString("recent_searches", "Recent searches")))
                     
                     for qt in history:
                         def make_cb(q, a):
