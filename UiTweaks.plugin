@@ -855,8 +855,8 @@ class UiTweaksPlugin(BasePlugin):
         self.hook_video_message_control_ref = None
         self.create_view_hook_ref = None
         self.destroy_hook_ref = None
-        self.current_chat_activity = None
-        self.current_back_button = None
+        self._current_chat_activity_ref = None
+        self._current_back_button_ref = None
         self.counter_views = {}
         self._unhook_layout = None
         self.hook_add_to_folder_all_tabs_ref = None
@@ -3690,8 +3690,8 @@ class UiTweaksPlugin(BasePlugin):
 
         self._unhook_all()
         
-        self.current_chat_activity = None
-        self.current_back_button = None
+        self._current_chat_activity_ref = None
+        self._current_back_button_ref = None
         self.counter_views.clear()
         
         self._remove_reply_private_chat_menu_item()
@@ -4506,12 +4506,16 @@ class UiTweaksPlugin(BasePlugin):
             def __init__(self, messages, chat_activity, plugin_instance):
                 super().__init__()
                 self.messages = messages
-                self.chat_activity = chat_activity
+                self._chat_activity_ref = weakref.ref(chat_activity)
                 self.plugin_ref = weakref.ref(plugin_instance)
+            
+            @property
+            def chat_activity(self):
+                return self._chat_activity_ref() if self._chat_activity_ref else None
             
             def didSelectDialogs(self, fragment1, dids, message_text, param, notify, scheduleDate, topicsFragment):
                 plugin = self.plugin_ref()
-                if plugin is None:
+                if plugin is None or self.chat_activity is None:
                     return
                     
                 if dids.size() > 1 or dids.get(0).dialogId == self.chat_activity.getUserConfig().getClientUserId() or message_text:
@@ -12130,8 +12134,8 @@ class CreateViewHook(MethodHook):
             if back_button is None:
                 return
             
-            self.plugin.current_chat_activity = chat_activity
-            self.plugin.current_back_button = back_button
+            self.plugin._current_chat_activity_ref = weakref.ref(chat_activity)
+            self.plugin._current_back_button_ref = weakref.ref(back_button)
             
             back_button_id = id(back_button)
             if back_button_id not in self.plugin.counter_views:
@@ -12209,8 +12213,12 @@ class CreateViewHook(MethodHook):
                         def __init__(self, plugin_ref, chat_ref, back_btn_id):
                             self.plugin = plugin_ref
                             ObserverProxy.__init__(self)
-                            self.chat_activity = chat_ref
+                            self._chat_activity_ref = weakref.ref(chat_ref)
                             self.back_button_id = back_btn_id
+                        
+                        @property
+                        def chat_activity(self):
+                            return self._chat_activity_ref() if self._chat_activity_ref else None
                         
                         def didReceivedNotification(self, notification_id, account, *args):
                             try:
@@ -12219,6 +12227,8 @@ class CreateViewHook(MethodHook):
                                         return
                                     
                                     counter = self.plugin.counter_views[self.back_button_id]
+                                    if not self.chat_activity:
+                                        return
                                     storage = self.chat_activity.getMessagesStorage()
                                     
                                     if storage:
@@ -12891,7 +12901,11 @@ class ChatActionBarItemsHook:
 class ChatActionBarMenuItemClickHook:
     def __init__(self, plugin, chat_activity):
         self.plugin = plugin
-        self.chat_activity = chat_activity
+        self._chat_activity_ref = weakref.ref(chat_activity)
+    
+    @property
+    def chat_activity(self):
+        return self._chat_activity_ref() if self._chat_activity_ref else None
     
     def get_unread_count(self, chat_activity):
         try:
@@ -12953,9 +12967,15 @@ class ChatActionBarMenuItemClickHook:
             def __init__(self, plugin_ref, activity_ref):
                 self.plugin = plugin_ref
                 super().__init__()
-                self.activity = activity_ref
+                self._activity_ref = weakref.ref(activity_ref)
+            
+            @property
+            def activity(self):
+                return self._activity_ref() if self._activity_ref else None
             
             def run(self, data):
+                if not self.activity:
+                    return
                 default_count = ChatActionBarMenuItemClickHook(self.plugin, self.activity).get_unread_count(self.activity)
                 count = int(str(data.prompt() or str(default_count)).strip())
                 count = max(1, count)
