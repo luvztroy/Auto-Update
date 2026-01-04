@@ -91,19 +91,18 @@ def show_confirmation_selector():
         pass
 
 def get_string(key: str, default: str = None) -> str:
+    fallback = default if default is not None else key
     try:
         selected_language = get_selected_language_preference()
         if selected_language:
-            localized_text = quantahut.get_localized_string("UiTweaks", key, default or key)
-            return localized_text
+            return quantahut.get_localized_string("UiTweaks", key, fallback)
         else:
             current_language = LocaleController.getInstance().getCurrentLocaleInfo().getLangCode()
             if current_language == "en":
-                return default or key
-            localized_text = quantahut.get_localized_string("UiTweaks", key, default or key)
-            return localized_text
-    except Exception as e:
-        return default or key
+                return fallback
+            return quantahut.get_localized_string("UiTweaks", key, fallback)
+    except:
+        return fallback
 
 def get_selected_language_preference():
     try:
