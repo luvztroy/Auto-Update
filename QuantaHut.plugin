@@ -3850,12 +3850,13 @@ def quantahut_log(string: str):
     if setting_getter and setting_getter("show_logs", DEFAULT_SHOW_LOGS):
         log(f"[QuantaHut] {string}")
 
-def get_string(key: str, default: str = None) -> str:
+def get_string(key: str, default: str = None, plugin_id: str = "UiTweaks") -> str:
+    fallback = default if default is not None else key
     try:
-        return get_localized_string("UiTweaks", key, default or key)
-    except Exception as e:
-        quantahut_log(f"Error getting localized text: {e}")
-        return default or key
+        result = get_localized_string(plugin_id, key, fallback)
+        return result if result else fallback
+    except:
+        return fallback
 
 __all__ = [
     'UpdateBottomSheet',
