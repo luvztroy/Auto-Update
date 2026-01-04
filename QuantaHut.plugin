@@ -1092,8 +1092,8 @@ class QuantaHut(BasePlugin):
                 def on_import_click():
                     self._import_from_message(message_object)
                 
-                showupdatebottomsheet(
-                    title=get_string("apply_settings_confirmation", "Are you sure you want to apply these settings?"),
+                showbottomsheet(
+                    title=getString("apply_settings_confirmation", "Are you sure you want to apply these settings?"),
                     subtitle=subtitle,
                     button_text=get_string("yes_apply", "Yes, apply"),
                     button2_text=get_string("no_leave_as_is", "No, leave as is"),
@@ -1624,7 +1624,7 @@ class QuantaHut(BasePlugin):
                 def on_import_click():
                     self._import_plugins_from_message(message_object)
                 
-                showupdatebottomsheet(
+                showbottomsheet(
                     title=get_string("import_plugins_confirmation", "Import Plugins?"),
                     subtitle=subtitle,
                     description=get_string("import_plugins_description", "Existing plugins with the same name will be replaced."),
@@ -3816,7 +3816,7 @@ hut = utilities
 available_languages = []
 
 
-def showupdatebottomsheet(title, subtitle=None, description=None, description_entities=None, github_url=None, plugin_name=None, sticker_pack=None, sticker_index=None, raw_resource=None, button_text="Download", button2_text=None, bottom_text=None, show_close_button=True, show_user_avatar=False, sticker_circle=True, sticker_size=90, description_centered=False, on_button_click=None, on_button2_click=None, on_sticker_long_click=None, title_subtitle_gap=15):
+def showbottomsheet(title, subtitle=None, description=None, description_entities=None, github_url=None, plugin_name=None, sticker_pack=None, sticker_index=None, raw_resource=None, button_text="Download", button2_text=None, bottom_text=None, show_close_button=True, show_user_avatar=False, sticker_circle=True, sticker_size=90, description_centered=False, on_button_click=None, on_button2_click=None, on_sticker_long_click=None, title_subtitle_gap=15):
     try:
         from android_utils import run_on_ui_thread
         
@@ -3832,7 +3832,7 @@ def showupdatebottomsheet(title, subtitle=None, description=None, description_en
                     quantahut_log("Cannot show bottom sheet, no activity.")
                     return
                 
-                bottom_sheet = UpdateBottomSheet(activity, activity, current_fragment, github_localization.localization_cache)
+                bottom_sheet = BottomSheetHelper(activity, activity, current_fragment)
                 bottom_sheet.create_bottom_sheet(title, subtitle, description, description_entities, github_url, plugin_name, sticker_pack, sticker_index, raw_resource, button_text, button2_text, bottom_text, show_close_button, show_user_avatar, sticker_circle, sticker_size, description_centered, on_button_click, on_button2_click, on_sticker_long_click, title_subtitle_gap)
                 bottom_sheet.show()
                 
@@ -3842,7 +3842,7 @@ def showupdatebottomsheet(title, subtitle=None, description=None, description_en
         run_on_ui_thread(create_and_show)
         
     except Exception as e:
-        quantahut_log(f"Error in showupdatebottomsheet: {str(e)}")
+        quantahut_log(f"Error in showbottomsheet: {str(e)}")
 
 
 
