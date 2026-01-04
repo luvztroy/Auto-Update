@@ -57,7 +57,7 @@ try:
     import quantahut
     if hasattr(quantahut, '__version__') and quantahut.__version__ < "1.4.8":
         raise Exception(f"QuantaHut {quantahut.__version__} is too old. Need 1.4.8+")
-    from quantahut import showmultiselector, showupdatebottomsheet, export_plugin_settings
+    from quantahut import showmultiselector, showbottomsheet, export_plugin_settings
 except ImportError:
     raise Exception("QuantaHut is required but not installed. Install it first. (Don't report this as a bug - it's your fault.)")
 
@@ -2867,7 +2867,7 @@ class UiTweaksPlugin(BasePlugin):
                 def on_import_click():
                     self._import_from_message(message_object)
                 
-                showupdatebottomsheet(
+                showbottomsheet(
                     title=get_string("apply_settings_confirmation", "Are you sure you want to apply these settings?"),
                     subtitle=subtitle,
                     button_text=get_string("yes_apply", "Yes, apply"),
@@ -3196,7 +3196,7 @@ class UiTweaksPlugin(BasePlugin):
     def _show_donation_info(self):
         try:
             self.log("Opening donation info bottom sheet")
-            showupdatebottomsheet(
+            showbottomsheet(
                 title=get_string("donation_info_title", "About Donations"),
                 description=get_string("donation_info_description", 
                     "Donations are a way to appreciate the effort behind this Plugin. They don’t grant special privileges, though you may request a feature as thanks."),
@@ -3520,7 +3520,7 @@ class UiTweaksPlugin(BasePlugin):
             else:
                 subtitle = f"QuantaHut {self.quantahut_latest_version}"
             
-            showupdatebottomsheet(
+            showbottomsheet(
                 title="Update Available",
                 subtitle=subtitle,
                 description=self.changelog,
