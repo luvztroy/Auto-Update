@@ -4439,7 +4439,7 @@ class UiTweaksPlugin(BasePlugin):
             
             class SetForwardListenerHook:
                 def __init__(hook_self):
-                    super().__init__(plugin_ref)
+                    hook_self.plugin = plugin_ref
                     hook_self.layout = layout
                 
                 @hook_filters(HookFilter.ArgumentNotNull(0))
