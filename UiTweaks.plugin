@@ -14230,7 +14230,7 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
                 items.add(UItem.asButton(200, getString("add_reaction", "Add Reaction")).accent())
             
             items.add(UItem.asShadow(
-                getString("add_reaction_hint", "Tap Add Reaction and enter an emoji")
+                getString("add_reaction_hint", "Tap Add Reaction to select an emoji from the picker")
             ))
         
         except Exception:
@@ -14262,16 +14262,15 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
             self._show_add_reaction_dialog()
     
     def _show_add_reaction_dialog(self):
-        from ui.alert import AlertDialogBuilder
+        from org.telegram.ui.ActionBar import Theme, BottomSheet
         from client_utils import get_last_fragment
-        from org.telegram.ui.Components import EditTextBoldCursor
-        from org.telegram.ui.ActionBar import Theme
-        from org.telegram.messenger import AndroidUtilities
-        from android.text import InputType
-        from android.util import TypedValue
-        from android.widget import FrameLayout
-        from android.view import Gravity
+        from org.telegram.messenger import AndroidUtilities, UserConfig
+        from android.widget import FrameLayout, LinearLayout
+        from android.view import View, ViewGroup
         from android_utils import run_on_ui_thread
+        from ui.bulletin import BulletinHelper
+        from java import jclass, dynamic_proxy
+        import weakref
         
         fragment = get_last_fragment()
         if fragment is None:
@@ -14280,41 +14279,32 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
         activity = fragment.getParentActivity()
         if activity is None:
             return
-
-        edit_text = EditTextBoldCursor(activity)
-        edit_text.setHint(getString("document_id_hint", "Document ID"))
-        edit_text.setInputType(InputType.TYPE_CLASS_TEXT)
-        edit_text.setMaxLines(1)
-        edit_text.setSingleLine(True)
-        edit_text.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18)
-        edit_text.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText))
-        edit_text.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteHintText))
-        edit_text.setBackground(Theme.createEditTextDrawable(activity, True))
-        edit_text.setCursorColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader))
-        edit_text.setCursorSize(AndroidUtilities.dp(20))
-        edit_text.setCursorWidth(1.5)
-        edit_text.setPadding(0, 0, 0, 0)
-        edit_text.setFocusable(True)
         
-        builder = AlertDialogBuilder(activity)
-        builder.set_title(getString("add_reaction_title", "Add Reaction"))
-        builder.set_message(getString("add_reaction_message", "Enter the document ID of the emoji you want to pin"))
-        builder.set_view(edit_text)
+        dp = AndroidUtilities.dp
         
-        def on_add(dialog, which):
-            from ui.bulletin import BulletinHelper
-            from org.telegram.messenger import UserConfig
-            
-            input_text = str(edit_text.getText()).strip()
-            if not input_text:
+        plugin_ref = weakref.ref(self.plugin)
+        listView_ref = weakref.ref(self.listView) if self.listView else None
+        current_tab = self.current_tab
+        sheet_ref = [None]
+        
+        container = LinearLayout(activity)
+        container.setOrientation(LinearLayout.VERTICAL)
+        container.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite))
+        
+        emoji_container = FrameLayout(activity)
+        
+        EmojiView = jclass("org.telegram.ui.Components.EmojiView")
+        EmojiViewDelegate = jclass("org.telegram.ui.Components.EmojiView$EmojiViewDelegate")
+        
+        def add_reaction(emoticon=None, document_id=None):
+            plugin = plugin_ref()
+            if not plugin:
                 return
             
-            is_channel = self.current_tab == 1
+            is_channel = current_tab == 1
             reactions = self._get_reactions_list(is_channel)
             
-            try:
-                document_id = int(input_text)
-                
+            if document_id:
                 if not UserConfig.getInstance(UserConfig.selectedAccount).isPremium():
                     BulletinHelper.show_simple(getString("premium_required", "Premium required"), R_tg.raw.star_premium_2, fragment)
                     return
@@ -14324,54 +14314,122 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
                         BulletinHelper.show_simple(getString("already_pinned", "Already pinned"), R_tg.raw.ic_pin, fragment)
                         return
                 
-                if len(reactions) < 7:
-                    reactions.append({"document_id": document_id})
-                    self.plugin.save_pinned_reactions(is_channel, reactions)
-                    run_on_ui_thread(lambda: self.listView.adapter.update(True) if self.listView else None, 100)
-            except ValueError:
+                reactions.append({"document_id": document_id})
+            elif emoticon:
                 for reaction in reactions:
-                    if reaction.get("emoticon") == input_text:
+                    if reaction.get("emoticon") == emoticon:
                         BulletinHelper.show_simple(getString("already_pinned", "Already pinned"), R_tg.raw.ic_pin, fragment)
                         return
                 
-                if len(reactions) < 7:
-                    reactions.append({"emoticon": input_text})
-                    self.plugin.save_pinned_reactions(is_channel, reactions)
-                    run_on_ui_thread(lambda: self.listView.adapter.update(True) if self.listView else None, 100)
+                reactions.append({"emoticon": emoticon})
+            else:
+                return
+            
+            plugin.save_pinned_reactions(is_channel, reactions)
+            lv = listView_ref() if listView_ref else None
+            run_on_ui_thread(lambda: lv.adapter.update(True) if lv else None, 100)
+            
+            if sheet_ref[0]:
+                sheet_ref[0].dismiss()
         
-        def on_cancel_click(dialog, which):
-            try:
-                AndroidUtilities.hideKeyboard(edit_text)
-            except Exception:
+        class EmojiDelegate(dynamic_proxy(EmojiViewDelegate)):
+            def onEmojiSelected(self_delegate, emoji):
+                if emoji:
+                    add_reaction(emoticon=str(emoji))
+            
+            def onCustomEmojiSelected(self_delegate, documentId, document, emoticon, isRecent):
+                if documentId:
+                    add_reaction(document_id=int(documentId))
+            
+            def onBackspace(self_delegate):
+                return False
+            
+            def isSearchOpened(self_delegate):
+                return False
+            
+            def isExpanded(self_delegate):
+                return False
+            
+            def isUserSelf(self_delegate):
+                return False
+            
+            def getDialogId(self_delegate):
+                return 0
+            
+            def getThreadId(self_delegate):
+                return 0
+            
+            def canSchedule(self_delegate):
+                return False
+            
+            def isInScheduleMode(self_delegate):
+                return False
+            
+            def getProgressToSearchOpened(self_delegate):
+                return 0.0
+            
+            def onStickerSelected(self_delegate, view, sticker, query, parent, sendAnimationData, notify, scheduleDate, scheduleRepeatPeriod):
                 pass
-            dialog.dismiss()
-        
-        builder.set_positive_button(getString("button_add", "Add"), on_add)
-        builder.set_negative_button(getString("button_cancel", "Cancel"), on_cancel_click)
-        
-        dialog = builder.show()
-        
-        def apply_layout_params():
-            try:
-                layout_params = edit_text.getLayoutParams()
-                if layout_params is not None:
-                    if isinstance(layout_params, FrameLayout.LayoutParams):
-                        layout_params.gravity = Gravity.CENTER_HORIZONTAL
-                    
-                    if hasattr(layout_params, 'rightMargin'):
-                        layout_params.rightMargin = AndroidUtilities.dp(24)
-                        layout_params.leftMargin = AndroidUtilities.dp(24)
-                        layout_params.height = AndroidUtilities.dp(36)
-                        layout_params.bottomMargin = AndroidUtilities.dp(15)
-                    edit_text.setLayoutParams(layout_params)
-                
-                edit_text.requestFocus()
-                text_length = edit_text.getText().length() if edit_text.getText() else 0
-                edit_text.setSelection(0, text_length)
-            except Exception:
+            
+            def onStickersSettingsClick(self_delegate):
+                pass
+            
+            def onEmojiSettingsClick(self_delegate, frozenEmojiPacks):
+                pass
+            
+            def onStickersGroupClick(self_delegate, chatId):
+                pass
+            
+            def onGifSelected(self_delegate, view, gif, query, parent, notify, scheduleDate, scheduleRepeatPeriod):
+                pass
+            
+            def onTabOpened(self_delegate, type):
+                pass
+            
+            def onClearEmojiRecent(self_delegate):
+                pass
+            
+            def onShowStickerSet(self_delegate, stickerSet, inputStickerSet, edit):
+                pass
+            
+            def onStickerSetAdd(self_delegate, stickerSet):
+                pass
+            
+            def onStickerSetRemove(self_delegate, stickerSet):
+                pass
+            
+            def onSearchOpenClose(self_delegate, type):
+                pass
+            
+            def onAnimatedEmojiUnlockClick(self_delegate):
+                pass
+            
+            def showTrendingStickersAlert(self_delegate, layout):
+                pass
+            
+            def invalidateEnterView(self_delegate):
                 pass
         
-        run_on_ui_thread(apply_layout_params, 100)
+        emoji_view = EmojiView(fragment, True, False, False, activity, False, None, None, True, None, False)
+        emoji_view.setDelegate(EmojiDelegate())
+        emoji_view.setVisibility(View.VISIBLE)
+        
+        emoji_container.addView(emoji_view, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            dp(300)
+        ))
+        
+        container.addView(emoji_container, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            dp(300)
+        ))
+        
+        builder = BottomSheet.Builder(activity, True)
+        builder.setCustomView(container)
+        sheet = builder.create()
+        sheet.setCanDismissWithSwipe(False)
+        sheet_ref[0] = sheet
+        sheet.show()
     
     def _get_reactions_list(self, is_channel):
         if is_channel:
