@@ -2127,8 +2127,8 @@ class UiTweaksPlugin(BasePlugin):
             Header(text=getString("chat_list", "Chat List")),
             self.Quanta_switch("enable_select_all_dialogs", getString("select_all_dialogs_menu", "Select All Chats"), False, lambda v: self._apply_hooks(), link_alias="enable_select_all_dialogs"),
             self.Quanta_switch("enable_add_to_folder_all_tabs", getString("add_to_folder_all_tabs", "Add to Folder in All Tabs"), False, lambda v: self._apply_hooks(), link_alias="enable_add_to_folder_all_tabs"),
-            self.Quanta_switch("enable_swipe_disable", getString("disable_swipe_gestures", "Swipe gesture menu improvements"), False, lambda v: self._apply_hooks(), link_alias="enable_swipe_disable"),
-            Divider(text=getString("disable_swipe_subtext", "Add disable option in Telegrams \"Chat list swipe gesture\" menu")),
+           # self.Quanta_switch("enable_swipe_disable", getString("disable_swipe_gestures", "Swipe gesture menu improvements"), False, lambda v: self._apply_hooks(), link_alias="enable_swipe_disable"),
+           # Divider(text=getString("disable_swipe_subtext", "Add disable option in Telegrams \"Chat list swipe gesture\" menu")),
             
             Header(text=getString("account_and_display", "Account & Display")),
             self.Quanta_switch("enable_non_clickable_preview", getString("non_clickable_preview", "Non-Clickable Chat Preview"), False, lambda v: self._apply_hooks(), link_alias="enable_non_clickable_preview"),
