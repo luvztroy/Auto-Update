@@ -6935,6 +6935,8 @@ class UiTweaksPlugin(BasePlugin):
                 return HookResult()
             if not hasattr(params, "peer") or not params.peer:
                 return HookResult()
+            if hasattr(params, 'replyToStoryItem') and params.replyToStoryItem is not None:
+                return HookResult() # Skip story replies - they don't use forward RPC, so intercepting them causes the message to be canceled but never sent
             try:
                 LaunchActivity = jclass("org.telegram.ui.LaunchActivity")
                 ChatActivity = jclass("org.telegram.ui.ChatActivity")
