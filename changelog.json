@@ -1,8 +1,0 @@
-{
-  "version": "1.8.3",
-  "changelog_text": "**What's New in v1.8.3:**\n\n**Changes:**\n• Show translated messages inline\n• Hide \"via {bot}\" caption when using inline bots (works with only media)\n• Show owned channel/group like TDesktop\n• Remove chat from all folders before leaving like TDesktop\n• Bookmark messages ~ inspired from @NagramX\n• Return recent chats manager\n• Custom privacy for each users ~ inspired from @OctoGramApp\n• Show emoji keyboard for selecting pinned reactions\n\n**Bug Fixes:**\n• Use proper delegates for each forward mode\n• Fix mutual contact cells calculation\n• Skip story replies in send_comments_after_forward\n• Fixed an issue where available languages are not showing\n• Wrap all activity using weakref",
-  "sticker_pack": "lidreron",
-  "sticker_index": 15,
-  "sticker_circle": false,
-  "sticker_size": 160
-}
