@@ -11382,8 +11382,9 @@ class VideoMessageControlHook:
 
 
 
-class GifSpoilerHook:
+class GifSpoilerHook(MethodHook):
     def __init__(self, plugin: UiTweaksPlugin):
+        MethodHook.__init__(self)
         self.plugin = plugin
         self.added_items = []
         self._current_viewer_ref = None
@@ -11708,8 +11709,9 @@ class GifSpoilerHook:
             pass
 
 
-class GifDismissHook:
+class GifDismissHook(MethodHook):
     def __init__(self, plugin: UiTweaksPlugin):
+        MethodHook.__init__(self)
         self.plugin = plugin
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
