@@ -9405,6 +9405,10 @@ class UiTweaksPlugin(BasePlugin):
                         other_item = get_private_field(profile_activity, "otherItem")
                         if not other_item:
                             return
+                        
+                        user = MessagesController.getInstance(current_account).getUser(int(user_id))
+                        if not user or user.self:
+                            return    
 
                         def on_privacy_click(v):
                             try:
