@@ -1,6 +1,6 @@
 {
-  "version": "1.8.2",
-  "changelog_text": "**What's New in v1.8.2:**\n\n**Bug Fixes:**\n• Fixed an issue where premium for pinned reaction not checking selected account",
+  "version": "1.8.0",
+  "changelog_text": "**What's New in v1.8.0:**\n\n**Bug Fixes:**\n• Fixed an issue where premium for pinned reaction not checking selected account",
   "sticker_pack": "luvztroy",
   "sticker_index": 3,
   "sticker_circle": false,
