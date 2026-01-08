@@ -2294,7 +2294,7 @@ class UiTweaksPlugin(BasePlugin):
             Text(text=getString("Language", "Language"), icon="msg_language", on_click=lambda v: self._open_language(), link_alias="language"),
             self.Quanta_switch("enable_header_particles", getString("particles", "Particles"), default=True, icon="msg_settings_ny", link_alias="enable_header_particles"),
             self.Quanta_switch("show_logs", getString("enable_debug_logging", "Debug Logging"), default=False, icon="msg_emoji_objects_solar", link_alias="show_logs"),
-            self.Quanta_switch("enable_memory_warning", getString("enable_memory_warning_alert", "Memory Warning Alert"), default=True, icon="msg_psa_solar", link_alias="enable_memory_warning"),
+            self.Quanta_switch("enable_memory_warning", getString("enable_memory_warning_alert", "Memory Warning Alert"), default=False, icon="msg_psa_solar", link_alias="enable_memory_warning"),
         ])
         
         
