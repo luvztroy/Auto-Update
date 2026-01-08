@@ -4076,7 +4076,7 @@ class UiTweaksPlugin(BasePlugin):
             def didSelectDialogs(self, fragment1, dids, message_text, param, notify, scheduleDate, topicsFragment):
                 plugin = self.plugin_ref()
                 if plugin is None or self.chat_activity is None:
-                    return
+                    return True
                     
                 if dids.size() > 1 or dids.get(0).dialogId == self.chat_activity.getUserConfig().getClientUserId() or message_text:
                     for i in range(dids.size()):
