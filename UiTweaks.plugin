@@ -192,8 +192,11 @@ class NonClickablePreviewDispatchTouchHook:
                         allow_field.setBoolean(chat_activity, False)
                 except:
                     pass
-        except:
-            pass
+        except Exception as e:
+            try:
+                self.plugin.log(f"GIF Menu: Error in show_caption_dialog(): {e}")
+            except Exception:
+                pass
 
 
 class NonClickablePreviewPresentFragmentHook:
@@ -11388,6 +11391,9 @@ class GifSpoilerHook(MethodHook):
         self.plugin = plugin
         self.added_items = []
         self._current_viewer_ref = None
+        self._strong_viewer = None
+        self._strong_document = None
+        self._strong_delegate = None
 
     @property
     def current_viewer(self):
@@ -11443,6 +11449,10 @@ class GifSpoilerHook(MethodHook):
 
             self.cleanup_menu_items()
 
+            self._strong_viewer = viewer
+            self._strong_document = document
+            self._strong_delegate = delegate
+
             self.plugin.log("GIF Menu: Creating spoiler menu item")
             spoiler_item = ActionBarMenuItem.addItem(
                 preview_menu,
@@ -11450,14 +11460,19 @@ class GifSpoilerHook(MethodHook):
                 getString("hide_with_spoiler", "Hide with spoiler"),
                 False,
                 resources_provider)
-            viewer_ref = weakref.ref(viewer)
-            document_ref = weakref.ref(document)
-            delegate_ref = weakref.ref(delegate) if delegate else None
-            def on_spoiler_click(*_, v_ref=viewer_ref, d_ref=document_ref, del_ref=delegate_ref):
-                v, d = v_ref(), d_ref()
-                dl = del_ref() if del_ref else None
-                if v and d:
+            def on_spoiler_click(*_, self_ref=weakref.ref(self)):
+                try:
+                    self_obj = self_ref()
+                    if not self_obj:
+                        return
+                    v = self_obj._strong_viewer
+                    d = self_obj._strong_document
+                    dl = self_obj._strong_delegate
+                    if not v or not d:
+                        return
                     self.send_gif_with_spoiler(v, d, dl)
+                except Exception as e:
+                    pass
             spoiler_item.setOnClickListener(OnClickListener(on_spoiler_click))
             self.added_items.append(spoiler_item)
 
@@ -11468,11 +11483,19 @@ class GifSpoilerHook(MethodHook):
                 getString("send_with_caption", "Send with Caption"),
                 False,
                 resources_provider)
-            def on_caption_click(*_, v_ref=viewer_ref, d_ref=document_ref, del_ref=delegate_ref):
-                v, d = v_ref(), d_ref()
-                dl = del_ref() if del_ref else None
-                if v and d:
+            def on_caption_click(*_, self_ref=weakref.ref(self)):
+                try:
+                    self_obj = self_ref()
+                    if not self_obj:
+                        return
+                    v = self_obj._strong_viewer
+                    d = self_obj._strong_document
+                    dl = self_obj._strong_delegate
+                    if not v or not d:
+                        return
                     self.show_caption_dialog(v, d, dl)
+                except Exception as e:
+                    pass
             caption_item.setOnClickListener(OnClickListener(on_caption_click))
             self.added_items.append(caption_item)
 
@@ -11485,6 +11508,9 @@ class GifSpoilerHook(MethodHook):
     def cleanup_menu_items(self):
         try:
             if not self.added_items:
+                self._strong_viewer = None
+                self._strong_document = None
+                self._strong_delegate = None
                 return
                 
             self.plugin.log(f"GIF Menu: Cleaning up {len(self.added_items)} menu items")
@@ -11500,6 +11526,9 @@ class GifSpoilerHook(MethodHook):
                     self.plugin.log(f"GIF Menu: Error removing menu item: {e}")
             
             self.added_items.clear()
+            self._strong_viewer = None
+            self._strong_document = None
+            self._strong_delegate = None
             self.plugin.log("GIF Menu: Menu items cleanup completed")
             
         except Exception as e:
@@ -11561,7 +11590,7 @@ class GifSpoilerHook(MethodHook):
             except:
                 pass
 
-        except Exception as e:
+        except Exception:
             pass
         finally:
             self.dismiss_popup(viewer)
