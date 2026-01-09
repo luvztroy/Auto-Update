@@ -2995,7 +2995,7 @@ class UiTweaksPlugin(BasePlugin):
                     req.peer.channel_id = chat.id
                     req.peer.access_hash = chat.access_hash
                     req.offset_id = 0
-                    req.limit = 50
+                    req.limit = 100
                     
                     def handle_response(response, error):
                         if error or not response:
@@ -3018,7 +3018,7 @@ class UiTweaksPlugin(BasePlugin):
                                         elif k == 'text': info['text'] = int(v)
                                         elif k == 'pack': info['pack'] = v
                                         elif k == 'available_language': info['lang_id'] = int(v)
-                                        elif k == 'isDev': info['dev_ids'] = [int(x.strip()) for x in v.split(',')]
+                                        elif k == 'isDev' and v: info['dev_ids'] = [int(x.strip()) for x in v.split(',') if x.strip()]
                                 return info
                             
                             current_user_id = None
