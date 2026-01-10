@@ -95,33 +95,24 @@ jobs:
           QUANTAHUT_HEADER: ${{ steps.commits.outputs.quantahut_header }}
           QUANTAHUT_COMMITS: ${{ steps.commits.outputs.quantahut }}
         run: |
-          # Escape MarkdownV2 special characters
-          escape_markdown() {
-            local text="$1"
-            text="${text//\\/\\\\}"
-            text="${text//_/\\_}"
-            text="${text//*/\\*}"
-            text="${text//[/\\[}"
-            text="${text//]/\\]}"
-            text="${text//(/\\(}"
-            text="${text//)/\\)}"
-            text="${text//~/\\~}"
-            text="${text//\`/\\\`}"
-            text="${text//>/\\>}"
-            text="${text//#/\\#}"
-            text="${text//+/\\+}"
-            text="${text//=/\\=}"
-            text="${text//|/\\|}"
-            text="${text//\{/\\\{}"
-            text="${text//\}/\\\}}"
-            text="${text//./\\.}"
-            text="${text//!/\\!}"
-            text="${text//-/\\-}"
-            echo "$text"
-          }
+          # Escape headers using Python
+          ESCAPED_UITWEAKS_HEADER=$(python3 -c "
+          import sys
+          text = '''$UITWEAKS_HEADER'''
+          chars = '_*[]()~\`>#+-=|{}.!'
+          for char in chars:
+              text = text.replace(char, '\\\\' + char)
+          print(text, end='')
+          ")
           
-          ESCAPED_UITWEAKS_HEADER=$(escape_markdown "$UITWEAKS_HEADER")
-          ESCAPED_QUANTAHUT_HEADER=$(escape_markdown "$QUANTAHUT_HEADER")
+          ESCAPED_QUANTAHUT_HEADER=$(python3 -c "
+          import sys
+          text = '''$QUANTAHUT_HEADER'''
+          chars = '_*[]()~\`>#+-=|{}.!'
+          for char in chars:
+              text = text.replace(char, '\\\\' + char)
+          print(text, end='')
+          ")
           
           FULL_CAPTION="*UiTweaks:*
           ${ESCAPED_UITWEAKS_HEADER}
@@ -160,32 +151,15 @@ jobs:
           UITWEAKS_HEADER: ${{ steps.commits.outputs.uitweaks_header }}
           UITWEAKS_COMMITS: ${{ steps.commits.outputs.uitweaks }}
         run: |
-          # Escape MarkdownV2 special characters
-          escape_markdown() {
-            local text="$1"
-            text="${text//\\/\\\\}"
-            text="${text//_/\\_}"
-            text="${text//*/\\*}"
-            text="${text//[/\\[}"
-            text="${text//]/\\]}"
-            text="${text//(/\\(}"
-            text="${text//)/\\)}"
-            text="${text//~/\\~}"
-            text="${text//\`/\\\`}"
-            text="${text//>/\\>}"
-            text="${text//#/\\#}"
-            text="${text//+/\\+}"
-            text="${text//=/\\=}"
-            text="${text//|/\\|}"
-            text="${text//\{/\\\{}"
-            text="${text//\}/\\\}}"
-            text="${text//./\\.}"
-            text="${text//!/\\!}"
-            text="${text//-/\\-}"
-            echo "$text"
-          }
-          
-          ESCAPED_HEADER=$(escape_markdown "$UITWEAKS_HEADER")
+          # Escape header using Python
+          ESCAPED_HEADER=$(python3 -c "
+          import sys
+          text = '''$UITWEAKS_HEADER'''
+          chars = '_*[]()~\`>#+-=|{}.!'
+          for char in chars:
+              text = text.replace(char, '\\\\' + char)
+          print(text, end='')
+          ")
           
           FULL_CAPTION="*${ESCAPED_HEADER}*
           ${UITWEAKS_COMMITS}"
@@ -220,32 +194,15 @@ jobs:
           QUANTAHUT_HEADER: ${{ steps.commits.outputs.quantahut_header }}
           QUANTAHUT_COMMITS: ${{ steps.commits.outputs.quantahut }}
         run: |
-          # Escape MarkdownV2 special characters
-          escape_markdown() {
-            local text="$1"
-            text="${text//\\/\\\\}"
-            text="${text//_/\\_}"
-            text="${text//*/\\*}"
-            text="${text//[/\\[}"
-            text="${text//]/\\]}"
-            text="${text//(/\\(}"
-            text="${text//)/\\)}"
-            text="${text//~/\\~}"
-            text="${text//\`/\\\`}"
-            text="${text//>/\\>}"
-            text="${text//#/\\#}"
-            text="${text//+/\\+}"
-            text="${text//=/\\=}"
-            text="${text//|/\\|}"
-            text="${text//\{/\\\{}"
-            text="${text//\}/\\\}}"
-            text="${text//./\\.}"
-            text="${text//!/\\!}"
-            text="${text//-/\\-}"
-            echo "$text"
-          }
-          
-          ESCAPED_HEADER=$(escape_markdown "$QUANTAHUT_HEADER")
+          # Escape header using Python
+          ESCAPED_HEADER=$(python3 -c "
+          import sys
+          text = '''$QUANTAHUT_HEADER'''
+          chars = '_*[]()~\`>#+-=|{}.!'
+          for char in chars:
+              text = text.replace(char, '\\\\' + char)
+          print(text, end='')
+          ")
           
           FULL_CAPTION="*${ESCAPED_HEADER}*
           ${QUANTAHUT_COMMITS}"
