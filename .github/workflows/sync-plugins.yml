@@ -50,12 +50,92 @@ jobs:
           UITWEAKS_COMMITS: ${{ steps.commits.outputs.uitweaks }}
           QUANTAHUT_COMMITS: ${{ steps.commits.outputs.quantahut }}
         run: |
-          CAPTION="UiTweaks:\n${UITWEAKS_COMMITS}\n\nQuantaHut:\n${QUANTAHUT_COMMITS}"
-          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMediaGroup" \
-            -F "chat_id=${CHAT_ID}" \
-            -F "media=[{\"type\":\"document\",\"media\":\"attach://file1\"},{\"type\":\"document\",\"media\":\"attach://file2\",\"caption\":\"${CAPTION}\"}]" \
-            -F "file1=@UiTweaks.plugin" \
-            -F "file2=@QuantaHut.plugin"
+          python3 << 'PYEOF'
+          import os
+          import json
+          import urllib.request
+          import urllib.parse
+          
+          bot_token = os.environ['BOT_TOKEN']
+          chat_id = os.environ['CHAT_ID']
+          uitweaks = os.environ.get('UITWEAKS_COMMITS', '')
+          quantahut = os.environ.get('QUANTAHUT_COMMITS', '')
+          
+          MAX_CAPTION = 1024
+          
+          def split_commits(text, max_len):
+              lines = text.split('\n')
+              caption = []
+              remaining = []
+              current_len = 0
+              
+              for line in lines:
+                  if current_len + len(line) + 1 < max_len:
+                      caption.append(line)
+                      current_len += len(line) + 1
+                  else:
+                      remaining.append(line)
+              
+              return '\n'.join(caption), '\n'.join(remaining) if remaining else None
+          
+          full_caption = f"UiTweaks:\n{uitweaks}\n\nQuantaHut:\n{quantahut}"
+          
+          if len(full_caption) > MAX_CAPTION:
+              caption, extra = split_commits(full_caption, MAX_CAPTION)
+          else:
+              caption, extra = full_caption, None
+          
+          # Send files with truncated caption
+          boundary = '----WebKitFormBoundary7MA4YWxkTrZu0gW'
+          body = []
+          
+          body.append(f'--{boundary}')
+          body.append('Content-Disposition: form-data; name="chat_id"')
+          body.append('')
+          body.append(chat_id)
+          
+          media = [
+              {'type': 'document', 'media': 'attach://file1'},
+              {'type': 'document', 'media': 'attach://file2', 'caption': caption}
+          ]
+          body.append(f'--{boundary}')
+          body.append('Content-Disposition: form-data; name="media"')
+          body.append('')
+          body.append(json.dumps(media))
+          
+          with open('UiTweaks.plugin', 'rb') as f:
+              body.append(f'--{boundary}')
+              body.append('Content-Disposition: form-data; name="file1"; filename="UiTweaks.plugin"')
+              body.append('Content-Type: application/octet-stream')
+              body.append('')
+              file1_data = f.read()
+          
+          with open('QuantaHut.plugin', 'rb') as f:
+              body.append(f'--{boundary}')
+              body.append('Content-Disposition: form-data; name="file2"; filename="QuantaHut.plugin"')
+              body.append('Content-Type: application/octet-stream')
+              body.append('')
+              file2_data = f.read()
+          
+          body_str = '\r\n'.join(body) + '\r\n'
+          body_bytes = body_str.encode('utf-8') + file1_data + b'\r\n' + file2_data + f'\r\n--{boundary}--\r\n'.encode('utf-8')
+          
+          req = urllib.request.Request(
+              f'https://api.telegram.org/bot{bot_token}/sendMediaGroup',
+              data=body_bytes,
+              headers={'Content-Type': f'multipart/form-data; boundary={boundary}'}
+          )
+          
+          with urllib.request.urlopen(req) as response:
+              print(response.read().decode())
+          
+          # Send remaining commits as text if any
+          if extra:
+              data = urllib.parse.urlencode({'chat_id': chat_id, 'text': f"...continued:\n{extra}"}).encode()
+              req = urllib.request.Request(f'https://api.telegram.org/bot{bot_token}/sendMessage', data=data)
+              with urllib.request.urlopen(req) as response:
+                  print(response.read().decode())
+          PYEOF
 
       - name: Upload UiTweaks only
         if: steps.changed.outputs.uitweaks == '1' && steps.changed.outputs.quantahut != '1'
@@ -64,10 +144,77 @@ jobs:
           CHAT_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
           UITWEAKS_COMMITS: ${{ steps.commits.outputs.uitweaks }}
         run: |
-          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
-            -F "chat_id=${CHAT_ID}" \
-            -F "document=@UiTweaks.plugin" \
-            -F "caption=${UITWEAKS_COMMITS}"
+          python3 << 'PYEOF'
+          import os
+          import urllib.request
+          import urllib.parse
+          
+          bot_token = os.environ['BOT_TOKEN']
+          chat_id = os.environ['CHAT_ID']
+          commits = os.environ.get('UITWEAKS_COMMITS', '')
+          
+          MAX_CAPTION = 1024
+          
+          def split_commits(text, max_len):
+              lines = text.split('\n')
+              caption = []
+              remaining = []
+              current_len = 0
+              
+              for line in lines:
+                  if current_len + len(line) + 1 < max_len:
+                      caption.append(line)
+                      current_len += len(line) + 1
+                  else:
+                      remaining.append(line)
+              
+              return '\n'.join(caption), '\n'.join(remaining) if remaining else None
+          
+          if len(commits) > MAX_CAPTION:
+              caption, extra = split_commits(commits, MAX_CAPTION)
+          else:
+              caption, extra = commits, None
+          
+          # Send file
+          boundary = '----WebKitFormBoundary7MA4YWxkTrZu0gW'
+          body = []
+          
+          body.append(f'--{boundary}')
+          body.append('Content-Disposition: form-data; name="chat_id"')
+          body.append('')
+          body.append(chat_id)
+          
+          body.append(f'--{boundary}')
+          body.append('Content-Disposition: form-data; name="caption"')
+          body.append('')
+          body.append(caption)
+          
+          with open('UiTweaks.plugin', 'rb') as f:
+              body.append(f'--{boundary}')
+              body.append('Content-Disposition: form-data; name="document"; filename="UiTweaks.plugin"')
+              body.append('Content-Type: application/octet-stream')
+              body.append('')
+              file_data = f.read()
+          
+          body_str = '\r\n'.join(body) + '\r\n'
+          body_bytes = body_str.encode('utf-8') + file_data + f'\r\n--{boundary}--\r\n'.encode('utf-8')
+          
+          req = urllib.request.Request(
+              f'https://api.telegram.org/bot{bot_token}/sendDocument',
+              data=body_bytes,
+              headers={'Content-Type': f'multipart/form-data; boundary={boundary}'}
+          )
+          
+          with urllib.request.urlopen(req) as response:
+              print(response.read().decode())
+          
+          # Send remaining commits if any
+          if extra:
+              data = urllib.parse.urlencode({'chat_id': chat_id, 'text': f"...continued:\n{extra}"}).encode()
+              req = urllib.request.Request(f'https://api.telegram.org/bot{bot_token}/sendMessage', data=data)
+              with urllib.request.urlopen(req) as response:
+                  print(response.read().decode())
+          PYEOF
 
       - name: Upload QuantaHut only
         if: steps.changed.outputs.uitweaks != '1' && steps.changed.outputs.quantahut == '1'
@@ -76,7 +223,74 @@ jobs:
           CHAT_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
           QUANTAHUT_COMMITS: ${{ steps.commits.outputs.quantahut }}
         run: |
-          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
-            -F "chat_id=${CHAT_ID}" \
-            -F "document=@QuantaHut.plugin" \
-            -F "caption=${QUANTAHUT_COMMITS}"
+          python3 << 'PYEOF'
+          import os
+          import urllib.request
+          import urllib.parse
+          
+          bot_token = os.environ['BOT_TOKEN']
+          chat_id = os.environ['CHAT_ID']
+          commits = os.environ.get('QUANTAHUT_COMMITS', '')
+          
+          MAX_CAPTION = 1024
+          
+          def split_commits(text, max_len):
+              lines = text.split('\n')
+              caption = []
+              remaining = []
+              current_len = 0
+              
+              for line in lines:
+                  if current_len + len(line) + 1 < max_len:
+                      caption.append(line)
+                      current_len += len(line) + 1
+                  else:
+                      remaining.append(line)
+              
+              return '\n'.join(caption), '\n'.join(remaining) if remaining else None
+          
+          if len(commits) > MAX_CAPTION:
+              caption, extra = split_commits(commits, MAX_CAPTION)
+          else:
+              caption, extra = commits, None
+          
+          # Send file
+          boundary = '----WebKitFormBoundary7MA4YWxkTrZu0gW'
+          body = []
+          
+          body.append(f'--{boundary}')
+          body.append('Content-Disposition: form-data; name="chat_id"')
+          body.append('')
+          body.append(chat_id)
+          
+          body.append(f'--{boundary}')
+          body.append('Content-Disposition: form-data; name="caption"')
+          body.append('')
+          body.append(caption)
+          
+          with open('QuantaHut.plugin', 'rb') as f:
+              body.append(f'--{boundary}')
+              body.append('Content-Disposition: form-data; name="document"; filename="QuantaHut.plugin"')
+              body.append('Content-Type: application/octet-stream')
+              body.append('')
+              file_data = f.read()
+          
+          body_str = '\r\n'.join(body) + '\r\n'
+          body_bytes = body_str.encode('utf-8') + file_data + f'\r\n--{boundary}--\r\n'.encode('utf-8')
+          
+          req = urllib.request.Request(
+              f'https://api.telegram.org/bot{bot_token}/sendDocument',
+              data=body_bytes,
+              headers={'Content-Type': f'multipart/form-data; boundary={boundary}'}
+          )
+          
+          with urllib.request.urlopen(req) as response:
+              print(response.read().decode())
+          
+          # Send remaining commits if any
+          if extra:
+              data = urllib.parse.urlencode({'chat_id': chat_id, 'text': f"...continued:\n{extra}"}).encode()
+              req = urllib.request.Request(f'https://api.telegram.org/bot{bot_token}/sendMessage', data=data)
+              with urllib.request.urlopen(req) as response:
+                  print(response.read().decode())
+          PYEOF
