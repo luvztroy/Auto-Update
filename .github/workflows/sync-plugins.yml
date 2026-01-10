@@ -44,61 +44,85 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
+        run: |
+          python3 << 'PYTHON_EOF'
+          import os
+          import json
+          import requests
+          
+          bot_token = os.environ['BOT_TOKEN']
+          chat_id = os.environ['CHAT_ID']
+          uitweaks_commits = os.environ.get('UITWEAKS_COMMITS', '')
+          quantahut_commits = os.environ.get('QUANTAHUT_COMMITS', '')
+          
+          caption = f"📦 UiTweaks Updates:\n{uitweaks_commits}\n\n📦 QuantaHut Updates:\n{quantahut_commits}"
+          
+          files = {
+              'file1': open('UiTweaks.plugin', 'rb'),
+              'file2': open('QuantaHut.plugin', 'rb')
+          }
+          
+          data = {
+              'chat_id': chat_id,
+              'media': json.dumps([
+                  {'type': 'document', 'media': 'attach://file1'},
+                  {'type': 'document', 'media': 'attach://file2', 'caption': caption}
+              ])
+          }
+          
+          response = requests.post(f'https://api.telegram.org/bot{bot_token}/sendMediaGroup', data=data, files=files)
+          print(response.text)
+          PYTHON_EOF
+        env:
           UITWEAKS_COMMITS: ${{ steps.changed.outputs.uitweaks_commits }}
           QUANTAHUT_COMMITS: ${{ steps.changed.outputs.quantahut_commits }}
-        run: |
-          cat > caption.txt << 'CAPTION_EOF'
-          <tg-emoji emoji-id="6030563507299160824">❗️</tg-emoji> UiTweaks Updates:
-          ${UITWEAKS_COMMITS}
-
-          <tg-emoji emoji-id="6030563507299160824">❗️</tg-emoji> QuantaHut Updates:
-          ${QUANTAHUT_COMMITS}
-          CAPTION_EOF
-          
-          CAPTION=$(envsubst < caption.txt)
-          
-          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMediaGroup" \
-            -F "chat_id=${CHAT_ID}" \
-            -F "media=[{\"type\":\"document\",\"media\":\"attach://file1\"},{\"type\":\"document\",\"media\":\"attach://file2\",\"caption\":\"$(echo "$CAPTION" | sed 's/"/\\"/g')\",\"parse_mode\":\"HTML\"}]" \
-            -F "file1=@UiTweaks.plugin" \
-            -F "file2=@QuantaHut.plugin"
 
       - name: Upload UiTweaks only
         if: steps.changed.outputs.uitweaks == '1' && steps.changed.outputs.quantahut != '1'
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
-          UITWEAKS_COMMITS: ${{ steps.changed.outputs.uitweaks_commits }}
         run: |
-          cat > caption.txt << 'CAPTION_EOF'
-          <tg-emoji emoji-id="6030563507299160824">❗️</tg-emoji> UiTweaks Updates:
-          ${UITWEAKS_COMMITS}
-          CAPTION_EOF
+          python3 << 'PYTHON_EOF'
+          import os
+          import requests
           
-          CAPTION=$(envsubst < caption.txt)
+          bot_token = os.environ['BOT_TOKEN']
+          chat_id = os.environ['CHAT_ID']
+          uitweaks_commits = os.environ.get('UITWEAKS_COMMITS', '')
           
-          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
-            -F "chat_id=${CHAT_ID}" \
-            -F "document=@UiTweaks.plugin" \
-            -F "caption=$(echo "$CAPTION" | sed 's/"/\\"/g')" \
-            -F "parse_mode=HTML"
+          caption = f"📦 UiTweaks Updates:\n{uitweaks_commits}"
+          
+          files = {'document': open('UiTweaks.plugin', 'rb')}
+          data = {'chat_id': chat_id, 'caption': caption}
+          
+          response = requests.post(f'https://api.telegram.org/bot{bot_token}/sendDocument', data=data, files=files)
+          print(response.text)
+          PYTHON_EOF
+        env:
+          UITWEAKS_COMMITS: ${{ steps.changed.outputs.uitweaks_commits }}
 
       - name: Upload QuantaHut only
         if: steps.changed.outputs.uitweaks != '1' && steps.changed.outputs.quantahut == '1'
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
-          QUANTAHUT_COMMITS: ${{ steps.changed.outputs.quantahut_commits }}
         run: |
-          cat > caption.txt << 'CAPTION_EOF'
-          <tg-emoji emoji-id="6030563507299160824">❗️</tg-emoji> QuantaHut Updates:
-          ${QUANTAHUT_COMMITS}
-          CAPTION_EOF
+          python3 << 'PYTHON_EOF'
+          import os
+          import requests
           
-          CAPTION=$(envsubst < caption.txt)
+          bot_token = os.environ['BOT_TOKEN']
+          chat_id = os.environ['CHAT_ID']
+          quantahut_commits = os.environ.get('QUANTAHUT_COMMITS', '')
           
-          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
-            -F "chat_id=${CHAT_ID}" \
-            -F "document=@QuantaHut.plugin" \
-            -F "caption=$(echo "$CAPTION" | sed 's/"/\\"/g')" \
-            -F "parse_mode=HTML"
+          caption = f"📦 QuantaHut Updates:\n{quantahut_commits}"
+          
+          files = {'document': open('QuantaHut.plugin', 'rb')}
+          data = {'chat_id': chat_id, 'caption': caption}
+          
+          response = requests.post(f'https://api.telegram.org/bot{bot_token}/sendDocument', data=data, files=files)
+          print(response.text)
+          PYTHON_EOF
+        env:
+          QUANTAHUT_COMMITS: ${{ steps.changed.outputs.quantahut_commits }}
