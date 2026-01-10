@@ -420,8 +420,9 @@ class QuantaHut(BasePlugin):
                         items_to_remove = []
                         for i in range(items.size()):
                             item = items.get(i)
-                            if hasattr(item, 'id') and item.id == 1 and hasattr(item, 'plugin') and item.plugin:
-                                if self.quantahut.get_plugin_type(str(item.plugin.getId())) == "lib":
+                            plugin = self.quantahut._get_plugin_from_item(item)
+                            if plugin:
+                                if self.quantahut.get_plugin_type(str(plugin.getId())) == "lib":
                                     items_to_remove.append(i)
                         
                         for i in reversed(items_to_remove):
@@ -432,18 +433,20 @@ class QuantaHut(BasePlugin):
                             plugins_controller = PluginsController.getInstance()
                             plugin_items = []
                             other_items = []
-                            PLUGIN_ID = 1
                             
                             for i in range(items.size()):
                                 item = items.get(i)
-                                if hasattr(item, 'id') and item.id == PLUGIN_ID:
+                                plugin = self.quantahut._get_plugin_from_item(item)
+                                if plugin:
                                     plugin_items.append(item)
                                 else:
                                     other_items.append(item)
                             
                             filtered_items = []
                             for item in plugin_items:
-                                plugin = item.plugin
+                                plugin = self.quantahut._get_plugin_from_item(item)
+                                if not plugin: continue
+                                
                                 if current_filter == 1 and plugin.isEnabled():
                                     filtered_items.append(item)
                                 elif current_filter == 2 and not plugin.isEnabled():
@@ -506,6 +509,21 @@ class QuantaHut(BasePlugin):
                 self.log("Enhanced plugin search enabled")
         except Exception as e:
             self.log(f"Failed to setup enhanced plugin search: {e}")
+    
+    def _get_plugin_from_item(self, item):
+        try:
+            if hasattr(item, 'object') and item.object:
+                try:
+                    class_name = item.object.getClass().getName()
+                    if "com.exteragram.messenger.plugins.Plugin" in class_name:
+                        return item.object
+                except:
+                    pass
+            if hasattr(item, 'plugin') and item.plugin:
+                return item.plugin
+        except:
+            pass
+        return None
     
     def _matches_plugin_search(self, plugin, query):
         try:
