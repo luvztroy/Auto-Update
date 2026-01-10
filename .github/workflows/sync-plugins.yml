@@ -30,11 +30,6 @@ jobs:
         run: |
           BRANCH="${{ github.ref_name }}"
           
-          # Function to escape MarkdownV2 special characters
-          escape_markdown() {
-            echo "$1" | sed 's/\([_*\[\]()~`>#+=|{}.!-]\)/\\\1/g'
-          }
-          
           if git diff --name-only HEAD~1 HEAD | grep -q "^UiTweaks.plugin$"; then
             COMMIT_COUNT=$(git log ${{ github.event.before }}..${{ github.event.after }} --oneline -- UiTweaks.plugin | wc -l)
             UITWEAKS_HEADER="${COMMIT_COUNT} new commit(s) to ${{ github.repository }}:${BRANCH}:"
@@ -47,8 +42,8 @@ jobs:
               AUTHOR=$(echo "$REST" | cut -d'|' -f2)
               URL="https://github.com/${{ github.repository }}/commit/${HASH}"
               
-              ESCAPED_SUBJECT=$(escape_markdown "$SUBJECT")
-              ESCAPED_AUTHOR=$(escape_markdown "$AUTHOR")
+              ESCAPED_SUBJECT=$(python3 -c "text='$SUBJECT'; chars='_*[]()~\`>#+-=|{}.!'; [text := text.replace(c, '\\\\'+c) for c in chars]; print(text, end='')")
+              ESCAPED_AUTHOR=$(python3 -c "text='$AUTHOR'; chars='_*[]()~\`>#+-=|{}.!'; [text := text.replace(c, '\\\\'+c) for c in chars]; print(text, end='')")
               
               UITWEAKS_COMMITS="${UITWEAKS_COMMITS}[${HASH}](${URL}): ${ESCAPED_SUBJECT} by ${ESCAPED_AUTHOR}"$'\n'
             done < <(git log ${{ github.event.before }}..${{ github.event.after }} --pretty=format:"%h %s|%an" -- UiTweaks.plugin)
@@ -73,8 +68,8 @@ jobs:
               AUTHOR=$(echo "$REST" | cut -d'|' -f2)
               URL="https://github.com/${{ github.repository }}/commit/${HASH}"
               
-              ESCAPED_SUBJECT=$(escape_markdown "$SUBJECT")
-              ESCAPED_AUTHOR=$(escape_markdown "$AUTHOR")
+              ESCAPED_SUBJECT=$(python3 -c "text='$SUBJECT'; chars='_*[]()~\`>#+-=|{}.!'; [text := text.replace(c, '\\\\'+c) for c in chars]; print(text, end='')")
+              ESCAPED_AUTHOR=$(python3 -c "text='$AUTHOR'; chars='_*[]()~\`>#+-=|{}.!'; [text := text.replace(c, '\\\\'+c) for c in chars]; print(text, end='')")
               
               QUANTAHUT_COMMITS="${QUANTAHUT_COMMITS}[${HASH}](${URL}): ${ESCAPED_SUBJECT} by ${ESCAPED_AUTHOR}"$'\n'
             done < <(git log ${{ github.event.before }}..${{ github.event.after }} --pretty=format:"%h %s|%an" -- QuantaHut.plugin)
