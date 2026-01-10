@@ -2901,7 +2901,7 @@ class UiTweaksPlugin(BasePlugin):
         
         CHANNEL_USERNAME = "QuantaConfig"
         
-        def on_update_info_received(uitweaks_version, quantahut_version, pack, sticker_index, text_msg_id, messages):
+        def on_update_info_received(uitweaks_version, quantahut_version, pack, sticker_index, text_msg_id, messages, commit_check=False):
             try:
                 changelog_text = "No changelog available"
                 
@@ -2935,12 +2935,20 @@ class UiTweaksPlugin(BasePlugin):
                 branch_index = self.get_setting("update_branch", 0)
                 branch = "main" if branch_index == 0 else "Beta"
                 
-                uitweaks_update = False
-                quantahut_update = False
+                def check_update(latest_ver, current_ver, filename, ts_key):
+                    if latest_ver and self._is_newer_version(latest_ver, current_ver):
+                        return True, latest_ver, None
+                    elif latest_ver == current_ver and commit_check:
+                        github_ts = self._get_github_commit_timestamp(branch, filename)
+                        stored_ts = self.get_setting(ts_key, None)
+                        if github_ts and (not stored_ts or github_ts != stored_ts):
+                            self.log(f"Commit-based update for {filename}: github={github_ts}, stored={stored_ts}")
+                            return True, latest_ver, github_ts
+                    return False, latest_ver, None
                 
-                if uitweaks_version and self._is_newer_version(uitweaks_version, __version__):
-                    uitweaks_update = True
-                    self.latest_version = uitweaks_version
+                uitweaks_update, self.latest_version, self._pending_commit_ts = check_update(
+                    uitweaks_version, __version__, "UiTweaks.plugin", "last_uitweaks_commit_ts"
+                )
                 
                 quantahut_current = "0.0.0"
                 try:
@@ -2948,9 +2956,9 @@ class UiTweaksPlugin(BasePlugin):
                 except:
                     pass
                 
-                if quantahut_version and self._is_newer_version(quantahut_version, quantahut_current):
-                    quantahut_update = True
-                    self.quantahut_latest_version = quantahut_version
+                quantahut_update, self.quantahut_latest_version, self._pending_quantahut_commit_ts = check_update(
+                    quantahut_version, quantahut_current, "QuantaHut.plugin", "last_quantahut_commit_ts"
+                )
                 
                 self.uitweaks_update_available = uitweaks_update
                 self.quantahut_update_available = quantahut_update
@@ -3022,6 +3030,7 @@ class UiTweaksPlugin(BasePlugin):
                                         elif k == 'pack': info['pack'] = v
                                         elif k == 'available_language': info['lang_id'] = int(v)
                                         elif k == 'isDev' and v: info['dev_ids'] = [int(x.strip()) for x in v.split(',') if x.strip()]
+                                        elif k == 'commit': info['commit_check'] = v.lower() == 'true'
                                 return info
                             
                             current_user_id = None
@@ -3061,7 +3070,7 @@ class UiTweaksPlugin(BasePlugin):
                                 on_update_info_received(
                                     update_info.get('version'), update_info.get('version2'),
                                     update_info.get('pack'), update_info.get('sticker'),
-                                    update_info.get('text'), messages
+                                    update_info.get('text'), messages, update_info.get('commit_check', False)
                                 )
                             else:
                                 self.checking_update = False
@@ -3121,6 +3130,19 @@ class UiTweaksPlugin(BasePlugin):
     
     def _is_newer_version(self, latest: str, current: str) -> bool:
         return self._compare_versions(latest, current) > 0
+    
+    def _get_github_commit_timestamp(self, branch: str = "main", filename: str = "UiTweaks.plugin") -> Optional[str]:
+        try:
+            url = f"https://raw.githubusercontent.com/luvztroy/Auto-Update/{branch}/{filename}"
+            req = urllib.request.Request(url, method='HEAD', headers={"User-Agent": "UiTweaks-Plugin"})
+            with urllib.request.urlopen(req, timeout=15) as response:
+                etag = response.headers.get('ETag') or response.headers.get('Last-Modified')
+                if etag:
+                    self.log(f"GitHub {filename} ETag: {etag[:20]}...")
+                    return etag
+        except Exception as e:
+            self.log(f"Error fetching GitHub file info: {e}")
+        return None
     
     def _show_update_bottom_sheet(self, sticker_pack, sticker_index, sticker_circle, sticker_size):
         if not self.update_available:
@@ -3227,6 +3249,13 @@ class UiTweaksPlugin(BasePlugin):
                             else:
                                 success_count[0] += 1
                                 self.log(f"{name} updated to v{version}")
+
+                                if name == "UiTweaks" and hasattr(self, '_pending_commit_ts') and self._pending_commit_ts:
+                                    self.set_setting("last_uitweaks_commit_ts", self._pending_commit_ts)
+                                    self._pending_commit_ts = None
+                                if name == "QuantaHut" and hasattr(self, '_pending_quantahut_commit_ts') and self._pending_quantahut_commit_ts:
+                                    self.set_setting("last_quantahut_commit_ts", self._pending_quantahut_commit_ts)
+                                    self._pending_quantahut_commit_ts = None
                             try:
                                 os.remove(temp_file)
                             except:
