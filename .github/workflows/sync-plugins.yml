@@ -42,8 +42,9 @@ jobs:
             UITWEAKS_COMMITS=""
             while IFS= read -r line; do
               HASH=$(echo "$line" | awk '{print $1}')
-              SUBJECT=$(echo "$line" | cut -d' ' -f2-)
-              AUTHOR=$(echo "$line" | awk -F'|' '{print $2}')
+              REST=$(echo "$line" | cut -d' ' -f2-)
+              SUBJECT=$(echo "$REST" | cut -d'|' -f1)
+              AUTHOR=$(echo "$REST" | cut -d'|' -f2)
               URL="https://github.com/${{ github.repository }}/commit/${HASH}"
               
               ESCAPED_SUBJECT=$(escape_markdown "$SUBJECT")
@@ -67,8 +68,9 @@ jobs:
             QUANTAHUT_COMMITS=""
             while IFS= read -r line; do
               HASH=$(echo "$line" | awk '{print $1}')
-              SUBJECT=$(echo "$line" | cut -d' ' -f2-)
-              AUTHOR=$(echo "$line" | awk -F'|' '{print $2}')
+              REST=$(echo "$line" | cut -d' ' -f2-)
+              SUBJECT=$(echo "$REST" | cut -d'|' -f1)
+              AUTHOR=$(echo "$REST" | cut -d'|' -f2)
               URL="https://github.com/${{ github.repository }}/commit/${HASH}"
               
               ESCAPED_SUBJECT=$(escape_markdown "$SUBJECT")
