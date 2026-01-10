@@ -11,12 +11,13 @@ import traceback
 import os.path
 import tempfile
 import urllib.request
+import weakref
 from typing import List, Callable, Optional, Any
 from dataclasses import dataclass
 
 from base_plugin import BasePlugin, HookStrategy, MenuItemData, MenuItemType
 from android_utils import log, run_on_ui_thread
-from client_utils import get_last_fragment, run_on_queue
+from client_utils import get_last_fragment, run_on_queue, get_send_messages_helper
 from ui.bulletin import BulletinHelper
 from ui.settings import Divider, Header, Switch, Input, Text, Selector
 
@@ -76,6 +77,14 @@ class QuantaHut(BasePlugin):
         self.plugin_types_cache = {}
         self.settings_search_create_view_hook = None
         self.settings_search_fill_items_hook = None
+        
+        self._link_alias_class_cache = {}
+        self.link_alias_hook_constructor_ref = None
+        self.link_alias_current_enter_view_ref = None
+        self.link_alias_settings_cache = None
+        self.link_alias_attached_views = set()
+        self.link_alias_custom_container = None
+        self.link_alias_current_settings = {}
 
     
     def log(self, message: str):
@@ -114,6 +123,7 @@ class QuantaHut(BasePlugin):
             Switch(key="enable_enhanced_plugin_search", text=getString("enhanced_plugin_search", "Enhanced Plugin Search"), default=True, icon="msg_search", link_alias="enhanced_plugin_search"),
             Switch(key="enable_plugin_filter_pills", text=getString("plugin_filter_pills", "Plugin Filter Pills"), default=True, icon="menu_tag_filter_solar", link_alias="plugin_filter_pills"),
             Switch(key="enable_plugin_settings_search", text=getString("plugin_settings_search", "Plugin Settings Search"), default=True, icon="msg_search", link_alias="plugin_settings_search"),
+            Switch(key="enable_link_alias_search", text=getString("link_alias_search", "Link alias search"), default=True, icon="msg_link2_solar", link_alias="link_alias_search"),
             Switch(key="enable_safe_mode", text=getString("safe_mode", "Safe Mode"), default=False, icon="msg_secret", link_alias="enable_safe_mode"),
             Divider(text=getString("safe_mode_subtext", "Press volume down 5 times quickly to enable plugin safe mode ~ In Safe Mode, all plugins are inactive. This allows you to safely find and disable a problematic plugin.")),
             
@@ -189,6 +199,9 @@ class QuantaHut(BasePlugin):
         self._setup_enhanced_plugin_search()
         self._setup_plugin_settings_search()
         self._setup_settings_header_hook()
+        
+        if self.get_setting("enable_link_alias_search", True):
+            self._setup_link_alias_search()
         
         if self.get_setting("enable_safe_mode", False):
             self._hook_safe_mode()
@@ -754,6 +767,15 @@ class QuantaHut(BasePlugin):
         if self.settings_search_fill_items_hook:
             self.unhook_method(self.settings_search_fill_items_hook)
             self.settings_search_fill_items_hook = None
+        
+        if self.link_alias_hook_constructor_ref:
+            try:
+                self.unhook_method(self.link_alias_hook_constructor_ref)
+            except:
+                pass
+            self.link_alias_hook_constructor_ref = None
+        self.link_alias_attached_views.clear()
+        self._link_alias_hide_popup()
             
         self._search_state.clear()
         self._all_items_cache.clear()
@@ -4145,4 +4167,597 @@ class _SafeModeHook(MethodHook):
                         param.setResult(True)
         except Exception:
             pass
+
+
+DEEPLINK_BASE = "https://t.me/exteraSettings"
+DEEPLINK_BASE_AYU = "https://t.me/ayuSettings"
+
+
+class _LinkAliasEnterViewConstructorHook(MethodHook):
+    def __init__(self, plugin):
+        MethodHook.__init__(self)
+        self._plugin_ref = weakref.ref(plugin)
+
+    @property
+    def plugin(self):
+        return self._plugin_ref() if self._plugin_ref else None
+
+    def after_hooked_method(self, param):
+        try:
+            plugin = self.plugin
+            if not plugin:
+                return
+
+            enter_view = param.thisObject
+            
+            def attach_watcher():
+                plugin._link_alias_attach_text_watcher(enter_view)
+            
+            run_on_ui_thread(attach_watcher, delay=500)
+
+        except Exception as e:
+            pass
+
+
+def _setup_link_alias_search(self):
+    try:
+        self.log("Setting up link alias search...")
+        self._link_alias_hook_enter_view_constructor()
+    except Exception as e:
+        self.log(f"Failed to setup link alias search: {e}")
+
+
+def _link_alias_get_class(self, class_name):
+    if class_name not in self._link_alias_class_cache:
+        self._link_alias_class_cache[class_name] = find_class(class_name)
+    return self._link_alias_class_cache[class_name]
+
+
+def _link_alias_hook_enter_view_constructor(self):
+    try:
+        ChatActivityEnterView = self._link_alias_get_class("org.telegram.ui.Components.ChatActivityEnterView")
+        Activity = self._link_alias_get_class("android.app.Activity")
+        SizeNotifierFrameLayout = self._link_alias_get_class("org.telegram.ui.Components.SizeNotifierFrameLayout")
+        ChatActivity = self._link_alias_get_class("org.telegram.ui.ChatActivity")
+        ResourcesProvider = self._link_alias_get_class("org.telegram.ui.ActionBar.Theme$ResourcesProvider")
+        
+        if not all([ChatActivityEnterView, Activity, SizeNotifierFrameLayout, ChatActivity]):
+            return
+
+        constructor = ChatActivityEnterView.getClass().getDeclaredConstructor(
+            Activity,
+            SizeNotifierFrameLayout,
+            ChatActivity,
+            jclass("java.lang.Boolean").TYPE,
+            ResourcesProvider
+        )
+        constructor.setAccessible(True)
+        self.link_alias_hook_constructor_ref = self.hook_method(constructor, _LinkAliasEnterViewConstructorHook(self))
+
+    except Exception as e:
+        self.log(f"Failed to hook enter view constructor: {e}")
+
+
+def _link_alias_attach_text_watcher(self, enter_view):
+    try:
+        view_id = id(enter_view)
+        if view_id in self.link_alias_attached_views:
+            return
+
+        message_edit_text = get_private_field(enter_view, "messageEditText")
+        if not message_edit_text:
+            return
+
+        self.link_alias_current_enter_view_ref = weakref.ref(enter_view)
+
+        TextWatcherInterface = self._link_alias_get_class("android.text.TextWatcher")
+        plugin_ref = weakref.ref(self)
+
+        class CustomTextWatcher(dynamic_proxy(TextWatcherInterface)):
+            def beforeTextChanged(self, s, start, count, after):
+                pass
+
+            def onTextChanged(self, s, start, before, count):
+                pass
+
+            def afterTextChanged(self, editable):
+                plugin = plugin_ref()
+                if not plugin:
+                    return
+                try:
+                    text = str(editable.toString()) if editable else ""
+
+                    if text.startswith("!") and len(text) > 1:
+                        search_key = text[1:].lower().strip()
+                        plugin._link_alias_show_matching_settings(search_key)
+                    else:
+                        plugin._link_alias_hide_popup()
+                except Exception as e:
+                    pass
+
+        watcher = CustomTextWatcher()
+        message_edit_text.addTextChangedListener(watcher)
+        self.link_alias_attached_views.add(view_id)
+
+    except Exception as e:
+        self.log(f"Failed to attach text watcher: {e}")
+
+
+def _link_alias_collect_settings_with_alias(self):
+    if self.link_alias_settings_cache:
+        return self.link_alias_settings_cache
+
+    settings_list = []
+
+    try:
+        PluginsController = self._link_alias_get_class("com.exteragram.messenger.plugins.PluginsController")
+        if not PluginsController:
+            return settings_list
+
+        controller = PluginsController.getInstance()
+        if not controller:
+            return settings_list
+
+        settings_map = controller.settings
+        if not settings_map:
+            return settings_list
+
+        plugins_map = controller.plugins
+
+        key_set = settings_map.keySet()
+        key_array = key_set.toArray()
+        
+        for i in range(len(key_array)):
+            plugin_id = key_array[i]
+            try:
+                plugin_settings = settings_map.get(plugin_id)
+                if not plugin_settings:
+                    continue
+
+                plugin = plugins_map.get(plugin_id) if plugins_map else None
+                plugin_name = plugin.getName() if plugin else str(plugin_id)
+
+                self._link_alias_collect_from_java_list(settings_list, plugin_id, plugin_name, plugin_settings, "")
+            except:
+                pass
+
+        extera_settings = self._link_alias_collect_extera_settings_with_alias()
+        settings_list.extend(extera_settings)
+
+        self.link_alias_settings_cache = settings_list
+
+    except Exception as e:
+        self.log(f"Failed to collect settings: {e}")
+
+    return settings_list
+
+
+def _link_alias_collect_extera_settings_with_alias(self):
+    settings_list = []
+    try:
+        SettingsRegistry = self._link_alias_get_class("com.exteragram.messenger.preferences.utils.SettingsRegistry")
+        if not SettingsRegistry:
+            return settings_list
+
+        registry = SettingsRegistry.getInstance()
+        if not registry:
+            return settings_list
+
+        try:
+            create_entries_method = registry.getClass().getDeclaredMethod("createEntriesIfNeeded")
+            create_entries_method.setAccessible(True)
+            create_entries_method.invoke(registry)
+        except:
+            pass
+
+        entries_field = registry.getClass().getDeclaredField("entriesStringAlias")
+        entries_field.setAccessible(True)
+        entries_map = entries_field.get(registry)
+
+        prepared_field = registry.getClass().getDeclaredField("preparedEntries")
+        prepared_field.setAccessible(True)
+        prepared_map = prepared_field.get(registry)
+
+        ayu_categories = None
+        try:
+            ayu_field = registry.getClass().getDeclaredField("ayuCategories")
+            ayu_field.setAccessible(True)
+            ayu_categories = ayu_field.get(None)
+        except:
+            pass
+
+        if not entries_map:
+            return settings_list
+
+        key_set = entries_map.keySet()
+        key_array = key_set.toArray()
+
+        for i in range(len(key_array)):
+            alias = str(key_array[i])
+            try:
+                entry = entries_map.get(alias)
+                if not entry:
+                    continue
+
+                title = None
+                subtext = None
+                is_ayu = False
+                try:
+                    entry_class = entry.getClass()
+                    guid_field = entry_class.getDeclaredField("guid")
+                    guid_field.setAccessible(True)
+                    guid = guid_field.getInt(entry)
+                    
+                    fragment_class_field = entry_class.getDeclaredField("fragmentClass")
+                    fragment_class_field.setAccessible(True)
+                    fragment_class = fragment_class_field.get(entry)
+                    if ayu_categories and fragment_class:
+                        is_ayu = ayu_categories.containsKey(fragment_class)
+                    
+                    prepared_entry = prepared_map.get(guid)
+                    if prepared_entry:
+                        title_field = entry_class.getDeclaredField("title")
+                        title_field.setAccessible(True)
+                        title = title_field.get(prepared_entry)
+                        subtext_field = entry_class.getDeclaredField("subtext")
+                        subtext_field.setAccessible(True)
+                        subtext = subtext_field.get(prepared_entry)
+                    if not title:
+                        title_field = entry_class.getDeclaredField("title")
+                        title_field.setAccessible(True)
+                        title = title_field.get(entry)
+                    if not subtext:
+                        subtext_field = entry_class.getDeclaredField("subtext")
+                        subtext_field.setAccessible(True)
+                        subtext = subtext_field.get(entry)
+                except:
+                    pass
+
+                if not title:
+                    title = alias
+
+                settings_list.append({
+                    'plugin_id': None,
+                    'plugin_name': str(subtext) if subtext else ('AyuGram' if is_ayu else 'exteraGram'),
+                    'setting_name': str(title),
+                    'link_alias': alias,
+                    'search_key': alias.lower(),
+                    'is_ayu': is_ayu
+                })
+            except:
+                pass
+
+    except:
+        pass
+
+    return settings_list
+
+
+def _link_alias_collect_from_java_list(self, settings_list, plugin_id, plugin_name, items, prefix):
+    try:
+        for i in range(items.size()):
+            item = items.get(i)
+            if not item:
+                continue
+
+            link_alias = getattr(item, 'linkAlias', None)
+            text = getattr(item, 'text', None) or getattr(item, 'key', None)
+
+            if link_alias:
+                str_alias = str(link_alias)
+                full_alias = f"{prefix}:{str_alias}" if prefix else str_alias
+
+                settings_list.append({
+                    'plugin_id': str(plugin_id),
+                    'plugin_name': str(plugin_name),
+                    'setting_name': str(text) if text else str_alias,
+                    'link_alias': str(full_alias),
+                    'search_key': str_alias.lower()
+                })
+
+            sub_callback = getattr(item, 'createSubFragmentCallback', None)
+            if sub_callback is not None:
+                try:
+                    child_prefix = f"{prefix}:{link_alias}" if prefix and link_alias else (str(link_alias) if link_alias else prefix)
+                    self._link_alias_collect_from_callback(settings_list, plugin_id, plugin_name, sub_callback, child_prefix)
+                except:
+                    pass
+
+    except:
+        pass
+
+
+def _link_alias_collect_from_callback(self, settings_list, plugin_id, plugin_name, callback, prefix):
+    try:
+        py_result = callback()
+        if not py_result:
+            return
+
+        for py_item in py_result:
+            if py_item is None:
+                continue
+
+            link_alias = getattr(py_item, 'link_alias', None)
+            text = getattr(py_item, 'text', None) or getattr(py_item, 'key', None)
+
+            if link_alias:
+                str_alias = str(link_alias)
+                full_alias = f"{prefix}:{str_alias}" if prefix else str_alias
+
+                settings_list.append({
+                    'plugin_id': str(plugin_id),
+                    'plugin_name': str(plugin_name),
+                    'setting_name': str(text) if text else str_alias,
+                    'link_alias': str(full_alias),
+                    'search_key': str_alias.lower()
+                })
+
+            sub_callback = getattr(py_item, 'create_sub_fragment', None)
+            if sub_callback is not None and callable(sub_callback):
+                child_prefix = f"{prefix}:{link_alias}" if prefix and link_alias else (str(link_alias) if link_alias else prefix)
+                self._link_alias_collect_from_callback(settings_list, plugin_id, plugin_name, sub_callback, child_prefix)
+
+    except:
+        pass
+
+
+def _link_alias_show_matching_settings(self, search_key):
+    try:
+        all_settings = self._link_alias_collect_settings_with_alias()
+        if not all_settings:
+            self._link_alias_hide_popup()
+            return
+
+        matching = []
+        for setting in all_settings:
+            alias_words = setting['search_key'].replace('_', ' ').split()
+            name_words = setting['setting_name'].lower().replace('_', ' ').split()
+            if any(word.startswith(search_key) for word in (alias_words + name_words)):
+                matching.append(setting)
+
+        if not matching:
+            self._link_alias_hide_popup()
+            return
+
+        self._link_alias_show_bot_commands_popup(matching)
+
+    except Exception as e:
+        self.log(f"Failed to show matching settings: {e}")
+
+
+def _link_alias_show_bot_commands_popup(self, settings):
+    try:
+        from org.telegram.ui.Components import RecyclerListView
+        
+        enter_view = self.link_alias_current_enter_view_ref() if self.link_alias_current_enter_view_ref else None
+        
+        if not enter_view:
+            fragment = get_last_fragment()
+            if fragment:
+                enter_view = get_private_field(fragment, "chatActivityEnterView")
+                if enter_view:
+                    self.link_alias_current_enter_view_ref = weakref.ref(enter_view)
+        
+        if not enter_view:
+            return
+
+        bot_container = get_private_field(enter_view, "botCommandsMenuContainer")
+        bot_adapter = get_private_field(enter_view, "botCommandsAdapter")
+        
+        if not bot_container:
+            try:
+                ChatActivityEnterView = self._link_alias_get_class("org.telegram.ui.Components.ChatActivityEnterView")
+                create_method = ChatActivityEnterView.getClass().getDeclaredMethod("createBotCommandsMenuContainer")
+                create_method.setAccessible(True)
+                create_method.invoke(enter_view)
+                bot_container = get_private_field(enter_view, "botCommandsMenuContainer")
+                bot_adapter = get_private_field(enter_view, "botCommandsAdapter")
+            except Exception as e:
+                pass
+        
+        if not bot_container or not bot_adapter:
+            return
+
+        commands = []
+        descriptions = []
+        self.link_alias_current_settings = {}
+        
+        for setting in settings[:10]:
+            display_alias = setting['link_alias'].split(':')[-1]
+            cmd = display_alias
+            commands.append(cmd)
+            descriptions.append(setting['setting_name'])
+            self.link_alias_current_settings[cmd] = setting
+
+        new_result_field = bot_adapter.getClass().getDeclaredField("newResult")
+        new_result_field.setAccessible(True)
+        new_result = new_result_field.get(bot_adapter)
+        new_result.clear()
+        for cmd in commands:
+            new_result.add(cmd)
+
+        new_result_help_field = bot_adapter.getClass().getDeclaredField("newResultHelp")
+        new_result_help_field.setAccessible(True)
+        new_result_help = new_result_help_field.get(bot_adapter)
+        new_result_help.clear()
+        for desc in descriptions:
+            new_result_help.add(desc)
+
+        bot_adapter.notifyDataSetChanged()
+        
+        plugin_ref = weakref.ref(self)
+        
+        class ClickListener(dynamic_proxy(RecyclerListView.OnItemClickListener)):
+            def onItemClick(self, view, position):
+                plugin = plugin_ref()
+                if not plugin:
+                    return
+                try:
+                    if hasattr(view, 'getCommand'):
+                        command = view.getCommand()
+                        
+                        setting = plugin.link_alias_current_settings.get(str(command))
+                        if setting:
+                            base = DEEPLINK_BASE_AYU if setting.get('is_ayu') else DEEPLINK_BASE
+                            if setting['plugin_id']:
+                                deep_link = f"{base}?p={setting['plugin_id']}&s={setting['link_alias']}"
+                            else:
+                                deep_link = f"{base}?s={setting['link_alias']}"
+                            
+                            enter_view_ref = plugin.link_alias_current_enter_view_ref
+                            ev = enter_view_ref() if enter_view_ref else None
+                            def ui_actions():
+                                try:
+                                    if ev:
+                                        ev.setFieldText("")
+                                    bot_container.dismiss()
+                                except Exception:
+                                    pass
+                            run_on_ui_thread(ui_actions)
+                            
+                            fragment = get_last_fragment()
+                            if fragment:
+                                plugin._link_alias_send_message_to_current_chat(fragment, enter_view, deep_link)
+                except Exception as e:
+                    pass
+        
+        class LongClickListener(dynamic_proxy(RecyclerListView.OnItemLongClickListener)):
+            def onItemClick(self, view, position):
+                plugin = plugin_ref()
+                if not plugin:
+                    return False
+                try:
+                    if hasattr(view, 'getCommand'):
+                        command = view.getCommand()
+                        setting = plugin.link_alias_current_settings.get(str(command))
+                        if setting:
+                            base = DEEPLINK_BASE_AYU if setting.get('is_ayu') else DEEPLINK_BASE
+                            if setting['plugin_id']:
+                                deep_link = f"{base}?p={setting['plugin_id']}&s={setting['link_alias']}"
+                            else:
+                                deep_link = f"{base}?s={setting['link_alias']}"
+                            
+                            enter_view_ref = plugin.link_alias_current_enter_view_ref
+                            ev = enter_view_ref() if enter_view_ref else None
+                            def ui_actions():
+                                try:
+                                    if ev:
+                                        ev.setFieldText(deep_link + " ")
+                                    bot_container.dismiss()
+                                except Exception:
+                                    pass
+                            run_on_ui_thread(ui_actions)
+                            return True
+                except Exception as e:
+                    pass
+                return False
+        
+        bot_container.listView.setOnItemClickListener(ClickListener())
+        bot_container.listView.setOnItemLongClickListener(LongClickListener())
+        
+        self.link_alias_custom_container = bot_container
+        bot_container.show()
+
+    except Exception as e:
+        self.log(f"Failed to show bot commands popup: {e}")
+
+
+def _link_alias_send_message_to_current_chat(self, fragment, enter_view, text):
+    try:
+        from org.telegram.messenger import MessageObject, UserConfig, AccountInstance, SendMessagesHelper
+
+        dialog_id = 0
+        try:
+            dialog_id_field = fragment.getClass().getDeclaredField("dialog_id")
+            dialog_id_field.setAccessible(True)
+            dialog_id = dialog_id_field.getLong(fragment)
+        except:
+            dialog_id = get_private_field(fragment, "dialog_id")
+
+        if not dialog_id:
+            return
+
+        topic_id = 0
+        user_reply_to_msg = None
+        topic_reply_to_msg = None
+
+        try:
+            if hasattr(fragment, 'getTopicId'):
+                topic_id = fragment.getTopicId()
+
+            if topic_id == 0 and hasattr(fragment, 'getThreadMessage'):
+                thread_msg = fragment.getThreadMessage()
+                if thread_msg:
+                    topic_id = thread_msg.getId()
+
+            if topic_id == 0 and hasattr(fragment, 'threadMessageId'):
+                topic_id = fragment.threadMessageId
+
+            if enter_view and hasattr(enter_view, 'getReplyingMessageObject'):
+                user_reply_to_msg = enter_view.getReplyingMessageObject()
+        except:
+            pass
+
+        if topic_id != 0:
+            try:
+                current_account = UserConfig.selectedAccount
+                account_instance = AccountInstance.getInstance(current_account)
+                topic = account_instance.getMessagesController().getTopicsController().findTopic(-dialog_id, topic_id)
+                if topic and topic.topicStartMessage:
+                    topic_reply_to_msg = MessageObject(current_account, topic.topicStartMessage, False, False)
+                    topic_reply_to_msg.isTopicMainMessage = True
+            except:
+                pass
+
+        reply_msg = topic_reply_to_msg if topic_reply_to_msg else user_reply_to_msg
+
+        params = SendMessagesHelper.SendMessageParams.of(
+            text,
+            dialog_id,
+            user_reply_to_msg,
+            reply_msg,
+            None,
+            True,
+            None,
+            None,
+            None,
+            True,
+            0,
+            0,
+            None,
+            False
+        )
+
+        send_helper = get_send_messages_helper()
+        if send_helper and params:
+            run_on_ui_thread(lambda: send_helper.sendMessage(params))
+    except Exception as e:
+        self.log(f"Failed to send message: {e}")
+
+
+def _link_alias_hide_popup(self):
+    try:
+        if self.link_alias_custom_container:
+            self.link_alias_custom_container.dismiss()
+    except Exception as e:
+        pass
+
+
+def _link_alias_invalidate_settings_cache(self):
+    self.link_alias_settings_cache = None
+
+
+QuantaHut._setup_link_alias_search = _setup_link_alias_search
+QuantaHut._link_alias_get_class = _link_alias_get_class
+QuantaHut._link_alias_hook_enter_view_constructor = _link_alias_hook_enter_view_constructor
+QuantaHut._link_alias_attach_text_watcher = _link_alias_attach_text_watcher
+QuantaHut._link_alias_collect_settings_with_alias = _link_alias_collect_settings_with_alias
+QuantaHut._link_alias_collect_extera_settings_with_alias = _link_alias_collect_extera_settings_with_alias
+QuantaHut._link_alias_collect_from_java_list = _link_alias_collect_from_java_list
+QuantaHut._link_alias_collect_from_callback = _link_alias_collect_from_callback
+QuantaHut._link_alias_show_matching_settings = _link_alias_show_matching_settings
+QuantaHut._link_alias_show_bot_commands_popup = _link_alias_show_bot_commands_popup
+QuantaHut._link_alias_send_message_to_current_chat = _link_alias_send_message_to_current_chat
+QuantaHut._link_alias_hide_popup = _link_alias_hide_popup
+QuantaHut._link_alias_invalidate_settings_cache = _link_alias_invalidate_settings_cache
 
