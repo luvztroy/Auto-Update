@@ -13,27 +13,51 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
-      - name: Upload plugins
+      - name: Check changed files
+        id: changed
+        run: |
+          UITWEAKS=$(git diff --name-only HEAD~1 HEAD | grep -c "^UiTweaks.plugin$" || true)
+          QUANTAHUT=$(git diff --name-only HEAD~1 HEAD | grep -c "^QuantaHut.plugin$" || true)
+          echo "uitweaks=$UITWEAKS" >> $GITHUB_OUTPUT
+          echo "quantahut=$QUANTAHUT" >> $GITHUB_OUTPUT
+          echo "UiTweaks changed: $UITWEAKS, QuantaHut changed: $QUANTAHUT"
+
+      - name: Upload both (grouped)
+        if: steps.changed.outputs.uitweaks == '1' && steps.changed.outputs.quantahut == '1'
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
           COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
-          if [ -f "UiTweaks.plugin" ] && [ -f "QuantaHut.plugin" ]; then
-            curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMediaGroup" \
-              -F "chat_id=${CHAT_ID}" \
-              -F "media=[{\"type\":\"document\",\"media\":\"attach://file1\"},{\"type\":\"document\",\"media\":\"attach://file2\",\"caption\":\"${COMMIT_MSG}\"}]" \
-              -F "file1=@UiTweaks.plugin" \
-              -F "file2=@QuantaHut.plugin"
-          elif [ -f "UiTweaks.plugin" ]; then
-            curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
-              -F "chat_id=${CHAT_ID}" \
-              -F "document=@UiTweaks.plugin" \
-              -F "caption=${COMMIT_MSG}"
-          elif [ -f "QuantaHut.plugin" ]; then
-            curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
-              -F "chat_id=${CHAT_ID}" \
-              -F "document=@QuantaHut.plugin" \
-              -F "caption=${COMMIT_MSG}"
-          fi
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMediaGroup" \
+            -F "chat_id=${CHAT_ID}" \
+            -F "media=[{\"type\":\"document\",\"media\":\"attach://file1\"},{\"type\":\"document\",\"media\":\"attach://file2\",\"caption\":\"${COMMIT_MSG}\"}]" \
+            -F "file1=@UiTweaks.plugin" \
+            -F "file2=@QuantaHut.plugin"
+
+      - name: Upload UiTweaks only
+        if: steps.changed.outputs.uitweaks == '1' && steps.changed.outputs.quantahut != '1'
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
+            -F "chat_id=${CHAT_ID}" \
+            -F "document=@UiTweaks.plugin" \
+            -F "caption=${COMMIT_MSG}"
+
+      - name: Upload QuantaHut only
+        if: steps.changed.outputs.uitweaks != '1' && steps.changed.outputs.quantahut == '1'
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
+            -F "chat_id=${CHAT_ID}" \
+            -F "document=@QuantaHut.plugin" \
+            -F "caption=${COMMIT_MSG}"
