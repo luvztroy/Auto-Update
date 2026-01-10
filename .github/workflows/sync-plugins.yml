@@ -50,27 +50,12 @@ jobs:
           UITWEAKS_COMMITS: ${{ steps.commits.outputs.uitweaks }}
           QUANTAHUT_COMMITS: ${{ steps.commits.outputs.quantahut }}
         run: |
-          FULL_CAPTION="UiTweaks:\n${UITWEAKS_COMMITS}\n\nQuantaHut:\n${QUANTAHUT_COMMITS}"
-          
-          if [ ${#FULL_CAPTION} -gt 1024 ]; then
-            CAPTION="${FULL_CAPTION:0:1000}..."
-            EXTRA="${FULL_CAPTION:1000}"
-          else
-            CAPTION="$FULL_CAPTION"
-            EXTRA=""
-          fi
-          
+          CAPTION="UiTweaks:\n${UITWEAKS_COMMITS}\n\nQuantaHut:\n${QUANTAHUT_COMMITS}"
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMediaGroup" \
             -F "chat_id=${CHAT_ID}" \
             -F "media=[{\"type\":\"document\",\"media\":\"attach://file1\"},{\"type\":\"document\",\"media\":\"attach://file2\",\"caption\":\"${CAPTION}\"}]" \
             -F "file1=@UiTweaks.plugin" \
             -F "file2=@QuantaHut.plugin"
-          
-          if [ -n "$EXTRA" ]; then
-            curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-              -d "chat_id=${CHAT_ID}" \
-              -d "text=...continued:\n${EXTRA}"
-          fi
 
       - name: Upload UiTweaks only
         if: steps.changed.outputs.uitweaks == '1' && steps.changed.outputs.quantahut != '1'
@@ -79,24 +64,10 @@ jobs:
           CHAT_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
           UITWEAKS_COMMITS: ${{ steps.commits.outputs.uitweaks }}
         run: |
-          if [ ${#UITWEAKS_COMMITS} -gt 1024 ]; then
-            CAPTION="${UITWEAKS_COMMITS:0:1000}..."
-            EXTRA="${UITWEAKS_COMMITS:1000}"
-          else
-            CAPTION="$UITWEAKS_COMMITS"
-            EXTRA=""
-          fi
-          
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
             -F "chat_id=${CHAT_ID}" \
             -F "document=@UiTweaks.plugin" \
-            -F "caption=${CAPTION}"
-          
-          if [ -n "$EXTRA" ]; then
-            curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-              -d "chat_id=${CHAT_ID}" \
-              -d "text=...continued:\n${EXTRA}"
-          fi
+            -F "caption=${UITWEAKS_COMMITS}"
 
       - name: Upload QuantaHut only
         if: steps.changed.outputs.uitweaks != '1' && steps.changed.outputs.quantahut == '1'
@@ -105,21 +76,7 @@ jobs:
           CHAT_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
           QUANTAHUT_COMMITS: ${{ steps.commits.outputs.quantahut }}
         run: |
-          if [ ${#QUANTAHUT_COMMITS} -gt 1024 ]; then
-            CAPTION="${QUANTAHUT_COMMITS:0:1000}..."
-            EXTRA="${QUANTAHUT_COMMITS:1000}"
-          else
-            CAPTION="$QUANTAHUT_COMMITS"
-            EXTRA=""
-          fi
-          
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
             -F "chat_id=${CHAT_ID}" \
             -F "document=@QuantaHut.plugin" \
-            -F "caption=${CAPTION}"
-          
-          if [ -n "$EXTRA" ]; then
-            curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-              -d "chat_id=${CHAT_ID}" \
-              -d "text=...continued:\n${EXTRA}"
-          fi
+            -F "caption=${QUANTAHUT_COMMITS}"
