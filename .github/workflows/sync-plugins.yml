@@ -37,8 +37,7 @@ jobs:
           
           if git diff --name-only HEAD~1 HEAD | grep -q "^UiTweaks.plugin$"; then
             COMMIT_COUNT=$(git log ${{ github.event.before }}..${{ github.event.after }} --oneline -- UiTweaks.plugin | wc -l)
-            UITWEAKS_HEADER_RAW="${COMMIT_COUNT} new commit(s) to ${{ github.repository }}:${BRANCH}:"
-            UITWEAKS_HEADER=$(escape_markdown "$UITWEAKS_HEADER_RAW")
+            UITWEAKS_HEADER="${COMMIT_COUNT} new commit(s) to ${{ github.repository }}:${BRANCH}:"
             
             UITWEAKS_COMMITS=""
             while IFS= read -r line; do
@@ -63,8 +62,7 @@ jobs:
           
           if git diff --name-only HEAD~1 HEAD | grep -q "^QuantaHut.plugin$"; then
             COMMIT_COUNT=$(git log ${{ github.event.before }}..${{ github.event.after }} --oneline -- QuantaHut.plugin | wc -l)
-            QUANTAHUT_HEADER_RAW="${COMMIT_COUNT} new commit(s) to ${{ github.repository }}:${BRANCH}:"
-            QUANTAHUT_HEADER=$(escape_markdown "$QUANTAHUT_HEADER_RAW")
+            QUANTAHUT_HEADER="${COMMIT_COUNT} new commit(s) to ${{ github.repository }}:${BRANCH}:"
             
             QUANTAHUT_COMMITS=""
             while IFS= read -r line; do
@@ -97,11 +95,19 @@ jobs:
           QUANTAHUT_HEADER: ${{ steps.commits.outputs.quantahut_header }}
           QUANTAHUT_COMMITS: ${{ steps.commits.outputs.quantahut }}
         run: |
+          # Escape MarkdownV2 special characters
+          escape_markdown() {
+            echo "$1" | sed 's/\([_*\[\]()~`>#+=|{}.!-]\)/\\\1/g'
+          }
+          
+          ESCAPED_UITWEAKS_HEADER=$(escape_markdown "$UITWEAKS_HEADER")
+          ESCAPED_QUANTAHUT_HEADER=$(escape_markdown "$QUANTAHUT_HEADER")
+          
           FULL_CAPTION="*UiTweaks:*
-          ${UITWEAKS_HEADER}
+          ${ESCAPED_UITWEAKS_HEADER}
           ${UITWEAKS_COMMITS}
           *QuantaHut:*
-          ${QUANTAHUT_HEADER}
+          ${ESCAPED_QUANTAHUT_HEADER}
           ${QUANTAHUT_COMMITS}"
           
           if [ "${#FULL_CAPTION}" -gt 1024 ]; then
@@ -174,7 +180,14 @@ jobs:
           QUANTAHUT_HEADER: ${{ steps.commits.outputs.quantahut_header }}
           QUANTAHUT_COMMITS: ${{ steps.commits.outputs.quantahut }}
         run: |
-          FULL_CAPTION="*${QUANTAHUT_HEADER}*
+          # Escape MarkdownV2 special characters
+          escape_markdown() {
+            echo "$1" | sed 's/\([_*\[\]()~`>#+=|{}.!-]\)/\\\1/g'
+          }
+          
+          ESCAPED_HEADER=$(escape_markdown "$QUANTAHUT_HEADER")
+          
+          FULL_CAPTION="*${ESCAPED_HEADER}*
           ${QUANTAHUT_COMMITS}"
           
           if [ "${#FULL_CAPTION}" -gt 1024 ]; then
