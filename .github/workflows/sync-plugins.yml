@@ -47,11 +47,19 @@ jobs:
           UITWEAKS_COMMITS: ${{ steps.changed.outputs.uitweaks_commits }}
           QUANTAHUT_COMMITS: ${{ steps.changed.outputs.quantahut_commits }}
         run: |
-          CAPTION="<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji> UiTweaks Updates:\n${UITWEAKS_COMMITS}\n\n<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji> QuantaHut Updates:\n${QUANTAHUT_COMMITS}"
+          cat > caption.txt << 'CAPTION_EOF'
+          <tg-emoji emoji-id="6030563507299160824">❗️</tg-emoji> UiTweaks Updates:
+          ${UITWEAKS_COMMITS}
+
+          <tg-emoji emoji-id="6030563507299160824">❗️</tg-emoji> QuantaHut Updates:
+          ${QUANTAHUT_COMMITS}
+          CAPTION_EOF
+          
+          CAPTION=$(envsubst < caption.txt)
           
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMediaGroup" \
             -F "chat_id=${CHAT_ID}" \
-            -F "media=[{\"type\":\"document\",\"media\":\"attach://file1\"},{\"type\":\"document\",\"media\":\"attach://file2\",\"caption\":\"${CAPTION}\",\"parse_mode\":\"HTML\"}]" \
+            -F "media=[{\"type\":\"document\",\"media\":\"attach://file1\"},{\"type\":\"document\",\"media\":\"attach://file2\",\"caption\":\"$(echo "$CAPTION" | sed 's/"/\\"/g')\",\"parse_mode\":\"HTML\"}]" \
             -F "file1=@UiTweaks.plugin" \
             -F "file2=@QuantaHut.plugin"
 
@@ -62,12 +70,17 @@ jobs:
           CHAT_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
           UITWEAKS_COMMITS: ${{ steps.changed.outputs.uitweaks_commits }}
         run: |
-          CAPTION="<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji> UiTweaks Updates:\n${UITWEAKS_COMMITS}"
+          cat > caption.txt << 'CAPTION_EOF'
+          <tg-emoji emoji-id="6030563507299160824">❗️</tg-emoji> UiTweaks Updates:
+          ${UITWEAKS_COMMITS}
+          CAPTION_EOF
+          
+          CAPTION=$(envsubst < caption.txt)
           
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
             -F "chat_id=${CHAT_ID}" \
             -F "document=@UiTweaks.plugin" \
-            -F "caption=${CAPTION}" \
+            -F "caption=$(echo "$CAPTION" | sed 's/"/\\"/g')" \
             -F "parse_mode=HTML"
 
       - name: Upload QuantaHut only
@@ -77,10 +90,15 @@ jobs:
           CHAT_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
           QUANTAHUT_COMMITS: ${{ steps.changed.outputs.quantahut_commits }}
         run: |
-          CAPTION="<tg-emoji emoji-id=\"6030563507299160824\">❗️</tg-emoji> QuantaHut Updates:\n${QUANTAHUT_COMMITS}"
+          cat > caption.txt << 'CAPTION_EOF'
+          <tg-emoji emoji-id="6030563507299160824">❗️</tg-emoji> QuantaHut Updates:
+          ${QUANTAHUT_COMMITS}
+          CAPTION_EOF
+          
+          CAPTION=$(envsubst < caption.txt)
           
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
             -F "chat_id=${CHAT_ID}" \
             -F "document=@QuantaHut.plugin" \
-            -F "caption=${CAPTION}" \
+            -F "caption=$(echo "$CAPTION" | sed 's/"/\\"/g')" \
             -F "parse_mode=HTML"
