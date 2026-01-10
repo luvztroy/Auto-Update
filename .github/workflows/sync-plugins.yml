@@ -30,11 +30,10 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMediaGroup" \
             -F "chat_id=${CHAT_ID}" \
-            -F "media=[{\"type\":\"document\",\"media\":\"attach://file1\"},{\"type\":\"document\",\"media\":\"attach://file2\",\"caption\":\"${COMMIT_MSG}\"}]" \
+            -F "media=[{\"type\":\"document\",\"media\":\"attach://file1\"},{\"type\":\"document\",\"media\":\"attach://file2\"}]" \
             -F "file1=@UiTweaks.plugin" \
             -F "file2=@QuantaHut.plugin"
 
@@ -43,21 +42,17 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
             -F "chat_id=${CHAT_ID}" \
-            -F "document=@UiTweaks.plugin" \
-            -F "caption=${COMMIT_MSG}"
+            -F "document=@UiTweaks.plugin"
 
       - name: Upload QuantaHut only
         if: steps.changed.outputs.uitweaks != '1' && steps.changed.outputs.quantahut == '1'
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
             -F "chat_id=${CHAT_ID}" \
-            -F "document=@QuantaHut.plugin" \
-            -F "caption=${COMMIT_MSG}"
+            -F "document=@QuantaHut.plugin"
