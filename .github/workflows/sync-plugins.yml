@@ -142,7 +142,27 @@ jobs:
         run: |
           # Escape MarkdownV2 special characters
           escape_markdown() {
-            echo "$1" | sed 's/\([_*\[\]()~`>#+=|{}.!-]\)/\\\1/g'
+            local text="$1"
+            text="${text//\\/\\\\}"
+            text="${text//_/\\_}"
+            text="${text//*/\\*}"
+            text="${text//[/\\[}"
+            text="${text//]/\\]}"
+            text="${text//(/\\(}"
+            text="${text//)/\\)}"
+            text="${text//~/\\~}"
+            text="${text//\`/\\\`}"
+            text="${text//>/\\>}"
+            text="${text//#/\\#}"
+            text="${text//+/\\+}"
+            text="${text//=/\\=}"
+            text="${text//|/\\|}"
+            text="${text//\{/\\\{}"
+            text="${text//\}/\\\}}"
+            text="${text//./\\.}"
+            text="${text//!/\\!}"
+            text="${text//-/\\-}"
+            echo "$text"
           }
           
           ESCAPED_HEADER=$(escape_markdown "$UITWEAKS_HEADER")
