@@ -75,6 +75,7 @@ __min_version__ = "12.2.10"
 __icon__ = "luvztroyIcons/13"
 __dependencies__ = ["quantahut"]
 
+
 CUSTOM_CODE_ID = 99999
 CUSTOM_MENTION_ID = 99998
 DEBOUNCE_TIME = 0.5
