@@ -29,14 +29,14 @@ jobs:
         id: commits
         run: |
           if git diff --name-only HEAD~1 HEAD | grep -q "^UiTweaks.plugin$"; then
-            UITWEAKS_COMMITS=$(git log --pretty=format:"• %s" --follow -- UiTweaks.plugin | tr '\n' '\n')
+            UITWEAKS_COMMITS=$(git log ${{ github.event.before }}..${{ github.event.after }} --pretty=format:"• %s" -- UiTweaks.plugin)
             echo "uitweaks<<EOF" >> $GITHUB_OUTPUT
             echo "$UITWEAKS_COMMITS" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           fi
           
           if git diff --name-only HEAD~1 HEAD | grep -q "^QuantaHut.plugin$"; then
-            QUANTAHUT_COMMITS=$(git log --pretty=format:"• %s" --follow -- QuantaHut.plugin | tr '\n' '\n')
+            QUANTAHUT_COMMITS=$(git log ${{ github.event.before }}..${{ github.event.after }} --pretty=format:"• %s" -- QuantaHut.plugin)
             echo "quantahut<<EOF" >> $GITHUB_OUTPUT
             echo "$QUANTAHUT_COMMITS" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
