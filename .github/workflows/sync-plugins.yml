@@ -1,0 +1,31 @@
+name: Sync Plugins to Telegram
+
+on:
+  push:
+    branches: [main, Beta]
+    paths:
+      - 'UiTweaks.plugin'
+      - 'QuantaHut.plugin'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload UiTweaks to Telegram
+        if: hashFiles('UiTweaks.plugin') != ''
+        run: |
+          curl -F "chat_id=${{ secrets.TELEGRAM_GROUP_ID }}" \
+               -F "document=@UiTweaks.plugin" \
+               -F "caption=UiTweaks.plugin" \
+               https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument
+
+      - name: Upload QuantaHut to Telegram
+        if: hashFiles('QuantaHut.plugin') != ''
+        run: |
+          curl -F "chat_id=${{ secrets.TELEGRAM_GROUP_ID }}" \
+               -F "document=@QuantaHut.plugin" \
+               -F "caption=QuantaHut.plugin" \
+               https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendDocument
