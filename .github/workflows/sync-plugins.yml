@@ -134,7 +134,14 @@ jobs:
           UITWEAKS_HEADER: ${{ steps.commits.outputs.uitweaks_header }}
           UITWEAKS_COMMITS: ${{ steps.commits.outputs.uitweaks }}
         run: |
-          FULL_CAPTION="*${UITWEAKS_HEADER}*
+          # Escape MarkdownV2 special characters
+          escape_markdown() {
+            echo "$1" | sed 's/\([_*\[\]()~`>#+=|{}.!-]\)/\\\1/g'
+          }
+          
+          ESCAPED_HEADER=$(escape_markdown "$UITWEAKS_HEADER")
+          
+          FULL_CAPTION="*${ESCAPED_HEADER}*
           ${UITWEAKS_COMMITS}"
           
           if [ "${#FULL_CAPTION}" -gt 1024 ]; then
