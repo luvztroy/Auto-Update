@@ -82,15 +82,6 @@ DEBOUNCE_TIME = 0.5
 
 
 
-def show_confirmation_selector():
-    try:
-        global uitweaks_plugin_instance
-        plugin = uitweaks_plugin_instance() if uitweaks_plugin_instance else None
-        if plugin:
-            plugin._show_confirmation_selector()
-    except Exception as e:
-        pass
-
 def getString(key: str, default: str = None) -> str:
     fallback = default if default is not None else key
     try:
@@ -2200,14 +2191,40 @@ class UiTweaksPlugin(BasePlugin):
         
         settings.extend([
             Header(text=getString("message_reactions", "Message Reactions")),
-            self.Quanta_switch("hide_star_reaction", getString("hide_star_reaction", "Hide Star Reaction"), False, lambda v: self._apply_hooks(), link_alias="hide_star_reaction"),
-            self.Quanta_text(text=getString("star_reaction_hide_location", "Select from where"),on_click=lambda v: self._show_star_reaction_selector(),link_alias="star_reaction_hide_location") if self.get_setting("hide_star_reaction", False) else None,
+            ExpandableSwitch(
+                key="hide_star_reaction",
+                text=getString("hide_star_reaction", "Hide Star Reaction"),
+                collapsed=True,
+                children=[
+                    Switch(key="star_reaction_hide_menu", text=getString("item_reaction_menu", "Reaction Menu"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="star_reaction_hide_cells", text=getString("item_message_cells", "Message Cells"), default=False, on_change=lambda v: self._apply_hooks()),
+                ],
+                link_alias="hide_star_reaction"
+            ),
             self.Quanta_text(text=getString("pinned_reactions", "Pinned Reactions"),on_click=lambda v: self._open_pinned_reactions_settings_ui(),link_alias="pinned_reactions"),
         ])
         
         settings.extend([
             Header(text=getString("message_actions", "Message Actions")),
-            self.Quanta_switch("enable_confirmation_settings", getString("enable_confirmation_settings", "Enable Confirmation Settings"), False, lambda v: self._apply_hooks(), on_long_click=lambda v: self._handle_long_click_with_enable("enable_confirmation_settings", show_confirmation_selector), subtext=getString("long_press_to_configure_actions", "Long-press to configure actions")),
+            ExpandableSwitch(
+                key="enable_confirmation_settings",
+                text=getString("enable_confirmation_settings", "Confirmation Settings"),
+                collapsed=True,
+                children=[
+                    Switch(key="confirm_stickers", text=getString("item_stickers", "Stickers"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="confirm_voice", text=getString("item_voice_messages", "Voice Messages"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="confirm_commands", text=getString("item_bot_commands", "Bot Commands"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="confirm_round_video", text=getString("item_video_messages", "Video Messages"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="confirm_video_file", text=getString("item_video_files", "Video Files"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="confirm_photo", text=getString("item_photos", "Photos"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="confirm_document", text=getString("item_documents", "Documents"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="confirm_gif", text=getString("item_gifs", "GIFs"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="confirm_forward", text=getString("item_forward", "Forward"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="confirm_join_chat", text=getString("item_join_chat", "Join Chat"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="confirm_external_links", text=getString("item_external_links", "External Links"), default=False, on_change=lambda v: self._apply_hooks()),
+                ],
+                link_alias="enable_confirmation_settings"
+            ),
             self.Quanta_switch("enable_reply_private_chat", getString("enable_reply_private_chat", "Enable Reply in Private Chat"), False, lambda v: self._update_reply_private_chat_menu_item(), link_alias="enable_reply_private_chat"),
             self.Quanta_switch("enable_reply_in_another_chat_shortcut", getString("enable_reply_in_another_chat_shortcut", "Reply in Another Chat Shortcut"), False, lambda v: self._apply_hooks(), link_alias="enable_reply_in_another_chat_shortcut"),
             Divider(text=getString("reply_in_another_chat_shortcut_info", "Long-press the Reply button to quickly reply to a message in another chat.")) if self.get_setting("enable_reply_in_another_chat_shortcut", False) else None,
@@ -2223,8 +2240,17 @@ class UiTweaksPlugin(BasePlugin):
         
         settings.extend([
             Header(text=getString("media_playback", "Media Playback")),
-            self.Quanta_switch("dont_auto_play_enabled", getString("dont_auto_play_enabled", "Don't Auto Play Next"), False, lambda v: self._apply_hooks(), on_long_click=lambda v: self._handle_long_click_with_enable("dont_auto_play_enabled", self._show_dont_auto_play_selector), subtext=getString("long_press_to_select_message_types", "Long-press to select message types")),
-            Divider(text=getString("dont_auto_play_info", "Prevents automatic playback of the next voice or video message in a chat, giving you control over when media plays.")) if self.get_setting("dont_auto_play_enabled", False) else None,
+            ExpandableSwitch(
+                key="dont_auto_play_enabled",
+                text=getString("dont_auto_play_enabled", "Don't Auto Play Next"),
+                collapsed=True,
+                children=[
+                    Switch(key="dont_auto_play_next_voice", text=getString("dont_auto_play_voice", "Voice Messages"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="dont_auto_play_next_video", text=getString("dont_auto_play_video", "Video Messages"), default=False, on_change=lambda v: self._apply_hooks()),
+                ],
+                link_alias="dont_auto_play_enabled"
+            ),
+            Divider(text=getString("dont_auto_play_info", "Prevents automatic playback of the next voice or video message in a chat, giving you control over when media plays.")),
             self.Quanta_switch("enable_adaptive_audio_length", getString("enable_adaptive_audio_length", "Adaptive Audio Message Length"), False, lambda v: self._apply_hooks(), link_alias="enable_adaptive_audio_length"),
             Divider(text=getString("adaptive_audio_length_info", "The audio message bubble length will depend on the recording duration and automatically adjust to the screen width.")) if self.get_setting("enable_adaptive_audio_length", False) else None,
         ])
@@ -7017,81 +7043,6 @@ class UiTweaksPlugin(BasePlugin):
         
         return HookResult()
 
-
-
-    def _show_confirmation_selector(self):
-        confirmation_items = [
-            getString("item_stickers", "Stickers"),
-            getString("item_voice_messages", "Voice Messages"), 
-            getString("item_bot_commands", "Bot Commands"),
-            getString("item_video_messages", "Video Messages"),
-            getString("item_video_files", "Video Files"),
-            getString("item_photos", "Photos"),
-            getString("item_documents", "Documents"),
-            getString("item_gifs", "GIFs"),
-            getString("item_forward", "Forward"),
-            getString("item_join_chat", "Join Chat"),
-            getString("item_external_links", "External Links")
-        ]
-        
-        confirmation_keys = [
-            "confirm_stickers", "confirm_voice", "confirm_commands", "confirm_round_video",
-            "confirm_video_file", "confirm_photo", "confirm_document", "confirm_gif", 
-            "confirm_forward", "confirm_join_chat", "confirm_external_links"
-        ]
-        
-        showmultiselector(
-            items=confirmation_items,
-            title=getString("confirmation_settings", "Confirmation Settings"),
-            subtitle=getString("select_items", "Select which actions require confirmation"),
-            setting_keys=confirmation_keys,
-            plugin_instance=self,
-            action_text=getString("apply", "Apply")
-        )
-
-    def _show_star_reaction_selector(self):
-        star_reaction_items = [
-            getString("item_reaction_menu", "Reaction Menu"),
-            getString("item_message_cells", "Message Cells")
-        ]
-        
-        star_reaction_keys = [
-            "star_reaction_hide_menu", "star_reaction_hide_cells"
-        ]
-        
-        showmultiselector(
-            items=star_reaction_items,
-            title=getString("star_reaction_hide_location", "Hide Star Reactions From"),
-            subtitle=getString("select_items", "Select where to hide star reactions"),
-            setting_keys=star_reaction_keys,
-            plugin_instance=self,
-            action_text=getString("apply", "Apply")
-        )
-
-
-    def _handle_long_click_with_enable(self, setting_key, selector_callback):
-        if not self.get_setting(setting_key, False):
-            self.set_setting(setting_key, True, reload_settings=True)
-        selector_callback()
-
-    def _show_dont_auto_play_selector(self):
-        dont_auto_play_items = [
-            getString("dont_auto_play_voice", "Voice Messages"),
-            getString("dont_auto_play_video", "Video Messages")
-        ]
-        
-        dont_auto_play_keys = [
-            "dont_auto_play_next_voice", "dont_auto_play_next_video"
-        ]
-        
-        showmultiselector(
-            items=dont_auto_play_items,
-            title=getString("dont_auto_play_types", "Message Types"),
-            subtitle=getString("dont_auto_play_subtitle", "Select message types"),
-            setting_keys=dont_auto_play_keys,
-            plugin_instance=self,
-            action_text=getString("apply", "Apply")
-        )
 
     def _setup_confirmation_hooks(self):
         try:
