@@ -1475,7 +1475,7 @@ class QuantaHut(BasePlugin):
                     self._delete_filter_plugins(selected_ids)
             
             def show_selector():
-                showmultiselector(
+                MultiSelector(
                     items=plugin_names,
                     title=getString("select_plugins_to_delete", "Select Plugins to Delete"),
                     subtitle=getString("select_plugins_subtitle", "Choose which plugins to remove from {filter}").format(filter=filter_name),
@@ -3413,7 +3413,7 @@ class BottomSheetHelper:
 
 
 
-def showmultiselector(items, title, subtitle, setting_keys, plugin_instance, max_selection=None, on_selection_change=None, item_subtexts=None, default=None, action_text=None, show_count=True, on_action_click=None, show_select_all=False):
+def MultiSelector(items, title, subtitle, setting_keys, plugin_instance, max_selection=None, on_selection_change=None, item_subtexts=None, default=None, action_text=None, show_count=True, on_action_click=None, show_select_all=False):
     try:
         fragment = get_last_fragment()
         if not fragment:
@@ -3922,7 +3922,7 @@ def getString(key: str, default: str = None, plugin_id: str = "UiTweaks") -> str
 
 __all__ = [
     'UpdateBottomSheet',
-    'showmultiselector', 
+    'MultiSelector', 
     'showupdatebottomsheet',
     'utilities',
     'available_languages',
