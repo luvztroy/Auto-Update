@@ -59,7 +59,7 @@ try:
     import quantahut
     if hasattr(quantahut, '__version__') and quantahut.__version__ < "1.5.1":
         raise Exception(f"QuantaHut {quantahut.__version__} is too old. Need 1.5.1+")
-    from quantahut import showmultiselector, showbottomsheet, export_plugin_settings
+    from ui.quanta import MultiSelector, BottomSheet, ExpandableSwitch
 except ImportError:
     raise Exception("QuantaHut is required but not installed. Install it first. (Don't report this as a bug - it's your fault.)")
 
@@ -5287,7 +5287,7 @@ class UiTweaksPlugin(BasePlugin):
                 except Exception:
                     return False
 
-            showmultiselector(
+            MultiSelector(
                 items=items,
                 title=getString("hide_folders_title", "Hide Folders"),
                 subtitle=getString("hide_folders_subtitle", "Select folders to hide"),
