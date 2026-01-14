@@ -19,14 +19,28 @@ jobs:
       - name: Check changed files
         id: changed
         run: |
-          UITWEAKS=$(git diff --name-only HEAD~1 HEAD | grep -c "^UiTweaks.plugin$" || true)
-          QUANTAHUT=$(git diff --name-only HEAD~1 HEAD | grep -c "^QuantaHut.plugin$" || true)
-          echo "uitweaks=$UITWEAKS" >> $GITHUB_OUTPUT
-          echo "quantahut=$QUANTAHUT" >> $GITHUB_OUTPUT
-          echo "UiTweaks changed: $UITWEAKS, QuantaHut changed: $QUANTAHUT"
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          if echo "$CHANGED_FILES" | grep -q "^UiTweaks.plugin$"; then
+            echo "uitweaks=true" >> $GITHUB_OUTPUT
+            echo "UiTweaks changed: true"
+          else
+            echo "uitweaks=false" >> $GITHUB_OUTPUT
+            echo "UiTweaks changed: false"
+          fi
+          
+          if echo "$CHANGED_FILES" | grep -q "^QuantaHut.plugin$"; then
+            echo "quantahut=true" >> $GITHUB_OUTPUT
+            echo "QuantaHut changed: true"
+          else
+            echo "quantahut=false" >> $GITHUB_OUTPUT
+            echo "QuantaHut changed: false"
+          fi
 
       - name: Upload both (grouped)
-        if: steps.changed.outputs.uitweaks == '1' && steps.changed.outputs.quantahut == '1'
+        if: steps.changed.outputs.uitweaks == 'true' && steps.changed.outputs.quantahut == 'true'
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
@@ -38,7 +52,7 @@ jobs:
             -F "file2=@QuantaHut.plugin"
 
       - name: Upload UiTweaks only
-        if: steps.changed.outputs.uitweaks == '1' && steps.changed.outputs.quantahut != '1'
+        if: steps.changed.outputs.uitweaks == 'true' && steps.changed.outputs.quantahut == 'false'
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
@@ -48,7 +62,7 @@ jobs:
             -F "document=@UiTweaks.plugin"
 
       - name: Upload QuantaHut only
-        if: steps.changed.outputs.uitweaks != '1' && steps.changed.outputs.quantahut == '1'
+        if: steps.changed.outputs.uitweaks == 'false' && steps.changed.outputs.quantahut == 'true'
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
