@@ -871,19 +871,11 @@ class QuantaHut(BasePlugin):
                 return
                 
             for badge_info in badges_data:
-                badge_id = badge_info.get('id')
-                user_id = badge_info.get('user_id')
                 chat_id = badge_info.get('chat_id')
                 emoji_id = badge_info.get('emoji_id')
                 text_template = badge_info.get('text_template')
                 
-                if user_id and emoji_id and text_template:
-                    user_name = self._get_user_name(user_id)
-                    custom_text = text_template.format(user_name=user_name)
-                    badge_dto = BadgeDTO(emoji_id, custom_text)
-                    self.custom_badges[user_id] = badge_dto
-                    
-                elif chat_id and emoji_id and text_template:
+                if chat_id and emoji_id and text_template:
                     chat_name = self._get_chat_name(chat_id)
                     custom_text = text_template.format(chat_name=chat_name)
                     badge_dto = BadgeDTO(emoji_id, custom_text)
@@ -897,21 +889,13 @@ class QuantaHut(BasePlugin):
             BadgeDTO = find_class("com.exteragram.messenger.api.dto.BadgeDTO")
             if not BadgeDTO:
                 return
-                
+
             for badge_info in badges_data:
-                badge_id = badge_info.get('id')
-                user_id = badge_info.get('user_id')
                 chat_id = badge_info.get('chat_id')
                 emoji_id = badge_info.get('emoji_id')
                 text_template = badge_info.get('text_template')
                 
-                if user_id and emoji_id and text_template:
-                    user_name = self._get_user_name(user_id)
-                    custom_text = text_template.format(user_name=user_name)
-                    badge_dto = BadgeDTO(emoji_id, custom_text)
-                    self.custom_badges[user_id] = badge_dto
-                    
-                elif chat_id and emoji_id and text_template:
+                if chat_id and emoji_id and text_template:
                     chat_name = self._get_chat_name(chat_id)
                     custom_text = text_template.format(chat_name=chat_name)
                     badge_dto = BadgeDTO(emoji_id, custom_text)
@@ -2197,11 +2181,6 @@ class CustomBadgeHook:
         try:
             tl_object = param.args[0]
             
-            if self.plugin.TLRPC_User and isinstance(tl_object, self.plugin.TLRPC_User) and tl_object.id in self.plugin.custom_badges:
-                custom_badge = self.plugin.custom_badges[tl_object.id]
-                param.setResult(custom_badge)
-                return custom_badge
-                    
             if self.plugin.TLRPC_Chat and isinstance(tl_object, self.plugin.TLRPC_Chat) and tl_object.id in self.plugin.custom_badges:
                 custom_badge = self.plugin.custom_badges[tl_object.id]
                 param.setResult(custom_badge)
@@ -2217,18 +2196,7 @@ class CustomDeveloperHook:
         self.plugin = plugin
         
     def after_hooked_method(self, param):
-        try:
-            if param.getResult():
-                return True
-            
-            user = param.args[0]
-            if user and hasattr(user, 'id') and user.id in self.plugin.custom_badges:
-                param.setResult(True)
-                return True
-            
-            return param.getResult()
-        except:
-            return param.getResult()
+        return param.getResult()
 
 
 class CustomExteraHook:
