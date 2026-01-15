@@ -491,6 +491,8 @@ class QuantaHut(BasePlugin):
                                     filtered_items.append(item)
                                 elif current_filter == 5 and plugin.hasError():
                                     filtered_items.append(item)
+                                elif current_filter == 6 and self.quantahut._is_quanta_plugin(plugin):
+                                    filtered_items.append(item)
                             
                             items.clear()
                             for item in other_items:
@@ -1316,6 +1318,7 @@ class QuantaHut(BasePlugin):
             filters = [
                 (getString("filter_all", "All"), 0),
                 (getString("filter_recently_updated", "Recently Updated"), 3),
+                (getString("filter_quanta", "Quanta!"), 6),
                 (getString("filter_enabled", "Enabled"), 1),
                 (getString("filter_disabled", "Disabled"), 2),
                 (getString("filter_has_settings", "Has Settings"), 4),
@@ -1509,6 +1512,8 @@ class QuantaHut(BasePlugin):
                 return plugins_controller.hasPluginSettings(plugin.getId())
             elif filter_id == 5:
                 return plugin.hasError()
+            elif filter_id == 6:
+                return self._is_quanta_plugin(plugin)
             return False
         except:
             return False
@@ -1548,7 +1553,7 @@ class QuantaHut(BasePlugin):
             from com.exteragram.messenger.plugins import PluginsController
             plugins_controller = PluginsController.getInstance()
             all_plugins = plugins_controller.plugins
-            counts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+            counts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
             
             for key in all_plugins.keySet().toArray():
                 plugin = all_plugins.get(key)
@@ -1566,9 +1571,11 @@ class QuantaHut(BasePlugin):
                         counts[4] += 1
                     if plugin.hasError():
                         counts[5] += 1
+                    if self._is_quanta_plugin(plugin):
+                        counts[6] += 1
             return counts
         except:
-            return {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+            return {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
     
     def _update_pill_counts(self):
         try:
@@ -1632,6 +1639,13 @@ class QuantaHut(BasePlugin):
             one_day_ms = 24 * 60 * 60 * 1000
             
             return (current_time - last_modified) <= one_day_ms
+        except:
+            return False
+    
+    def _is_quanta_plugin(self, plugin):
+        try:
+            author = str(plugin.getAuthor()).lower()
+            return "@luvztroy" in author
         except:
             return False
     
