@@ -184,10 +184,7 @@ class NonClickablePreviewDispatchTouchHook:
                 except:
                     pass
         except Exception as e:
-            try:
-                self.plugin.log(f"GIF Menu: Error in show_caption_dialog(): {e}")
-            except Exception:
-                pass
+            pass
 
 
 class NonClickablePreviewPresentFragmentHook:
@@ -340,7 +337,7 @@ class NonClickablePreviewPresentFragmentHook:
 
 class AddToFolderAllTabsHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
@@ -543,12 +540,15 @@ class UnreadCountHook:
 
 class ContactStatusUpdateRowsIdsHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def before_hooked_method(self, param):
+        plugin = self._plugin_ref()
+        if not plugin:
+            return
         activity = param.thisObject
-        state = self.plugin.contact_status_activity_state.setdefault(activity, {"mutualRow": -1})
+        state = plugin.contact_status_activity_state.setdefault(activity, {"mutualRow": -1})
 
         state["shouldInsertMutual"] = False
 
@@ -561,8 +561,11 @@ class ContactStatusUpdateRowsIdsHook:
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
+        plugin = self._plugin_ref()
+        if not plugin:
+            return
         activity = param.thisObject
-        state = self.plugin.contact_status_activity_state.get(activity)
+        state = plugin.contact_status_activity_state.get(activity)
         if not state:
             return
 
@@ -693,13 +696,16 @@ class ContactStatusUpdateRowsIdsHook:
 
 class ContactStatusListAdapterGetItemViewTypeHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
     def before_hooked_method(self, param):
+        plugin = self._plugin_ref()
+        if not plugin:
+            return
         adapter = param.thisObject
         activity = self._get_activity_from_adapter(adapter)
-        state = self.plugin.contact_status_activity_state.get(activity) if self.plugin else None
+        state = plugin.contact_status_activity_state.get(activity)
         if not state:
             return
         position_arg = param.args[0]
@@ -726,7 +732,7 @@ class ContactStatusListAdapterGetItemViewTypeHook:
 
 class ContactStatusListAdapterBindViewHolderHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.ArgumentNotNull(0), HookFilter.ArgumentNotNull(1))
     def after_hooked_method(self, param):
@@ -735,9 +741,12 @@ class ContactStatusListAdapterBindViewHolderHook:
             position = int(position_arg)
         except Exception:
             position = position_arg
+        plugin = self._plugin_ref()
+        if not plugin:
+            return
         adapter = param.thisObject
         activity = self._get_activity_from_adapter(adapter)
-        state = self.plugin.contact_status_activity_state.get(activity) if self.plugin else None
+        state = plugin.contact_status_activity_state.get(activity)
         if not state or position != state.get("mutualRow", -1):
             return
 
@@ -1213,7 +1222,7 @@ class UiTweaksPlugin(BasePlugin):
 
             class _UT_AddSelectAllMenu:
                 def __init__(self, plugin):
-                    self.plugin = plugin
+                    self._plugin_ref = weakref.ref(plugin)
 
                 @hook_filters(HookFilter.Condition("param.thisObject != null"))
                 def after_hooked_method(self, param):
@@ -1227,7 +1236,10 @@ class UiTweaksPlugin(BasePlugin):
                             return
                         try:
                             hc = actionMode.hashCode()
-                            if hc in self.plugin._select_all_added_modes:
+                            plugin = self._plugin_ref()
+                            if not plugin:
+                                return
+                            if hc in plugin._select_all_added_modes:
                                 return
                         except Exception:
                             pass
@@ -1248,15 +1260,15 @@ class UiTweaksPlugin(BasePlugin):
                             if popup is not None:
                                 for k in range(popup.getItemsCount()):
                                     v = popup.getItemAt(k)
-                                    if v is not None and v.getTag() == self.plugin._select_all_id:
-                                        self.plugin._select_all_added_modes.add(hc)
+                                    if v is not None and v.getTag() == plugin._select_all_id:
+                                        plugin._select_all_added_modes.add(hc)
                                         return
                         except Exception:
                             pass
                         title = getString("select_all", "Select all")
-                        otherItem.addSubItem(self.plugin._select_all_id, R_tg.drawable.msg_select_between_solar, title)
+                        otherItem.addSubItem(plugin._select_all_id, R_tg.drawable.msg_select_between_solar, title)
                         try:
-                            self.plugin._select_all_added_modes.add(hc)
+                            plugin._select_all_added_modes.add(hc)
                         except Exception:
                             pass
                     except Exception:
@@ -1264,13 +1276,16 @@ class UiTweaksPlugin(BasePlugin):
 
             class _UT_InterceptSelectAllClick:
                 def __init__(self, plugin):
-                    self.plugin = plugin
+                    self._plugin_ref = weakref.ref(plugin)
 
                 @hook_filters(HookFilter.ArgumentNotNull(0))
                 def before_hooked_method(self, param):
                     try:
+                        plugin = self._plugin_ref()
+                        if not plugin:
+                            return
                         itemId = int(param.args[0])
-                        if itemId != self.plugin._select_all_id:
+                        if itemId != plugin._select_all_id:
                             return
                         menu = param.thisObject
                         actionBar = get_private_field(menu, "parentActionBar")
@@ -1817,12 +1832,12 @@ class UiTweaksPlugin(BasePlugin):
 
                 class DrawerResetHook:
                     def __init__(self, plugin):
-                        self.plugin = plugin
+                        self._plugin_ref = weakref.ref(plugin)
 
                     @hook_filters(HookFilter.Condition("param.thisObject != null"))
                     def after_hooked_method(self, param):
                         try:
-                            plugin = self.plugin
+                            plugin = self._plugin_ref()
                             if not plugin or not plugin.get_setting("recent_chats_fragment", False):
                                 return
                             adapter = param.thisObject
@@ -1854,12 +1869,12 @@ class UiTweaksPlugin(BasePlugin):
 
                 class DrawerClickHook:
                     def __init__(self, plugin):
-                        self.plugin = plugin
+                        self._plugin_ref = weakref.ref(plugin)
 
                     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(1))
                     def before_hooked_method(self, param):
                         try:
-                            plugin = self.plugin
+                            plugin = self._plugin_ref()
                             if not plugin or not plugin.get_setting("recent_chats_fragment", False):
                                 return
                             adapter = param.thisObject
@@ -1888,11 +1903,11 @@ class UiTweaksPlugin(BasePlugin):
 
                         class DrawerCellHook:
                             def __init__(self, plugin):
-                                self.plugin = plugin
+                                self._plugin_ref = weakref.ref(plugin)
 
                             def before_hooked_method(self, param):
                                 try:
-                                    plugin = self.plugin
+                                    plugin = self._plugin_ref()
                                     if not plugin or not plugin.get_setting("recent_chats_fragment", False):
                                         return
                                 except Exception:
@@ -1915,12 +1930,12 @@ class UiTweaksPlugin(BasePlugin):
 
                         class ResumeHook:
                             def __init__(self, plugin):
-                                self.plugin = plugin
+                                self._plugin_ref = weakref.ref(plugin)
                                 self._getter = getter
 
                             def after_hooked_method(self, param):
                                 try:
-                                    plugin = self.plugin
+                                    plugin = self._plugin_ref()
                                     if not plugin or not plugin.get_setting("recent_chats_fragment", False):
                                         return
                                     obj = param.thisObject
@@ -5396,7 +5411,7 @@ class UiTweaksPlugin(BasePlugin):
             
             class SearchHook:
                 def __init__(self, plugin):
-                    self.plugin = plugin
+                    self._plugin_ref = weakref.ref(plugin)
                 
                 @hook_filters(HookFilter.ArgumentNotNull(0))
                 def before_hooked_method(self, param):
@@ -5457,10 +5472,13 @@ class UiTweaksPlugin(BasePlugin):
                             chat_activity = parent_fragment_field.get(adapter)
                             
                             if chat_activity:
+                                plugin = self._plugin_ref()
+                                if not plugin:
+                                    return
                                 search_user_method = chat_activity.getClass().getDeclaredMethod(
                                     "searchUserMessages",
-                                    self.plugin._get_class("org.telegram.tgnet.TLRPC$User"),
-                                    self.plugin._get_class("org.telegram.tgnet.TLRPC$Chat")
+                                    plugin._get_class("org.telegram.tgnet.TLRPC$User"),
+                                    plugin._get_class("org.telegram.tgnet.TLRPC$Chat")
                                 )
                                 search_user_method.setAccessible(True)
                                 
@@ -5493,7 +5511,7 @@ class UiTweaksPlugin(BasePlugin):
             
             class LimitHook:
                 def __init__(self, plugin):
-                    self.plugin = plugin
+                    self._plugin_ref = weakref.ref(plugin)
                 
                 @hook_filters(HookFilter.Condition("param.thisObject != null"))
                 def after_hooked_method(self, param):
@@ -6758,7 +6776,7 @@ class UiTweaksPlugin(BasePlugin):
             
             class DrawerResetHook:
                 def __init__(self, plugin):
-                    self.plugin = plugin
+                    self._plugin_ref = weakref.ref(plugin)
                 
                 @hook_filters(HookFilter.Condition("param.thisObject != null"))
                 def after_hooked_method(self, param):
@@ -6822,7 +6840,7 @@ class UiTweaksPlugin(BasePlugin):
             
             class DrawerClickHook:
                 def __init__(self, plugin):
-                    self.plugin = plugin
+                    self._plugin_ref = weakref.ref(plugin)
                 
                 @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0), HookFilter.ArgumentNotNull(1))
                 def before_hooked_method(self, param):
@@ -6893,7 +6911,7 @@ class UiTweaksPlugin(BasePlugin):
             
             class DrawerCellDrawHook:
                 def __init__(self, plugin):
-                    self.plugin = plugin
+                    self._plugin_ref = weakref.ref(plugin)
                 
                 @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
                 def after_hooked_method(self, param):
@@ -8548,7 +8566,7 @@ class UiTweaksPlugin(BasePlugin):
             
             class ShareAlertShowHook:
                 def __init__(self, plugin):
-                    self.plugin = plugin
+                    self._plugin_ref = weakref.ref(plugin)
                     self.processed_instances = set()
                 
                 @hook_filters(HookFilter.Condition("param.thisObject != null"))
@@ -8562,7 +8580,10 @@ class UiTweaksPlugin(BasePlugin):
                                 return
                             self.processed_instances.add(instance_id)
                             
-                            self.plugin._add_folder_tabs_to_share_alert(bottom_sheet_instance)
+                            plugin = self._plugin_ref()
+                            if not plugin:
+                                return
+                            plugin._add_folder_tabs_to_share_alert(bottom_sheet_instance)
                     except:
                         pass
             
@@ -8993,13 +9014,16 @@ class UiTweaksPlugin(BasePlugin):
 
             class DrawerAdapterHook:
                 def __init__(self, plugin):
-                    self.plugin = plugin
+                    self._plugin_ref = weakref.ref(plugin)
 
                 @hook_filters(HookFilter.Condition("param.thisObject != null"))
                 def after_hooked_method(self, param):
                     try:
+                        plugin = self._plugin_ref()
+                        if not plugin:
+                            return
                         adapter = param.thisObject
-                        hidden_accounts = self.plugin.hidden_accounts
+                        hidden_accounts = plugin.hidden_accounts
                         if not hidden_accounts:
                             return
                         
@@ -9030,13 +9054,16 @@ class UiTweaksPlugin(BasePlugin):
 
             class ProfileCellHook:
                 def __init__(self, plugin):
-                    self.plugin = plugin
+                    self._plugin_ref = weakref.ref(plugin)
 
                 @hook_filters(HookFilter.Condition("param.thisObject != null"))
                 def after_hooked_method(self, param):
                     try:
+                        plugin = self._plugin_ref()
+                        if not plugin:
+                            return
                         profile_cell = param.thisObject
-                        self.plugin.replace_theme_button_listener(profile_cell)
+                        plugin.replace_theme_button_listener(profile_cell)
                     except:
                         pass
 
@@ -10104,11 +10131,11 @@ class _BookmarksHelper:
 
 class BookmarkCreateViewHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
     
     def after_hooked_method(self, param):
         try:
-            p = self.plugin
+            p = self._plugin_ref()
             if p and p.get_setting("enable_bookmark_chat", False):
                 p._bm_on_chat_activity_created(param.thisObject)
         except: pass
@@ -10116,11 +10143,11 @@ class BookmarkCreateViewHook:
 
 class BookmarkActionBarClickHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
     
     def before_hooked_method(self, param):
         try:
-            p = self.plugin
+            p = self._plugin_ref()
             if p and int(param.args[0]) == 2046:
                 frag = get_last_fragment()
                 ChatActivityClass = p._get_class("org.telegram.ui.ChatActivity")
@@ -10132,7 +10159,7 @@ class BookmarkActionBarClickHook:
 
 class SetDefaultSendAsHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.ArgumentNotNull(0), HookFilter.ArgumentNotNull(1))
     def after_hooked_method(self, param):
@@ -10162,7 +10189,7 @@ class SetDefaultSendAsHook:
 
 class SendAsPopupHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.ArgumentNotNull(3), HookFilter.ArgumentNotNull(4))
     def after_hooked_method(self, param):
@@ -10203,7 +10230,7 @@ class SendAsPopupHook:
 
 class BirthdayAlertHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
@@ -10477,26 +10504,29 @@ class ConfirmationHook:
 
 class DialogsActivityHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
         try:
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
             dialogs_activity = param.thisObject
             if dialogs_activity is None:
                 return
             
-            if self.plugin.get_setting("hide_bot_open", False):
+            if plugin.get_setting("hide_bot_open", False):
                     try:
-                        self.plugin._hide_bot_open_buttons_on_resume(dialogs_activity)
+                        plugin._hide_bot_open_buttons_on_resume(dialogs_activity)
                     except Exception as e:
                         pass
             
 
             
-            if self.plugin.get_setting("fab_settings_shortcut", False):
+            if plugin.get_setting("fab_settings_shortcut", False):
                 try:
-                    self.plugin._setup_fab_settings_listener(dialogs_activity)
+                    plugin._setup_fab_settings_listener(dialogs_activity)
                 except Exception as e:
                     pass
         except Exception as e:
@@ -10505,29 +10535,32 @@ class DialogsActivityHook:
 
 class DialogsActivityDestroyHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def before_hooked_method(self, param):
         try:
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
             dialogs_activity = param.thisObject
             if dialogs_activity is None:
                 return
             
             activity_id = id(dialogs_activity)
-            self.plugin.cleanup_activity_references(activity_id)
+            plugin.cleanup_activity_references(activity_id)
         except Exception:
             pass
 
 
 class ChatActivityCleanupHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
         try:
-            plugin = self.plugin
+            plugin = self._plugin_ref()
             if plugin is None:
                 return
             chat_activity = param.thisObject
@@ -10542,12 +10575,12 @@ class ChatActivityCleanupHook:
 
 class DialogCellHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
         try:
-            plugin = self.plugin
+            plugin = self._plugin_ref()
             if plugin is None:
                 return
             if plugin.get_setting("hide_bot_open", True):
@@ -10568,7 +10601,7 @@ class DialogCellHook:
 
 class SendImageWithHighQualityByDefault:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         self._cached_fields = {}
 
     def isEnabled(self):
@@ -10581,14 +10614,18 @@ class SendImageWithHighQualityByDefault:
             try:
                 setHighQuality_method = cellClass.getClass().getDeclaredMethod("setHighQuality", find_class("java.lang.Boolean").TYPE)
                 setHighQuality_method.setAccessible(True)
-                self.plugin.hook_method(setHighQuality_method, PhotoCellSetHighQualityHook(self))
+                plugin = self._plugin_ref()
+                if plugin:
+                    plugin.hook_method(setHighQuality_method, PhotoCellSetHighQualityHook(self))
             except:
                 method_names = ["setQuality", "setHD"]
                 for method_name in method_names:
                     try:
                         setHighQuality_method = cellClass.getClass().getDeclaredMethod(method_name, find_class("java.lang.Boolean").TYPE)
                         setHighQuality_method.setAccessible(True)
-                        self.plugin.hook_method(setHighQuality_method, PhotoCellSetHighQualityHook(self))
+                        plugin = self._plugin_ref()
+                        if plugin:
+                            plugin.hook_method(setHighQuality_method, PhotoCellSetHighQualityHook(self))
                         break
                     except:
                         continue
@@ -10651,12 +10688,15 @@ class PhotoCellSetHighQualityHook:
 
 class SwipePreventionHook(MethodReplacement):
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     def replace_hooked_method(self, param):
         try:
-            prevent_editing = self.plugin.get_setting("prevent_swipe_while_editing", False)
-            prevent_typing = self.plugin.get_setting("prevent_swipe_while_typing", False)
+            plugin = self._plugin_ref()
+            if not plugin:
+                return True
+            prevent_editing = plugin.get_setting("prevent_swipe_while_editing", False)
+            prevent_typing = plugin.get_setting("prevent_swipe_while_typing", False)
             
             if not prevent_editing and not prevent_typing:
                 return True
@@ -10710,14 +10750,17 @@ class SwipePreventionHook(MethodReplacement):
 
 class DeepLinkHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         self.pending_intent = None
         self.pending_param = None
         self.is_processing = False
 
     def before_hooked_method(self, param):
         try:
-            if not self.plugin.get_setting("confirm_deeplinks", False) and not self.plugin.get_setting("confirm_ayugram_deeplinks", False):
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
+            if not plugin.get_setting("confirm_deeplinks", False) and not plugin.get_setting("confirm_ayugram_deeplinks", False):
                 return
 
             if self.is_processing:
@@ -10746,7 +10789,8 @@ class DeepLinkHook:
             if url.startswith("tg://Quanta") or url.startswith("tg://quanta") or url == "tg://refresh":
                 return
             elif url.startswith("tg://ayu/"):
-                if not self.plugin.get_setting("confirm_ayugram_deeplinks", False):
+                plugin = self._plugin_ref()
+                if not plugin or not plugin.get_setting("confirm_ayugram_deeplinks", False):
                     return
                 
                 excluded_links = ["tg://ayu/prefs", "tg://ayu/db_export", "tg://ayu/db_import"]
@@ -10763,7 +10807,8 @@ class DeepLinkHook:
                 run_on_ui_thread(lambda: self.show_ayugram_warning_dialog(url))
                 return
             elif url.startswith("tg://"):
-                if not self.plugin.get_setting("confirm_deeplinks", False):
+                plugin = self._plugin_ref()
+                if not plugin or not plugin.get_setting("confirm_deeplinks", False):
                     return
                     
                 self.pending_intent = intent
@@ -10843,38 +10888,46 @@ class DeepLinkHook:
 
 class SetCommandHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.ArgumentNotNull(0), HookFilter.ArgumentNotNull(1))
     def before_hooked_method(self, param):
         try:
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
             message_object = param.args[0]  
             command = param.args[1] 
             long_press = param.args[2] 
             username = param.args[3] 
             
             if message_object is not None and command is not None and command.startswith('/'):
-                self.plugin.command_from_message_click = True
+                plugin.command_from_message_click = True
             else:
-                self.plugin.command_from_message_click = False
+                plugin.command_from_message_click = False
             
         except Exception as e:
-            self.plugin.command_from_message_click = False
+            plugin = self._plugin_ref()
+            if plugin:
+                plugin.command_from_message_click = False
 
 
 class StarReactionMenuHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         self._items_field = None
         self._visible_reactions_field = None
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def before_hooked_method(self, param):
         try:
-            if not self.plugin.get_setting("hide_star_reaction", False):
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
+            if not plugin.get_setting("hide_star_reaction", False):
                 return
             
-            hide_location = self.plugin.get_setting("star_reaction_hide_location", 0)
+            hide_location = plugin.get_setting("star_reaction_hide_location", 0)
             if hide_location not in [0, 2]: 
                 return
                 
@@ -11026,15 +11079,18 @@ class StarReactionGradientHook:
 
 class StarReactionLayoutDrawHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.ArgumentNotNull(0))
     def before_hooked_method(self, param):
         try:
-            if not self.plugin.get_setting("hide_star_reaction", False):
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
+            if not plugin.get_setting("hide_star_reaction", False):
                 return
                 
-            hide_cells = self.plugin.get_setting("star_reaction_hide_cells", False)
+            hide_cells = plugin.get_setting("star_reaction_hide_cells", False)
             if not hide_cells: 
                 return
                 
@@ -11074,24 +11130,26 @@ class StarReactionLayoutDrawHook:
 
 class DownloadManagerHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def before_hooked_method(self, param):
         try:
-            if self.plugin.get_setting("always_show_download_manager", False):
+            plugin = self._plugin_ref()
+            if plugin and plugin.get_setting("always_show_download_manager", False):
                 param.setResult(True)
         except Exception as e:
             pass
 
 class ProxyButtonHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
         try:
-            if not self.plugin.get_setting("always_show_proxy_button", False):
+            plugin = self._plugin_ref()
+            if not plugin or not plugin.get_setting("always_show_proxy_button", False):
                 return
             
             dialogs_activity = param.thisObject
@@ -11116,11 +11174,12 @@ class ProxyButtonHook:
 
 class ArticleViewerFixHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     def before_hooked_method(self, param):
         try:
-            if self.plugin.get_setting("disable_article_viewer_swipe", False):
+            plugin = self._plugin_ref()
+            if plugin and plugin.get_setting("disable_article_viewer_swipe", False):
                 param.setResult(False)
         except Exception as e:
             pass
@@ -11128,7 +11187,7 @@ class ArticleViewerFixHook:
 
 class WebAppSwipePreventionHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     def after_hooked_method(self, param):
         try:
@@ -11141,7 +11200,7 @@ class WebAppSwipePreventionHook:
 
 class PhoneFormatHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
     
     def after_hooked_method(self, param):
         try:
@@ -11175,7 +11234,7 @@ class PhoneFormatHook:
 
 class MessagesControllerGetDialogsHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         self._processed_accounts = set()
 
     def _remove_folder_dialog(self, dialog_list, dialog_object):
@@ -11189,7 +11248,8 @@ class MessagesControllerGetDialogsHook:
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def before_hooked_method(self, param):
         try:
-            if not self.plugin.get_setting("hide_archived_chats", False):
+            plugin = self._plugin_ref()
+            if not plugin or not plugin.get_setting("hide_archived_chats", False):
                 self._processed_accounts.clear()
                 return
 
@@ -11217,12 +11277,13 @@ class MessagesControllerGetDialogsHook:
 
 class ChatUtilsHasArchivedHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.RESULT_NOT_NULL)
     def after_hooked_method(self, param):
         try:
-            if self.plugin.get_setting("hide_archived_chats", False) and not self.plugin.get_setting("hide_archived_from_drawer", False):
+            plugin = self._plugin_ref()
+            if plugin and plugin.get_setting("hide_archived_chats", False) and not plugin.get_setting("hide_archived_from_drawer", False):
                 param.setResult(True)
         except Exception:
             pass
@@ -11230,12 +11291,13 @@ class ChatUtilsHasArchivedHook:
 
 class ExteraConfigArchivedHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
     def before_hooked_method(self, param):
         try:
-            if self.plugin.get_setting("hide_archived_chats", False) and not self.plugin.get_setting("hide_archived_from_drawer", False):
+            plugin = self._plugin_ref()
+            if plugin and plugin.get_setting("hide_archived_chats", False) and not plugin.get_setting("hide_archived_from_drawer", False):
                 if len(param.args) >= 2 and param.args[0] == "archivedChats":
                     param.thisObject.setObj("archivedChats", True)
                     param.setResult(None)
@@ -11245,12 +11307,13 @@ class ExteraConfigArchivedHook:
 
 class MessagesControllerSendTypingHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def before_hooked_method(self, param):
         try:
-            if not self.plugin.get_setting("typing_instead_sticker", False):
+            plugin = self._plugin_ref()
+            if not plugin or not plugin.get_setting("typing_instead_sticker", False):
                 return
 
             if len(param.args) < 3:
@@ -11266,12 +11329,13 @@ class MessagesControllerSendTypingHook:
 
 class UpdateBotButtonHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def replace_hooked_method(self, param):
         try:
-            if self.plugin.get_setting("hide_bot_button", False):
+            plugin = self._plugin_ref()
+            if plugin and plugin.get_setting("hide_bot_button", False):
                 self_instance = param.thisObject
                 bot_button = getattr(self_instance, 'botButton', None)
                 if bot_button:
@@ -11294,7 +11358,7 @@ class UpdateBotButtonHook:
 
 class VoiceMessageControlHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentIsTrue(2))
     def before_hooked_method(self, param):
@@ -11337,7 +11401,7 @@ class VoiceMessageControlHook:
 
 class VideoMessageControlHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentIsTrue(2))
     def before_hooked_method(self, param):
@@ -11368,7 +11432,7 @@ class VideoMessageControlHook:
 class GifSpoilerHook(MethodHook):
     def __init__(self, plugin: UiTweaksPlugin):
         MethodHook.__init__(self)
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         self.added_items = []
         self._current_viewer_ref = None
         self._strong_viewer = None
@@ -11392,7 +11456,9 @@ class GifSpoilerHook(MethodHook):
 
             if self.current_viewer and self.current_viewer != viewer:
                 self.cleanup_menu_items()
-                self.plugin.log("GIF Menu: Cleaned up previous menu items due to viewer change")
+                plugin = self._plugin_ref()
+                if plugin:
+                    plugin.log("GIF Menu: Cleaned up previous menu items due to viewer change")
 
             self.current_viewer = viewer
 
@@ -11405,24 +11471,32 @@ class GifSpoilerHook(MethodHook):
             document = get_private_field(viewer, "currentDocument")
 
             if preview_menu and document:
-                self.plugin.log("GIF Menu: Adding spoiler and caption menu items")
+                plugin = self._plugin_ref()
+                if plugin:
+                    plugin.log("GIF Menu: Adding spoiler and caption menu items")
                 self.add_spoiler_menu(preview_menu, viewer, document)
 
         except Exception as e:
-            self.plugin.log(f"GIF Menu Error: {e}")
+            plugin = self._plugin_ref()
+            if plugin:
+                plugin.log(f"GIF Menu Error: {e}")
             pass
 
     def add_spoiler_menu(self, preview_menu, viewer, document):
         try:
             if not MessageObject.isGifDocument(document):
-                self.plugin.log("GIF Menu: Document is not a GIF, skipping menu addition")
+                plugin = self._plugin_ref()
+                if plugin:
+                    plugin.log("GIF Menu: Document is not a GIF, skipping menu addition")
                 return
 
             resources_provider = get_private_field(viewer, "resourcesProvider")
             delegate = get_private_field(viewer, "delegate")
 
             if not delegate or not delegate.needSend(1):
-                self.plugin.log("GIF Menu: Delegate cannot send, skipping menu addition")
+                plugin = self._plugin_ref()
+                if plugin:
+                    plugin.log("GIF Menu: Delegate cannot send, skipping menu addition")
                 return
 
 
@@ -11433,7 +11507,9 @@ class GifSpoilerHook(MethodHook):
             self._strong_document = document
             self._strong_delegate = delegate
 
-            self.plugin.log("GIF Menu: Creating spoiler menu item")
+            plugin = self._plugin_ref()
+            if plugin:
+                plugin.log("GIF Menu: Creating spoiler menu item")
             spoiler_item = ActionBarMenuItem.addItem(
                 preview_menu,
                 R_tg.drawable.msg_spoiler,
@@ -11683,10 +11759,11 @@ class GifSpoilerHook(MethodHook):
                 except:
                     pass
             
+            plugin = self._plugin_ref()
             SendMessagesHelper.getInstance(current_account).sendMessage(
-                self.plugin._create_send_message_params_document(
+                plugin._create_send_message_params_document(
                     document, delegate.getDialogId(), user_reply_to_msg, topic_reply_to_msg if topic_reply_to_msg else user_reply_to_msg, caption, get_private_field(viewer, "parentObject"), False
-                )
+                ) if plugin else None
             )
             from org.telegram.messenger import MediaDataController
             from java.lang import System
@@ -11706,38 +11783,48 @@ class GifSpoilerHook(MethodHook):
 
     def dismiss_popup(self, viewer):
         try:
-            self.plugin.log("GIF Menu: Dismissing popup and cleaning up menu items")
+            plugin = self._plugin_ref()
+            if plugin:
+                plugin.log("GIF Menu: Dismissing popup and cleaning up menu items")
             self.cleanup_menu_items()
             
             method = viewer.getClass().getDeclaredMethod("dismissPopupWindow")
             method.setAccessible(True)
             method.invoke(viewer)
-            self.plugin.log("GIF Menu: Popup dismissed successfully")
+            if plugin:
+                plugin.log("GIF Menu: Popup dismissed successfully")
         except Exception as e:
-            self.plugin.log(f"GIF Menu: Error dismissing popup: {e}")
+            plugin = self._plugin_ref()
+            if plugin:
+                plugin.log(f"GIF Menu: Error dismissing popup: {e}")
             pass
 
 
 class GifDismissHook(MethodHook):
     def __init__(self, plugin: UiTweaksPlugin):
         MethodHook.__init__(self)
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def before_hooked_method(self, param):
         try:
-            if hasattr(self.plugin, 'hook_gif_spoiler_ref') and self.plugin.hook_gif_spoiler_ref:
-                hook_instance = self.plugin.hook_gif_spoiler_ref
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
+            if hasattr(plugin, 'hook_gif_spoiler_ref') and plugin.hook_gif_spoiler_ref:
+                hook_instance = plugin.hook_gif_spoiler_ref
                 if hasattr(hook_instance, 'cleanup_menu_items'):
-                    self.plugin.log("GIF Menu: Auto-cleanup triggered by dismiss hook")
+                    plugin.log("GIF Menu: Auto-cleanup triggered by dismiss hook")
                     hook_instance.cleanup_menu_items()
         except Exception as e:
-            self.plugin.log(f"GIF Menu: Error in dismiss hook cleanup: {e}")
+            plugin = self._plugin_ref()
+            if plugin:
+                plugin.log(f"GIF Menu: Error in dismiss hook cleanup: {e}")
 
 
 class ProcessExternalUrlHook:
     def __init__(self, plugin: UiTweaksPlugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.ArgumentNotNull(1))
     def before_hooked_method(self, param):
@@ -11764,11 +11851,14 @@ class ProcessExternalUrlHook:
 
 class CreateViewHook(MethodHook):
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
         try:
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
             chat_activity = param.thisObject
             if chat_activity is None:
                 return
@@ -11852,7 +11942,7 @@ class CreateViewHook(MethodHook):
                     notification_center = chat_activity.getNotificationCenter()
                     
                     from java import dynamic_proxy
-                    NotificationCenterDelegate = self.plugin._get_class("org.telegram.messenger.NotificationCenter$NotificationCenterDelegate")
+                    NotificationCenterDelegate = plugin._get_class("org.telegram.messenger.NotificationCenter$NotificationCenterDelegate")
                     
                     ObserverProxy = dynamic_proxy(NotificationCenterDelegate)
                     
@@ -11902,10 +11992,10 @@ class CreateViewHook(MethodHook):
                             except Exception:
                                 pass
                     
-                    observer = UnreadObserver(self.plugin, chat_activity, id(back_button))
+                    observer = UnreadObserver(plugin, chat_activity, id(back_button))
                     notification_center.addObserver(observer, NotificationCenter.dialogsUnreadCounterChanged)
                     
-                    self.plugin.counter_views[id(back_button) + 1000000] = observer
+                    plugin.counter_views[id(back_button) + 1000000] = observer
                     
                 except Exception:
                     pass
@@ -11921,11 +12011,14 @@ class CreateViewHook(MethodHook):
             if back_button is None:
                 return
             
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
             back_button_id = id(back_button)
-            if back_button_id not in self.plugin.counter_views:
+            if back_button_id not in plugin.counter_views:
                 return
             
-            counter_view = self.plugin.counter_views[back_button_id]
+            counter_view = plugin.counter_views[back_button_id]
             
             messages_storage = chat_activity.getMessagesStorage()
             if messages_storage:
@@ -11949,7 +12042,7 @@ class CreateViewHook(MethodHook):
 
 class FragmentDestroyHook(MethodHook):
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         MethodHook.__init__(self)
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
@@ -11970,17 +12063,20 @@ class FragmentDestroyHook(MethodHook):
             back_button_id = id(back_button)
             observer_id = back_button_id + 1000000
             
-            if observer_id in self.plugin.counter_views:
-                observer = self.plugin.counter_views[observer_id]
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
+            if observer_id in plugin.counter_views:
+                observer = plugin.counter_views[observer_id]
                 notification_center = chat_activity.getNotificationCenter()
                 
                 NotificationCenter = jclass("org.telegram.messenger.NotificationCenter")
                 notification_center.removeObserver(observer, NotificationCenter.dialogsUnreadCounterChanged)
                 
-                del self.plugin.counter_views[observer_id]
+                del plugin.counter_views[observer_id]
             
-            if back_button_id in self.plugin.counter_views:
-                del self.plugin.counter_views[back_button_id]
+            if back_button_id in plugin.counter_views:
+                del plugin.counter_views[back_button_id]
             
         except Exception:
             pass
@@ -11988,20 +12084,23 @@ class FragmentDestroyHook(MethodHook):
 
 class ForwardConfirmationHook:
     def __init__(self, plugin: UiTweaksPlugin, reflected_method):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         self.reflected_method = reflected_method
         self._suppress_next = False
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def before_hooked_method(self, param):
         try:
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
             chat_activity = param.thisObject
             if chat_activity is None:
                 return
             if self._suppress_next:
                 self._suppress_next = False
                 return
-            if not self.plugin.get_setting("enable_confirmation_settings", False) or not self.plugin.get_setting("confirm_forward", True):
+            if not plugin.get_setting("enable_confirmation_settings", False) or not plugin.get_setting("confirm_forward", True):
                 return
             args = list(param.args) if param.args else []
             def on_confirm():
@@ -12131,7 +12230,7 @@ class JoinConfirmationClickListener(dynamic_proxy(find_class("android.view.View$
 
 class FillActionModeMenuHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
     
     @hook_filters(HookFilter.ArgumentNotNull(0))
     def after_hooked_method(self, param):
@@ -12153,7 +12252,7 @@ class FillActionModeMenuHook:
 
 class PerformMenuActionHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
     def before_hooked_method(self, param):
@@ -12164,25 +12263,29 @@ class PerformMenuActionHook:
             if item_id == CUSTOM_CODE_ID:
                 import time
                 current_time = time.time()
+                plugin = self._plugin_ref()
+                if not plugin:
+                    return
+                if not hasattr(plugin, '_last_code_click'):
+                    plugin._last_code_click = 0
                 
-                if not hasattr(self.plugin, '_last_code_click'):
-                    self.plugin._last_code_click = 0
-                
-                if current_time - self.plugin._last_code_click > DEBOUNCE_TIME:
-                    self.plugin._last_code_click = current_time
-                    self.plugin._make_selected_code(edit_text)
+                if current_time - plugin._last_code_click > DEBOUNCE_TIME:
+                    plugin._last_code_click = current_time
+                    plugin._make_selected_code(edit_text)
                 return
                 
             elif item_id == CUSTOM_MENTION_ID:
                 import time
                 current_time = time.time()
+                plugin = self._plugin_ref()
+                if not plugin:
+                    return
+                if not hasattr(plugin, '_last_mention_click'):
+                    plugin._last_mention_click = 0
                 
-                if not hasattr(self.plugin, '_last_mention_click'):
-                    self.plugin._last_mention_click = 0
-                
-                if current_time - self.plugin._last_mention_click > DEBOUNCE_TIME:
-                    self.plugin._last_mention_click = current_time
-                    self.plugin._make_selected_mention(edit_text)
+                if current_time - plugin._last_mention_click > DEBOUNCE_TIME:
+                    plugin._last_mention_click = current_time
+                    plugin._make_selected_mention(edit_text)
                 return
                 
         except Exception as e:
@@ -12191,16 +12294,19 @@ class PerformMenuActionHook:
 
 class JoinConfirmationHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param: Any):
         try:
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
             chat_activity = param.thisObject
             if not chat_activity:
                 return
 
-            chat_activity_class = self.plugin._get_class("org.telegram.ui.ChatActivity")
+            chat_activity_class = plugin._get_class("org.telegram.ui.ChatActivity")
             overlay_field = chat_activity_class.getClass().getDeclaredField("bottomOverlayChatText")
             overlay_field.setAccessible(True)
             overlay_text_view = overlay_field.get(chat_activity)
@@ -12208,7 +12314,7 @@ class JoinConfirmationHook:
             if not overlay_text_view:
                 return
 
-            view_class = self.plugin._get_class("android.view.View")
+            view_class = plugin._get_class("android.view.View")
             listener_info_method = view_class.getClass().getDeclaredMethod("getListenerInfo")
             listener_info_method.setAccessible(True)
             listener_info = listener_info_method.invoke(overlay_text_view)
@@ -12238,21 +12344,24 @@ def uitweaks_log(message: str):
 
 class MessagePreviewViewHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
         try:
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
             preview_view = param.thisObject
-            if preview_view and preview_view not in self.plugin.added_send_media_buttons:
-                run_on_ui_thread(lambda: self.plugin._add_send_media_button(preview_view), 100)
+            if preview_view and preview_view not in plugin.added_send_media_buttons:
+                run_on_ui_thread(lambda: plugin._add_send_media_button(preview_view), 100)
         except:
             pass
 
 
 class DisableAutoWebLoginHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         uitweaks_log("DisableAutoWebLoginHook initialized")
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
@@ -12272,7 +12381,7 @@ class DisableAutoWebLoginHook:
 
 class PreferCommonGroupsTabHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
     def after_hooked_method(self, param):
@@ -12297,28 +12406,36 @@ class PreferCommonGroupsTabHook:
 
 class ChatActionBarItemsHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
         try:
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
             chat_activity = param.thisObject
             activity_id = id(chat_activity)
             
-            if activity_id not in self.plugin.chat_action_bar_hooked_activities:
-                self.plugin.chat_action_bar_hooked_activities.add(activity_id)
+            if activity_id not in plugin.chat_action_bar_hooked_activities:
+                plugin.chat_action_bar_hooked_activities.add(activity_id)
                 
-                if self.plugin.get_setting("enable_goto_message", False):
+                if plugin.get_setting("enable_goto_message", False):
                     self.add_goto_message_menu_item(chat_activity)
                 
-                if self.plugin.get_setting("enable_ai_summarize", False):
+                if plugin.get_setting("enable_ai_summarize", False):
                     self.add_summarize_menu_item(chat_activity)
         except Exception as e:
-            self.plugin.log(f"Error in Chat Action Bar Items Hook: {e}")
+            plugin = self._plugin_ref()
+            if plugin:
+                plugin.log(f"Error in Chat Action Bar Items Hook: {e}")
     
     def add_summarize_menu_item(self, chat_activity):
         try:
-            AiController = self.plugin._get_class("com.exteragram.messenger.ai.AiController")
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
+            AiController = plugin._get_class("com.exteragram.messenger.ai.AiController")
             if not AiController:
                 return
 
@@ -12329,7 +12446,7 @@ class ChatActionBarItemsHook:
             if headerItem is None:
                 return
             
-            R = self.plugin._get_class("org.telegram.messenger.R")
+            R = plugin._get_class("org.telegram.messenger.R")
             if R is None:
                 return
             
@@ -12369,7 +12486,7 @@ class ChatActionBarItemsHook:
                     Boolean = jclass("java.lang.Boolean")
                     
                     our_item = asSubItemMethod.invoke(None, 
-                        Integer(self.plugin.ai_summarize_menu_id),
+                        Integer(plugin.ai_summarize_menu_id),
                         Integer(ai_icon),
                         None,
                         summarize_text,
@@ -12380,10 +12497,10 @@ class ChatActionBarItemsHook:
                     lazy_list.add(insert_position, our_item)
                     
                     if lazy_map is not None:
-                        lazy_map.put(self.plugin.ai_summarize_menu_id, our_item)
+                        lazy_map.put(plugin.ai_summarize_menu_id, our_item)
                 else:
                     headerItem.lazilyAddSubItem(
-                        self.plugin.ai_summarize_menu_id,
+                        plugin.ai_summarize_menu_id,
                         ai_icon,
                         summarize_text
                     )
@@ -12391,18 +12508,25 @@ class ChatActionBarItemsHook:
                 self.hook_action_bar_callback(chat_activity)
                 
             except Exception as e:
-                self.plugin.log(f"Error adding AI Summarize menu item: {e}")
+                plugin = self._plugin_ref()
+                if plugin:
+                    plugin.log(f"Error adding AI Summarize menu item: {e}")
                 
         except Exception as e:
-            self.plugin.log(f"Error in add_summarize_menu_item: {e}")
+            plugin = self._plugin_ref()
+            if plugin:
+                plugin.log(f"Error in add_summarize_menu_item: {e}")
     
     def add_goto_message_menu_item(self, chat_activity):
         try:
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
             headerItem = get_private_field(chat_activity, "headerItem")
             if headerItem is None:
                 return
             
-            R = self.plugin._get_class("org.telegram.messenger.R")
+            R = plugin._get_class("org.telegram.messenger.R")
             if R is None:
                 return
             
@@ -12442,7 +12566,7 @@ class ChatActionBarItemsHook:
                     Boolean = jclass("java.lang.Boolean")
                     
                     our_item = asSubItemMethod.invoke(None, 
-                        Integer(self.plugin.goto_message_menu_id),
+                        Integer(plugin.goto_message_menu_id),
                         Integer(goto_icon),
                         None,
                         goto_text,
@@ -12453,10 +12577,10 @@ class ChatActionBarItemsHook:
                     lazy_list.add(insert_position, our_item)
                     
                     if lazy_map is not None:
-                        lazy_map.put(self.plugin.goto_message_menu_id, our_item)
+                        lazy_map.put(plugin.goto_message_menu_id, our_item)
                 else:
                     headerItem.lazilyAddSubItem(
-                        self.plugin.goto_message_menu_id,
+                        plugin.goto_message_menu_id,
                         goto_icon,
                         goto_text
                     )
@@ -12464,10 +12588,14 @@ class ChatActionBarItemsHook:
                 self.hook_action_bar_callback(chat_activity)
                 
             except Exception as e:
-                self.plugin.log(f"Error adding Goto Message menu item: {e}")
+                plugin = self._plugin_ref()
+                if plugin:
+                    plugin.log(f"Error adding Goto Message menu item: {e}")
                 
         except Exception as e:
-            self.plugin.log(f"Error in add_goto_message_menu_item: {e}")
+            plugin = self._plugin_ref()
+            if plugin:
+                plugin.log(f"Error in add_goto_message_menu_item: {e}")
     
     def hook_action_bar_callback(self, chat_activity):
         try:
@@ -12485,23 +12613,28 @@ class ChatActionBarItemsHook:
             onItemClickMethod = callback_class.getDeclaredMethod("onItemClick", jint)
             onItemClickMethod.setAccessible(True)
             
-            hook_handler = ChatActionBarMenuItemClickHook(self.plugin, chat_activity)
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
+            hook_handler = ChatActionBarMenuItemClickHook(plugin, chat_activity)
             
-            if self.plugin.hook_ai_summarize_item_click_ref:
-                self.plugin.unhook_method(self.plugin.hook_ai_summarize_item_click_ref)
+            if plugin.hook_ai_summarize_item_click_ref:
+                plugin.unhook_method(plugin.hook_ai_summarize_item_click_ref)
             
-            self.plugin.hook_ai_summarize_item_click_ref = self.plugin.hook_method(
+            plugin.hook_ai_summarize_item_click_ref = plugin.hook_method(
                 onItemClickMethod,
                 hook_handler
             )
             
         except Exception as e:
-            self.plugin.log(f"Error hooking AI Summarize action bar callback: {e}")
+            plugin = self._plugin_ref()
+            if plugin:
+                plugin.log(f"Error hooking AI Summarize action bar callback: {e}")
 
 
 class ChatActionBarMenuItemClickHook:
     def __init__(self, plugin, chat_activity):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         self._chat_activity_ref = weakref.ref(chat_activity)
     
     @property
@@ -12522,25 +12655,33 @@ class ChatActionBarMenuItemClickHook:
     @hook_filters(HookFilter.ArgumentNotNull(0))
     def before_hooked_method(self, param):
         try:
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
             item_id = int(param.args[0])
             
-            if item_id == self.plugin.ai_summarize_menu_id:
+            if item_id == plugin.ai_summarize_menu_id:
                 self.open_summarize_view(self.chat_activity)
                 param.setResult(None)
-            elif item_id == self.plugin.goto_message_menu_id:
-                self.plugin.show_goto_message_dialog(self.chat_activity)
+            elif item_id == plugin.goto_message_menu_id:
+                plugin.show_goto_message_dialog(self.chat_activity)
                 param.setResult(None)
                 
         except Exception as e:
-            self.plugin.log(f"Error in Chat Action Bar Menu Item Click Hook: {e}")
+            plugin = self._plugin_ref()
+            if plugin:
+                plugin.log(f"Error in Chat Action Bar Menu Item Click Hook: {e}")
     
     def open_summarize_view(self, chat_activity):
-        GenerateFromMessageBottomSheet = self.plugin._get_class("com.exteragram.messenger.ai.ui.GenerateFromMessageBottomSheet")
+        plugin = self._plugin_ref()
+        if not plugin:
+            return
+        GenerateFromMessageBottomSheet = plugin._get_class("com.exteragram.messenger.ai.ui.GenerateFromMessageBottomSheet")
         if not GenerateFromMessageBottomSheet:
             return
         
-        LocaleController = self.plugin._get_class("org.telegram.messenger.LocaleController")
-        R = self.plugin._get_class("org.telegram.messenger.R")
+        LocaleController = plugin._get_class("org.telegram.messenger.LocaleController")
+        R = plugin._get_class("org.telegram.messenger.R")
         
         if LocaleController and R:
             getStringMethod = LocaleController.getClass().getDeclaredMethod("getString", jclass("java.lang.Integer").TYPE)
@@ -12560,7 +12701,7 @@ class ChatActionBarMenuItemClickHook:
                     elif string_id == self.generate_id:
                         param.setResult(getString("summarize_title", "Summarize"))
             
-            unhook_locale = self.plugin.hook_method(getStringMethod, LocaleHook())
+            unhook_locale = plugin.hook_method(getStringMethod, LocaleHook())
         
         Callback = jclass("org.telegram.messenger.Utilities$Callback")
         
@@ -12935,7 +13076,7 @@ def show_duration_selector_sheet(context, on_duration_selected, plugin=None):
 
 class DeleteWithDurationFillItemsHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
     def after_hooked_method(self, param):
@@ -12949,9 +13090,12 @@ class DeleteWithDurationFillItemsHook:
             if banOrRestrict and bannedRights:
                 checks = get_private_field(banOrRestrict, 'checks')
                 if checks and (checks[0] or restrict):
-                    UItem = self.plugin._get_class("org.telegram.ui.Components.UItem")
-                    LocaleController = self.plugin._get_class("org.telegram.messenger.LocaleController")
-                    R_string = self.plugin._get_class("org.telegram.messenger.R$string")
+                    plugin = self._plugin_ref()
+                    if not plugin:
+                        return
+                    UItem = plugin._get_class("org.telegram.ui.Components.UItem")
+                    LocaleController = plugin._get_class("org.telegram.messenger.LocaleController")
+                    R_string = plugin._get_class("org.telegram.messenger.R$string")
                     
                     if bannedRights.until_date == 0 or abs(bannedRights.until_date - int(time.time())) > 10 * 365 * 24 * 60 * 60:
                         value = LocaleController.getString("UserRestrictionsUntilForever", R_string.UserRestrictionsUntilForever)
@@ -12966,11 +13110,13 @@ class DeleteWithDurationFillItemsHook:
                     items.add(duration_item)
                     
         except Exception as e:
-            self.plugin.log(f"Error adding duration item: {e}")
+            plugin = self._plugin_ref()
+            if plugin:
+                plugin.log(f"Error adding duration item: {e}")
 
 class DeleteWithDurationOnClickHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
     def before_hooked_method(self, param):
@@ -12990,17 +13136,20 @@ class DeleteWithDurationOnClickHook:
                         if adapter:
                             adapter.update(True)
                 
-                show_duration_selector_sheet(context, on_duration_selected, self.plugin)
+                plugin = self._plugin_ref()
+                show_duration_selector_sheet(context, on_duration_selected, plugin)
                 param.setResult(None)
                 return
                 
         except Exception as e:
-            self.plugin.log(f"Error handling duration click: {e}")
+            plugin = self._plugin_ref()
+            if plugin:
+                plugin.log(f"Error handling duration click: {e}")
 
 
 class SleepTimerConstructorHook(MethodHook):
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         MethodHook.__init__(self)
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
@@ -13282,7 +13431,7 @@ class MusicSpeedControlHook:
 
 class SendCommentsAfterForwardHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
     
     def before_hooked_method(self, param):
         return None
@@ -13290,7 +13439,7 @@ class SendCommentsAfterForwardHook:
 
 class CheckSendButtonHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def after_hooked_method(self, param):
@@ -13303,7 +13452,7 @@ class CheckSendButtonHook:
 
 class AlwaysVisibleScheduleButtonHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def replace_hooked_method(self, param):
@@ -13515,8 +13664,11 @@ class AllowReplyButtonHook:
     
     def _can_post(self, chat):
         try:
-            ChatObject = self.plugin._get_class("org.telegram.messenger.ChatObject")
-            Chat = self.plugin._get_class("org.telegram.tgnet.TLRPC$Chat")
+            plugin = self._plugin_ref()
+            if not plugin:
+                return True
+            ChatObject = plugin._get_class("org.telegram.messenger.ChatObject")
+            Chat = plugin._get_class("org.telegram.tgnet.TLRPC$Chat")
             canPost_method = ChatObject.getClass().getMethod("canPost", Chat)
             can_post = canPost_method.invoke(None, chat)
             return can_post
@@ -13544,7 +13696,9 @@ class AllowReplyButtonHook:
     def _create_click_listener(self, chat_activity):
         def on_click(view):
             try:
-                self.plugin._launch_reply_in_another_chat(chat_activity)
+                plugin = self._plugin_ref()
+                if plugin:
+                    plugin._launch_reply_in_another_chat(chat_activity)
             except Exception as e:
                 pass
         
@@ -13574,7 +13728,7 @@ class RemoveHttpsHook(MethodHook):
 class DirectProfileHook:
     
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"))
     def before_hooked_method(self, param):
@@ -14525,7 +14679,7 @@ class UnifyUsernameProcessClickHook(MethodHook):
 
 class UnifyUsernameBindViewHook(MethodHook):
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         MethodHook.__init__(self)
 
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0), HookFilter.ArgumentNotNull(1))
@@ -14568,7 +14722,10 @@ class UnifyUsernameBindViewHook(MethodHook):
                 return
             
             view = holder.itemView
-            text_detail_cell_class = self.plugin._get_class("org.telegram.ui.Cells.TextDetailCell")
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
+            text_detail_cell_class = plugin._get_class("org.telegram.ui.Cells.TextDetailCell")
             
             if not text_detail_cell_class.getClass().isInstance(view):
                 return
@@ -14609,27 +14766,30 @@ class UnifyUsernameBindViewHook(MethodHook):
 
 class EditFileNameSetItemOptionsHook(MethodHook):
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         MethodHook.__init__(self)
     
     @hook_filters(HookFilter.ArgumentNotNull(0))
     def before_hooked_method(self, param):
         try:
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
             options = param.args[0] if param and hasattr(param, "args") and param.args else None
             if not options:
                 return
             
-            if getattr(self.plugin, "_last_item_options", None) is not options:
-                self.plugin._last_item_options = options
-                self.plugin._menu_item_added = False
+            if getattr(plugin, "_last_item_options", None) is not options:
+                plugin._last_item_options = options
+                plugin._menu_item_added = False
             
             message_send_preview = param.thisObject if param and hasattr(param, "thisObject") else None
-            self.plugin._message_send_preview = message_send_preview
+            plugin._message_send_preview = message_send_preview
             
-            if getattr(self.plugin, "_menu_item_added", False):
+            if getattr(plugin, "_menu_item_added", False):
                 return
             
-            if not self.plugin._has_document_selected():
+            if not plugin._has_document_selected():
                 return
             
             from org.telegram.messenger import R
@@ -14647,7 +14807,7 @@ class EditFileNameSetItemOptionsHook(MethodHook):
                     except Exception:
                         pass
             
-            action = RunnableFactory(lambda opts=options, preview=message_send_preview: self.plugin._on_edit_filename_click(opts, preview))
+            action = RunnableFactory(lambda opts=options, preview=message_send_preview, p=plugin: p._on_edit_filename_click(opts, preview))
             
             try:
                 icon_id = R.drawable.msg_edit
@@ -14659,7 +14819,7 @@ class EditFileNameSetItemOptionsHook(MethodHook):
             else:
                 options.add(getString("edit_file_name", "Edit File Name"), action)
             
-            self.plugin._menu_item_added = True
+            plugin._menu_item_added = True
             
         except Exception:
             pass
@@ -14674,7 +14834,7 @@ class OpenForwardHook(MethodHook):
 
 class UiTweaksSettingsHeaderHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
     
     @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
     def after_hooked_method(self, param):
@@ -14700,7 +14860,10 @@ class UiTweaksSettingsHeaderHook:
             except:
                 pass
             
-            header = self.plugin._create_settings_header(activity.getContext())
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
+            header = plugin._create_settings_header(activity.getContext())
             if header:
                 from org.telegram.ui.Components import UItem
                 from com.exteragram.messenger.plugins.models import HeaderSetting
@@ -14716,7 +14879,7 @@ class UiTweaksSettingsHeaderHook:
 
 class HideViaBotHook(MethodHook):
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         MethodHook.__init__(self)
     
     @hook_filters(HookFilter.ArgumentNotNull(2))
