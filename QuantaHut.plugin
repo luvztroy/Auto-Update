@@ -235,10 +235,13 @@ class QuantaHut(BasePlugin):
             
             class QuantaHutSettingsHeaderHook(MethodHook):
                 def __init__(self, quantahut):
-                    self.quantahut = quantahut
+                    self._quantahut_ref = weakref.ref(quantahut)
                 
                 def after_hooked_method(self, param):
                     try:
+                        quantahut = self._quantahut_ref()
+                        if not quantahut:
+                            return
                         activity = param.thisObject
                         items = param.args[0]
                         if not items or items.size() == 0:
@@ -391,11 +394,14 @@ class QuantaHut(BasePlugin):
             
             class PluginSearchHook(MethodHook):
                 def __init__(self, quantahut):
-                    self.quantahut = quantahut
+                    self._quantahut_ref = weakref.ref(quantahut)
                     self.matched_plugins = []
                     
                 def before_hooked_method(self, param):
                     try:
+                        quantahut = self._quantahut_ref()
+                        if not quantahut:
+                            return
                         activity = param.thisObject
                         searching = get_private_field(activity, "searching")
                         query = get_private_field(activity, "query")
@@ -415,7 +421,7 @@ class QuantaHut(BasePlugin):
                         for i in range(len(keys_array)):
                             key = keys_array[i]
                             plugin = all_plugins.get(key)
-                            if self.quantahut._matches_plugin_search(plugin, query_lower):
+                            if quantahut._matches_plugin_search(plugin, query_lower):
                                 self.matched_plugins.append(plugin)
                         
                         for plugin in self.matched_plugins:
@@ -428,10 +434,15 @@ class QuantaHut(BasePlugin):
                                 break
                         
                     except Exception as e:
-                        self.quantahut.log(f"Plugin search error: {e}")
+                        quantahut = self._quantahut_ref()
+                        if quantahut:
+                            quantahut.log(f"Plugin search error: {e}")
                 
                 def after_hooked_method(self, param):
                     try:
+                        quantahut = self._quantahut_ref()
+                        if not quantahut:
+                            return
                         items = param.args[0]
                         activity = param.thisObject
                         
@@ -454,15 +465,15 @@ class QuantaHut(BasePlugin):
                         items_to_remove = []
                         for i in range(items.size()):
                             item = items.get(i)
-                            plugin = self.quantahut._get_plugin_from_item(item)
+                            plugin = quantahut._get_plugin_from_item(item)
                             if plugin:
-                                if self.quantahut.get_plugin_type(str(plugin.getId())) == "lib":
+                                if quantahut.get_plugin_type(str(plugin.getId())) == "lib":
                                     items_to_remove.append(i)
                         
                         for i in reversed(items_to_remove):
                             items.remove(i)
                         
-                        current_filter = self.quantahut.current_filter
+                        current_filter = quantahut.current_filter
                         if current_filter != 0:
                             plugins_controller = PluginsController.getInstance()
                             plugin_items = []
@@ -470,7 +481,7 @@ class QuantaHut(BasePlugin):
                             
                             for i in range(items.size()):
                                 item = items.get(i)
-                                plugin = self.quantahut._get_plugin_from_item(item)
+                                plugin = quantahut._get_plugin_from_item(item)
                                 if plugin:
                                     plugin_items.append(item)
                                 else:
@@ -478,20 +489,20 @@ class QuantaHut(BasePlugin):
                             
                             filtered_items = []
                             for item in plugin_items:
-                                plugin = self.quantahut._get_plugin_from_item(item)
+                                plugin = quantahut._get_plugin_from_item(item)
                                 if not plugin: continue
                                 
                                 if current_filter == 1 and plugin.isEnabled():
                                     filtered_items.append(item)
                                 elif current_filter == 2 and not plugin.isEnabled():
                                     filtered_items.append(item)
-                                elif current_filter == 3 and self.quantahut._is_recently_updated(plugin):
+                                elif current_filter == 3 and quantahut._is_recently_updated(plugin):
                                     filtered_items.append(item)
                                 elif current_filter == 4 and plugins_controller.hasPluginSettings(plugin.getId()):
                                     filtered_items.append(item)
                                 elif current_filter == 5 and plugin.hasError():
                                     filtered_items.append(item)
-                                elif current_filter == 6 and self.quantahut._is_quanta_plugin(plugin):
+                                elif current_filter == 6 and quantahut._is_quanta_plugin(plugin):
                                     filtered_items.append(item)
                             
                             items.clear()
@@ -500,10 +511,10 @@ class QuantaHut(BasePlugin):
                             for item in filtered_items:
                                 items.add(item)
                         
-                        if self.quantahut.pills_container and items.size() > 0 and self.quantahut.get_setting("enable_plugin_filter_pills", True):
+                        if quantahut.pills_container and items.size() > 0 and quantahut.get_setting("enable_plugin_filter_pills", True):
                             from org.telegram.ui.Components import UItem
                             try:
-                                pills_item = UItem.asFullyCustom(self.quantahut.pills_container)
+                                pills_item = UItem.asFullyCustom(quantahut.pills_container)
                                 insert_position = 1 if items.size() > 1 else items.size()
                                 items.add(insert_position, pills_item)
                             except:
@@ -513,17 +524,20 @@ class QuantaHut(BasePlugin):
             
             class CreateViewHook(MethodHook):
                 def __init__(self, quantahut):
-                    self.quantahut = quantahut
+                    self._quantahut_ref = weakref.ref(quantahut)
                 
                 def after_hooked_method(self, param):
                     try:
+                        quantahut = self._quantahut_ref()
+                        if not quantahut:
+                            return
                         activity = param.thisObject
                         context = param.args[0]
-                        self.quantahut.stored_context = context
-                        self.quantahut.stored_activity = activity
-                        if self.quantahut.get_setting("enable_plugin_filter_pills", True):
-                            self.quantahut._add_filter_pills(activity)
-                            run_on_ui_thread(lambda: self.quantahut._refresh_plugins_list(activity))
+                        quantahut.stored_context = context
+                        quantahut.stored_activity = activity
+                        if quantahut.get_setting("enable_plugin_filter_pills", True):
+                            quantahut._add_filter_pills(activity)
+                            run_on_ui_thread(lambda q=quantahut, a=activity: q._refresh_plugins_list(a))
                     except:
                         pass
             
@@ -1077,9 +1091,12 @@ class QuantaHut(BasePlugin):
             open_for_view.setAccessible(True)
             class OpenForViewHook:
                 def __init__(hook_self):
-                    hook_self.plugin = self
+                    hook_self._plugin_ref = weakref.ref(self)
                 def before_hooked_method(hook_self, param):
                     try:
+                        plugin = hook_self._plugin_ref()
+                        if not plugin:
+                            return
                         if len(param.args) >= 1:
                             msg = param.args[0]
                             if msg and hasattr(msg, "getDocumentName"):
@@ -1087,12 +1104,12 @@ class QuantaHut(BasePlugin):
                                 if name:
                                     name_lower = str(name).lower()
                                     if name_lower.endswith(".backup"):
-                                        hook_self.plugin.log(f"Detected .backup file click: {name}")
-                                        hook_self.plugin._show_import_bottom_sheet(msg)
+                                        plugin.log(f"Detected .backup file click: {name}")
+                                        plugin._show_import_bottom_sheet(msg)
                                         param.setResult(False)
                                     elif name_lower.endswith(".plugins"):
-                                        hook_self.plugin.log(f"Detected .plugins file click: {name}")
-                                        hook_self.plugin._show_import_plugins_bottom_sheet(msg)
+                                        plugin.log(f"Detected .plugins file click: {name}")
+                                        plugin._show_import_plugins_bottom_sheet(msg)
                                         param.setResult(False)
                     except Exception as e:
                         pass
@@ -2189,14 +2206,17 @@ class QuantaHut(BasePlugin):
 
 class CustomBadgeHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         
     def after_hooked_method(self, param):
         try:
+            plugin = self._plugin_ref()
+            if not plugin:
+                return param.getResult()
             tl_object = param.args[0]
             
-            if self.plugin.TLRPC_Chat and isinstance(tl_object, self.plugin.TLRPC_Chat) and tl_object.id in self.plugin.custom_badges:
-                custom_badge = self.plugin.custom_badges[tl_object.id]
+            if plugin.TLRPC_Chat and isinstance(tl_object, plugin.TLRPC_Chat) and tl_object.id in plugin.custom_badges:
+                custom_badge = plugin.custom_badges[tl_object.id]
                 param.setResult(custom_badge)
                 return custom_badge
             
@@ -2207,7 +2227,7 @@ class CustomBadgeHook:
 
 class CustomDeveloperHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         
     def after_hooked_method(self, param):
         return param.getResult()
@@ -2215,15 +2235,18 @@ class CustomDeveloperHook:
 
 class CustomExteraHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         
     def after_hooked_method(self, param):
         try:
+            plugin = self._plugin_ref()
+            if not plugin:
+                return param.getResult()
             if param.getResult():
                 return True
             
             chat = param.args[0]
-            if chat and hasattr(chat, 'id') and chat.id in self.plugin.custom_badges:
+            if chat and hasattr(chat, 'id') and chat.id in plugin.custom_badges:
                 param.setResult(True)
                 return True
             
@@ -2234,7 +2257,7 @@ class CustomExteraHook:
 
 class QuantaDeeplinkHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     def before_hooked_method(self, param):
         try:
@@ -2257,26 +2280,34 @@ class QuantaDeeplinkHook:
                 run_on_ui_thread(self._refresh_badges_direct)
                 param.setResult(None)
         except Exception as e:
-            self.plugin.log(f"Error in deeplink hook: {e}")
+            plugin = self._plugin_ref()
+            if plugin:
+                plugin.log(f"Error in deeplink hook: {e}")
 
     def _restart_app_direct(self):
         restart_app()
 
     def _refresh_badges_direct(self):
+        plugin_ref = self._plugin_ref
         def refresh_callback():
             try:
-                self.plugin.log("Force refreshing badges via tg://refresh")
-                self.plugin.custom_badges.clear()
-                badges_data = self.plugin._load_badges_from_config(force_refresh=True)
+                plugin = plugin_ref()
+                if not plugin:
+                    return
+                plugin.log("Force refreshing badges via tg://refresh")
+                plugin.custom_badges.clear()
+                badges_data = plugin._load_badges_from_config(force_refresh=True)
                 if badges_data:
-                    self.plugin._process_badges_from_data(badges_data)
-                    self.plugin.log(f"Refreshed {len(self.plugin.custom_badges)} badges")
+                    plugin._process_badges_from_data(badges_data)
+                    plugin.log(f"Refreshed {len(plugin.custom_badges)} badges")
                     current_fragment = get_last_fragment()
-                    BulletinHelper.show_success(getString("refreshed_badges", "Refreshed {count} badges from QuantaConfig").format(count=len(self.plugin.custom_badges)), current_fragment)
+                    BulletinHelper.show_success(getString("refreshed_badges", "Refreshed {count} badges from QuantaConfig").format(count=len(plugin.custom_badges)), current_fragment)
                 else:
-                    self.plugin.log("No badges data received")
+                    plugin.log("No badges data received")
             except Exception as e:
-                self.plugin.log(f"Error refreshing badges: {e}")
+                plugin = plugin_ref()
+                if plugin:
+                    plugin.log(f"Error refreshing badges: {e}")
         
         import threading
         thread = threading.Thread(target=refresh_callback)
@@ -3687,12 +3718,31 @@ class _MessageMenuRegistry:
             quantahut_log(f"processSelectedOption hook error: {str(e)}")
 
     def register_item(self, *, text: str, option_id: int, icon_res: int, condition_predicate, on_click, insert_at_top: bool):
+
+        # maybe this will fix memory leaks
+        import weakref
+        import types
+        
+        def wrap_callback(callback):
+            if callback is None:
+                return None
+            if isinstance(callback, types.MethodType):
+                weak_method = weakref.WeakMethod(callback)
+                def weak_wrapper(*args, **kwargs):
+                    method = weak_method()
+                    if method is not None:
+                        return method(*args, **kwargs)
+                    return None
+                return weak_wrapper
+            else:
+                return callback
+        
         handle = {
             'text': text,
             'option_id': int(option_id),
             'icon_res': int(icon_res),
-            'condition': condition_predicate,
-            'on_click': on_click,
+            'condition': wrap_callback(condition_predicate),
+            'on_click': wrap_callback(on_click),
             'insert_top': bool(insert_at_top),
         }
         self.items.append(handle)
@@ -3918,7 +3968,7 @@ __all__ = [
 class _SearchPollingRunnable(RunnableProxy):
     def __init__(self, plugin, activity, search_item, handler):
         super().__init__()
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
         self.activity = activity
         self.search_item = search_item
         self.handler = handler
@@ -3928,7 +3978,10 @@ class _SearchPollingRunnable(RunnableProxy):
 
     def run(self):
         try:
-            state = self.plugin.get_search_state(self.aid)
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
+            state = plugin.get_search_state(self.aid)
             
             if self.search_item.isSearchFieldVisible():
                 if not state["reset_hidden"]:
@@ -3951,9 +4004,9 @@ class _SearchPollingRunnable(RunnableProxy):
                     
                     if query != self.last_query:
                         if self.last_query and len(self.last_query) >= 2 and query == "":
-                            plugin = get_private_field(self.activity, "plugin")
-                            if plugin:
-                                self.plugin.add_to_history(plugin.getId(), self.last_query)
+                            plugin_obj = get_private_field(self.activity, "plugin")
+                            if plugin_obj:
+                                plugin.add_to_history(plugin_obj.getId(), self.last_query)
                         
                         self.last_query = query
                         state["query"] = query
@@ -3975,9 +4028,9 @@ class _SearchPollingRunnable(RunnableProxy):
 
                 if state["active"]:
                     if self.last_query and len(self.last_query) >= 2:
-                        plugin = get_private_field(self.activity, "plugin")
-                        if plugin:
-                            self.plugin.add_to_history(plugin.getId(), self.last_query)
+                        plugin_obj = get_private_field(self.activity, "plugin")
+                        if plugin_obj:
+                            plugin.add_to_history(plugin_obj.getId(), self.last_query)
                     
                     state["active"] = False
                     state["query"] = ""
@@ -3996,10 +4049,13 @@ class _SearchPollingRunnable(RunnableProxy):
 
 class _PluginSettingsSearchCreateViewHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     def after_hooked_method(self, param):
         try:
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
             activity = param.thisObject
             aid = id(activity)
 
@@ -4020,11 +4076,11 @@ class _PluginSettingsSearchCreateViewHook:
             search_item.setSearchFieldHint(LocaleController.getString(R_string.Search))
             set_private_field(activity, "searchItem", search_item)
 
-            self.plugin._activity_refs[aid] = {"activity": activity, "search_item": search_item}
+            plugin._activity_refs[aid] = {"activity": activity, "search_item": search_item}
 
             from android.os import Handler, Looper
             handler = Handler(Looper.getMainLooper())
-            runnable = _SearchPollingRunnable(self.plugin, activity, search_item, handler)
+            runnable = _SearchPollingRunnable(plugin, activity, search_item, handler)
             handler.post(runnable)
 
         except Exception as e:
@@ -4033,10 +4089,13 @@ class _PluginSettingsSearchCreateViewHook:
 
 class _PluginSettingsSearchFillItemsHook:
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
 
     def after_hooked_method(self, param):
         try:
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
             activity = param.thisObject
             aid = id(activity)
             items = param.args[0]
@@ -4044,7 +4103,7 @@ class _PluginSettingsSearchFillItemsHook:
             if not items:
                 return
 
-            state = self.plugin.get_search_state(aid)
+            state = plugin.get_search_state(aid)
             if not state["active"]:
                 return
 
@@ -4057,22 +4116,22 @@ class _PluginSettingsSearchFillItemsHook:
                         item = items.get(i)
                         if item is None:
                             continue
-                        if not self.plugin._matches_query(item, query):
+                        if not plugin._matches_query(item, query):
                             to_remove.append(i)
                     for i in reversed(to_remove):
                         items.remove(i)
                 return
 
-            plugin = get_private_field(activity, "plugin")
-            if not plugin:
+            plugin_obj = get_private_field(activity, "plugin")
+            if not plugin_obj:
                 return
 
-            pid = plugin.getId()
+            pid = plugin_obj.getId()
 
             query = state["query"].strip().lower()
             
             if not query and state.get("show_history", False):
-                history = self.plugin.get_search_history(pid)
+                history = plugin.get_search_history(pid)
                 if history:
                     items.clear()
                     
@@ -4081,11 +4140,12 @@ class _PluginSettingsSearchFillItemsHook:
                     items.add(UItem.asHeader(getString("recent_searches", "Recent searches")))
                     
                     for qt in history:
-                        def make_cb(q, a):
+                        def make_cb(q, a, p_ref):
                             def cb(*args):
                                 try:
-                                    if a in self.plugin._activity_refs:
-                                        si = self.plugin._activity_refs[a].get("search_item")
+                                    p = p_ref()
+                                    if p and a in p._activity_refs:
+                                        si = p._activity_refs[a].get("search_item")
                                         if si:
                                             sf = si.getSearchField()
                                             if sf:
@@ -4094,7 +4154,7 @@ class _PluginSettingsSearchFillItemsHook:
                                 except: pass
                             return cb
                         
-                        callback = make_cb(qt, aid)
+                        callback = make_cb(qt, aid, self._plugin_ref)
                         setting = TextSetting(qt, None, False, False, callback, None, None, None)
                         
                         h_item = UItem.asButton(0, qt)
@@ -4105,15 +4165,15 @@ class _PluginSettingsSearchFillItemsHook:
             if not query:
                 return
             
-            if pid not in self.plugin._all_items_cache:
-                self.plugin._all_items_cache[pid] = self.plugin._collect_all_items(activity, plugin, items)
+            if pid not in plugin._all_items_cache:
+                plugin._all_items_cache[pid] = plugin._collect_all_items(activity, plugin_obj, items)
 
-            all_items = self.plugin._all_items_cache[pid]
+            all_items = plugin._all_items_cache[pid]
 
             items.clear()
 
             for item in all_items:
-                if self.plugin._matches_query(item, query):
+                if plugin._matches_query(item, query):
                     items.add(item)
 
         except Exception as e:
@@ -4124,10 +4184,13 @@ from base_plugin import MethodHook
 
 class _SafeModeHook(MethodHook):
     def __init__(self, plugin):
-        self.plugin = plugin
+        self._plugin_ref = weakref.ref(plugin)
     
     def before_hooked_method(self, param):
         try:
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
             from android.view import KeyEvent
             from java.lang import System
             
@@ -4145,25 +4208,25 @@ class _SafeModeHook(MethodHook):
                 current_time = System.currentTimeMillis()
                 
                 if action == KeyEvent.ACTION_DOWN:
-                    self.plugin.safe_mode_volume_down_press_time = current_time
-                    self.plugin.safe_mode_is_holding = False
+                    plugin.safe_mode_volume_down_press_time = current_time
+                    plugin.safe_mode_is_holding = False
                 elif action == KeyEvent.ACTION_UP:
-                    press_duration = current_time - self.plugin.safe_mode_volume_down_press_time
+                    press_duration = current_time - plugin.safe_mode_volume_down_press_time
                     
                     if press_duration > 500:
-                        self.plugin.safe_mode_is_holding = True
-                        self.plugin.safe_mode_volume_down_count = 0
+                        plugin.safe_mode_is_holding = True
+                        plugin.safe_mode_volume_down_count = 0
                         return
                     
-                    if (current_time - self.plugin.safe_mode_last_volume_down_time) > self.plugin.safe_mode_cooldown:
-                        self.plugin.safe_mode_volume_down_count = 1
-                        self.plugin.safe_mode_last_volume_down_time = current_time
-                    elif (current_time - self.plugin.safe_mode_last_volume_down_time) <= self.plugin.safe_mode_multi_tap_window:
-                        self.plugin.safe_mode_volume_down_count += 1
-                        self.plugin.safe_mode_last_volume_down_time = current_time
-                        if self.plugin.safe_mode_volume_down_count >= self.plugin.safe_mode_required_taps:
-                            self.plugin.safe_mode_volume_down_count = 0
-                            self.plugin._on_safe_mode_detected()
+                    if (current_time - plugin.safe_mode_last_volume_down_time) > plugin.safe_mode_cooldown:
+                        plugin.safe_mode_volume_down_count = 1
+                        plugin.safe_mode_last_volume_down_time = current_time
+                    elif (current_time - plugin.safe_mode_last_volume_down_time) <= plugin.safe_mode_multi_tap_window:
+                        plugin.safe_mode_volume_down_count += 1
+                        plugin.safe_mode_last_volume_down_time = current_time
+                        if plugin.safe_mode_volume_down_count >= plugin.safe_mode_required_taps:
+                            plugin.safe_mode_volume_down_count = 0
+                            plugin._on_safe_mode_detected()
                             param.setResult(True)
                             return
                         
