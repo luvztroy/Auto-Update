@@ -258,7 +258,12 @@ class QuantaHut(BasePlugin):
                         if searching:
                             return
                         
-                        header = self.quantahut._create_settings_header(activity.getContext())
+                        aid = id(activity)
+                        search_state = quantahut._search_state.get(aid, {})
+                        if search_state.get("active", False):
+                            return
+                        
+                        header = quantahut._create_settings_header(activity.getContext())
                         if header:
                             from org.telegram.ui.Components import UItem
                             from com.exteragram.messenger.plugins.models import HeaderSetting
