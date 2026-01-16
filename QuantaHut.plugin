@@ -1993,7 +1993,7 @@ class QuantaHut(BasePlugin):
 
         return False
 
-    def _create_uitem_from_py_object(self, py_obj, plugin):
+    def _create_uitem_from_py_object(self, py_obj, plugin, parent_prefix=None):
         try:
             UItem = jclass("org.telegram.ui.Components.UItem")
             PC = jclass("com.exteragram.messenger.plugins.PluginsController")
@@ -2018,7 +2018,8 @@ class QuantaHut(BasePlugin):
                 icon_res = ctx.getResources().getIdentifier(icon, "drawable", ctx.getPackageName())
 
             on_long_click = getattr(py_obj, 'on_long_click', None)
-            link_alias = getattr(py_obj, 'link_alias', None)
+            raw_link_alias = getattr(py_obj, 'link_alias', None)
+            link_alias = f"{parent_prefix}:{raw_link_alias}" if parent_prefix and raw_link_alias else raw_link_alias
 
             item = None
             setting = None
@@ -2172,7 +2173,8 @@ class QuantaHut(BasePlugin):
                         continue
 
                     if hasattr(setting, 'createSubFragmentCallback') and setting.createSubFragmentCallback:
-                        sub_items = self._collect_sub_items(setting.createSubFragmentCallback, plugin)
+                        parent_link_alias = getattr(setting, 'linkAlias', None)
+                        sub_items = self._collect_sub_items(setting.createSubFragmentCallback, plugin, parent_link_alias)
                         all_items.extend(sub_items)
 
         except Exception as e:
@@ -2180,7 +2182,7 @@ class QuantaHut(BasePlugin):
 
         return all_items
 
-    def _collect_sub_items(self, callback, plugin):
+    def _collect_sub_items(self, callback, plugin, parent_prefix=None):
         sub_items = []
 
         try:
@@ -2193,12 +2195,14 @@ class QuantaHut(BasePlugin):
                     continue
 
                 try:
-                    item = self._create_uitem_from_py_object(py_item, plugin)
+                    item = self._create_uitem_from_py_object(py_item, plugin, parent_prefix)
                     if item:
                         sub_items.append(item)
 
                     if hasattr(py_item, 'create_sub_fragment') and py_item.create_sub_fragment:
-                        nested_items = self._collect_sub_items(py_item.create_sub_fragment, plugin)
+                        item_link_alias = getattr(py_item, 'link_alias', None)
+                        nested_prefix = f"{parent_prefix}:{item_link_alias}" if parent_prefix and item_link_alias else (item_link_alias or parent_prefix)
+                        nested_items = self._collect_sub_items(py_item.create_sub_fragment, plugin, nested_prefix)
                         sub_items.extend(nested_items)
 
                 except Exception as e:
