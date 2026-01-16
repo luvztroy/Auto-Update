@@ -14,49 +14,58 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check version changes
         id: changed
         run: |
-          # Function to extract version from file content
           get_version() {
             grep -oP "__version__\s*=\s*[\"']\K[^\"']+" <<< "$1" || echo ""
           }
           
-          # UiTweaks version comparison
+          # Load last uploaded versions (or empty if not exists)
+          if [ -f "Version History.json" ]; then
+            LAST_UI=$(jq -r '.uitweaks // ""' "Version History.json")
+            LAST_QH=$(jq -r '.quantahut // ""' "Version History.json")
+          else
+            LAST_UI=""
+            LAST_QH=""
+          fi
+          
+          # Get current versions
+          CURRENT_UI=""
+          CURRENT_QH=""
+          
           if [ -f "UiTweaks.plugin" ]; then
             CURRENT_UI=$(get_version "$(cat UiTweaks.plugin)")
-            OLD_UI=$(get_version "$(git show HEAD~1:UiTweaks.plugin 2>/dev/null)" || echo "")
-            
-            echo "UiTweaks: $OLD_UI -> $CURRENT_UI"
-            
-            if [ -n "$CURRENT_UI" ] && [ "$CURRENT_UI" != "$OLD_UI" ]; then
-              echo "uitweaks=true" >> $GITHUB_OUTPUT
-              echo "uitweaks_ver=$CURRENT_UI" >> $GITHUB_OUTPUT
-            else
-              echo "uitweaks=false" >> $GITHUB_OUTPUT
-            fi
+          fi
+          
+          if [ -f "QuantaHut.plugin" ]; then
+            CURRENT_QH=$(get_version "$(cat QuantaHut.plugin)")
+          fi
+          
+          echo "UiTweaks: $LAST_UI -> $CURRENT_UI"
+          echo "QuantaHut: $LAST_QH -> $CURRENT_QH"
+          
+          # Compare and set outputs
+          if [ -n "$CURRENT_UI" ] && [ "$CURRENT_UI" != "$LAST_UI" ]; then
+            echo "uitweaks=true" >> $GITHUB_OUTPUT
+            echo "uitweaks_ver=$CURRENT_UI" >> $GITHUB_OUTPUT
           else
             echo "uitweaks=false" >> $GITHUB_OUTPUT
           fi
           
-          # QuantaHut version comparison
-          if [ -f "QuantaHut.plugin" ]; then
-            CURRENT_QH=$(get_version "$(cat QuantaHut.plugin)")
-            OLD_QH=$(get_version "$(git show HEAD~1:QuantaHut.plugin 2>/dev/null)" || echo "")
-            
-            echo "QuantaHut: $OLD_QH -> $CURRENT_QH"
-            
-            if [ -n "$CURRENT_QH" ] && [ "$CURRENT_QH" != "$OLD_QH" ]; then
-              echo "quantahut=true" >> $GITHUB_OUTPUT
-              echo "quantahut_ver=$CURRENT_QH" >> $GITHUB_OUTPUT
-            else
-              echo "quantahut=false" >> $GITHUB_OUTPUT
-            fi
+          if [ -n "$CURRENT_QH" ] && [ "$CURRENT_QH" != "$LAST_QH" ]; then
+            echo "quantahut=true" >> $GITHUB_OUTPUT
+            echo "quantahut_ver=$CURRENT_QH" >> $GITHUB_OUTPUT
           else
             echo "quantahut=false" >> $GITHUB_OUTPUT
           fi
+          
+          # Store current versions for commit
+          echo "current_ui=$CURRENT_UI" >> $GITHUB_OUTPUT
+          echo "current_qh=$CURRENT_QH" >> $GITHUB_OUTPUT
 
       - name: Upload both (grouped)
         if: steps.changed.outputs.uitweaks == 'true' && steps.changed.outputs.quantahut == 'true'
@@ -89,3 +98,14 @@ jobs:
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
             -F "chat_id=${CHAT_ID}" \
             -F "document=@QuantaHut.plugin"
+
+      - name: Update version tracking
+        if: steps.changed.outputs.uitweaks == 'true' || steps.changed.outputs.quantahut == 'true'
+        run: |
+          echo '{"uitweaks":"${{ steps.changed.outputs.current_ui }}","quantahut":"${{ steps.changed.outputs.current_qh }}"}' > Version History.json
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "Version History.json"
+          git commit -m "chore: update version tracking [skip ci]"
+          git push
