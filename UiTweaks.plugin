@@ -42,13 +42,13 @@ from com.exteragram.messenger.plugins.ui import PluginsActivity, PluginSettingsA
 
 from org.telegram.messenger import R as R_tg
 from org.telegram.messenger import MessagesController, UserConfig, ApplicationLoader, LocaleController, AndroidUtilities, MessagesStorage, ChatMessageSharedResources, SharedConfig, NotificationCenter
-from org.telegram.messenger import UserObject, ChatObject, ImageLocation, MessageObject, DialogObject, BotWebViewVibrationEffect, SendMessagesHelper, CodeHighlighting, AccountInstance
+from org.telegram.messenger import UserObject, ChatObject, ImageLocation, MessageObject, DialogObject, BotWebViewVibrationEffect, SendMessagesHelper, CodeHighlighting, AccountInstance, Emoji
 from org.telegram.ui.Components import EditTextBoldCursor, URLSpanUserMention
 from org.telegram.tgnet import TLRPC
 from org.telegram.tgnet.tl import TL_account
 from org.telegram.messenger import ContactsController
 from org.telegram.ui.ActionBar import ActionBarPopupWindow, Theme, ActionBarMenuItem, ActionBarMenuSubItem
-from org.telegram.ui.Components import AvatarDrawable, BackupImageView, LayoutHelper, UItem
+from org.telegram.ui.Components import AvatarDrawable, BackupImageView, LayoutHelper, UItem, AnimatedEmojiSpan
 from org.telegram.ui import ChatActivity, ProfileActivity, TopicsFragment, DialogsActivity, LaunchActivity
 from org.telegram.ui.ActionBar import BaseFragment
 from com.google.android.exoplayer2.util import Consumer
@@ -8674,8 +8674,24 @@ class UiTweaksPlugin(BasePlugin):
                 tab_bg.setColor(Theme.getColor(Theme.key_dialogSearchBackground))
                 tab_container.setBackground(tab_bg)
 
-                tab_view = TextView(context)
-                tab_view.setText(tab_text)
+                has_entities = False
+                if folder_obj:
+                    try:
+                        has_entities = folder_obj.entities and folder_obj.entities.size() > 0
+                    except:
+                        pass
+                
+                if has_entities:
+                    tab_view = AnimatedEmojiSpan.TextViewEmojis(context)
+                    from android.text import SpannableStringBuilder
+                    text = SpannableStringBuilder(tab_text)
+                    text = Emoji.replaceEmoji(text, tab_view.getPaint().getFontMetricsInt(), False)
+                    text = MessageObject.replaceAnimatedEmoji(text, folder_obj.entities, tab_view.getPaint().getFontMetricsInt())
+                    tab_view.setText(text)
+                else:
+                    tab_view = TextView(context)
+                    tab_view.setText(tab_text)
+                
                 tab_view.setTextColor(Theme.getColor(Theme.key_actionBarTabActiveText if i == 0 else Theme.key_actionBarTabUnactiveText))
                 tab_view.setTextSize(14)
                 tab_view.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"))
