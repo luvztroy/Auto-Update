@@ -8671,6 +8671,7 @@ class UiTweaksPlugin(BasePlugin):
                 tab_view.setTextColor(Theme.getColor(Theme.key_actionBarTabActiveText if i == 0 else Theme.key_actionBarTabUnactiveText))
                 tab_view.setTextSize(14)
                 tab_view.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"))
+                tab_view.setIncludeFontPadding(False)
                 tab_view.setPadding(AndroidUtilities.dp(4), 0, AndroidUtilities.dp(4), 0)
 
                 def click_handler(*args, folder_index=i, folder=folder_obj, archived=is_archived):
