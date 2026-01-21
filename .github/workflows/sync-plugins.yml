@@ -102,7 +102,7 @@ jobs:
       - name: Update version tracking
         if: steps.changed.outputs.uitweaks == 'true' || steps.changed.outputs.quantahut == 'true'
         run: |
-          echo '{"uitweaks":"${{ steps.changed.outputs.current_ui }}","quantahut":"${{ steps.changed.outputs.current_qh }}"}' > Version History.json
+          echo '{"uitweaks":"${{ steps.changed.outputs.current_ui }}","quantahut":"${{ steps.changed.outputs.current_qh }}"}' > "Version History.json"
           
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
