@@ -8606,8 +8606,16 @@ class UiTweaksPlugin(BasePlugin):
             folders = MessagesController.getInstance(current_account).getDialogFilters()
             folder_count = folders.size() if folders else 0
             
-            has_archived = self._has_archived_chats(current_account)
-            total_tabs = folder_count + (1 if has_archived else 0)
+            all_dialogs = MessagesController.getInstance(current_account).getAllDialogs()
+
+            valid_folders = []
+            for i in range(folder_count):
+                folder = folders.get(i)
+                if self._count_forwardable_chats_in_folder(folder, all_dialogs, current_account) > 0:
+                    valid_folders.append(folder)
+            
+            has_archived = self._has_archived_chats_forwardable(all_dialogs, current_account)
+            total_tabs = len(valid_folders) + (1 if has_archived else 0)
             
             if total_tabs <= 1:
                 return
@@ -8640,8 +8648,8 @@ class UiTweaksPlugin(BasePlugin):
             
             tab_containers = []
             for i in range(total_tabs):
-                if i < folder_count:
-                    folder = folders.get(i)
+                if i < len(valid_folders):
+                    folder = valid_folders[i]
                     tab_text = getString("all_chats", "All Chats") if folder.isDefault() else (folder.name if hasattr(folder, 'name') else f"Folder {i}")
                     folder_obj = folder
                     is_archived = False
@@ -8846,6 +8854,31 @@ class UiTweaksPlugin(BasePlugin):
             return False
         except:
             return False
+    
+    def _has_archived_chats_forwardable(self, all_dialogs, current_account):
+        try:
+            for i in range(all_dialogs.size()):
+                dialog = all_dialogs.get(i)
+                if dialog.folder_id == 1 and self._can_forward_to_chat(dialog, current_account):
+                    return True
+            return False
+        except:
+            return False
+    
+    def _count_forwardable_chats_in_folder(self, folder, all_dialogs, current_account):
+        try:
+            from org.telegram.messenger import AccountInstance
+            count = 0
+            for i in range(all_dialogs.size()):
+                dialog = all_dialogs.get(i)
+                if dialog.folder_id == 1:
+                    continue
+                if folder.isDefault() or folder.includesDialog(AccountInstance.getInstance(current_account), dialog.id):
+                    if self._can_forward_to_chat(dialog, current_account):
+                        count += 1
+            return count
+        except:
+            return 0
     
     def _apply_archived_filter(self, share_alert, list_adapter, current_account):
         try:
