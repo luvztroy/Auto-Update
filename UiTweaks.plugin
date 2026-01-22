@@ -873,9 +873,7 @@ class UiTweaksPlugin(BasePlugin):
         self.hidden_folders_data = {}
         self.hide_all_chats_folder = {}
         self.hook_folder_visibility_ref = None
-        self.hook_reply_in_another_chat_layout_ref = None
-        self.hook_reply_in_another_chat_dialogs_ref = None
-        self.allow_reply_button_hook_ref = None
+
         self.hook_gift_drawer_reset_ref = None
         self.hook_gift_drawer_click_ref = None
         self.hook_gift_drawer_cell_ref = None
@@ -1186,9 +1184,7 @@ class UiTweaksPlugin(BasePlugin):
         if self.get_setting("enable_goto_message", False):
             self._hook_goto_message()
         
-        if self.get_setting("enable_reply_in_another_chat_shortcut", False):
-            self._hook_reply_in_another_chat()
-            self._hook_allow_reply_button()
+
         
         if self.get_setting("enable_reply_private_chat", False):
             self._add_reply_private_chat_menu_item()
@@ -2242,8 +2238,7 @@ class UiTweaksPlugin(BasePlugin):
                 link_alias="enable_confirmation_settings"
             ),
             self.Quanta_switch("enable_reply_private_chat", getString("enable_reply_private_chat", "Enable Reply in Private Chat"), False, lambda v: self._update_reply_private_chat_menu_item(), link_alias="enable_reply_private_chat"),
-            self.Quanta_switch("enable_reply_in_another_chat_shortcut", getString("enable_reply_in_another_chat_shortcut", "Reply in Another Chat Shortcut"), False, lambda v: self._apply_hooks(), link_alias="enable_reply_in_another_chat_shortcut"),
-            Divider(text=getString("reply_in_another_chat_shortcut_info", "Long-press the Reply button to quickly reply to a message in another chat.")) if self.get_setting("enable_reply_in_another_chat_shortcut", False) else None,
+
             self.Quanta_switch("send_comments_after_forward", getString("send_comments_after_forward", "Send Comments After Forward"), False, lambda v: self._apply_hooks(), link_alias="send_comments_after_forward"),
             self.Quanta_switch("enable_no_quote_forward", getString("enable_no_quote_forward", "Enable No-Quote Forward"), False, lambda v: self._update_no_quote_forward_menu_item(), link_alias="enable_no_quote_forward"),
             self.Quanta_switch("enable_message_repeat", getString("enable_message_repeat", "Enable Message Repeat"), False, lambda v: self._update_message_repeat_menu_item(), link_alias="enable_message_repeat"),
@@ -3517,9 +3512,7 @@ class UiTweaksPlugin(BasePlugin):
             "hook_search_filter_send_request_ref",
             "create_view_hook_ref",
             "destroy_hook_ref",
-            "hook_reply_in_another_chat_layout_ref",
-            "hook_reply_in_another_chat_dialogs_ref",
-            "allow_reply_button_hook_ref",
+
             "hook_check_send_button_ref",
             "hook_unread_count_ref",
             "hook_add_to_folder_all_tabs_ref",
@@ -3878,143 +3871,6 @@ class UiTweaksPlugin(BasePlugin):
         except Exception:
             pass
     
-    def _hook_reply_in_another_chat(self):
-        try:
-            LayoutClass = self._get_class("org.telegram.ui.Components.chat.layouts.ChatActivityActionsButtonsLayout")
-            if LayoutClass is None:
-                return
-            
-            ContextClass = self._get_class("android.content.Context")
-            ResourcesProviderClass = self._get_class("org.telegram.ui.ActionBar.Theme$ResourcesProvider")
-            ColorProviderClass = self._get_class("org.telegram.ui.Components.blur3.drawable.color.BlurredBackgroundColorProvider")
-            BlurredBackgroundDrawableViewFactoryClass = self._get_class("org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory")
-            
-            constructor = LayoutClass.getClass().getDeclaredConstructor(
-                ContextClass,
-                ResourcesProviderClass,
-                ColorProviderClass,
-                BlurredBackgroundDrawableViewFactoryClass
-            )
-            constructor.setAccessible(True)
-            self.hook_reply_in_another_chat_layout_ref = self.hook_method(constructor, ReplyInAnotherChatLayoutHook(self))
-            
-            ChatActivity = self._get_class("org.telegram.ui.ChatActivity")
-            DialogsActivity = self._get_class("org.telegram.ui.DialogsActivity")
-            ArrayList = self._get_class("java.util.ArrayList")
-            CharSequence = self._get_class("java.lang.CharSequence")
-            TopicsFragment = self._get_class("org.telegram.ui.TopicsFragment")
-            
-            boolean_type = jclass("java.lang.Boolean").TYPE
-            int_type = jclass("java.lang.Integer").TYPE
-            
-            method = ChatActivity.getClass().getDeclaredMethod(
-                "didSelectDialogs",
-                DialogsActivity,
-                ArrayList,
-                CharSequence,
-                boolean_type,
-                boolean_type,
-                int_type,
-                TopicsFragment
-            )
-            method.setAccessible(True)
-            self.hook_reply_in_another_chat_dialogs_ref = self.hook_method(method, ReplyInAnotherChatDialogsHook())
-        except Exception as e:
-            pass
-    
-    def _hook_allow_reply_button(self):
-        try:
-            ChatActivity = self._get_class("org.telegram.ui.ChatActivity")
-            methods = ChatActivity.getClass().getDeclaredMethods()
-            
-            for method in methods:
-                if method.getName() == "addToSelectedMessages":
-                    try:
-                        method.setAccessible(True)
-                        self.allow_reply_button_hook_ref = self.hook_method(method, AllowReplyButtonHook(self))
-                    except Exception as e:
-                        pass
-        except Exception as e:
-            pass
-    
-    def _setup_reply_button(self, layout):
-        try:
-            try:
-                replyButton_field = layout.getClass().getDeclaredField("replyButton")
-                replyButton_field.setAccessible(True)
-                button_holder = replyButton_field.get(layout)
-            except Exception as e:
-                return
-            
-            if button_holder is None:
-                return
-            
-            try:
-                button_field = button_holder.getClass().getDeclaredField("button")
-                button_field.setAccessible(True)
-                reply_button_view = button_field.get(button_holder)
-            except Exception as e:
-                return
-            
-            if reply_button_view is None:
-                return
-            
-            def on_long_click(view):
-                try:
-                    self._perform_haptic()
-                    LaunchActivity = find_class("org.telegram.ui.LaunchActivity")
-                    ChatActivity = find_class("org.telegram.ui.ChatActivity")
-                    last_fragment = LaunchActivity.getLastFragment()
-                    if last_fragment and isinstance(last_fragment, ChatActivity):
-                        self._launch_reply_in_another_chat(last_fragment)
-                        return True
-                    else:
-                        return False
-                except Exception as e:
-                    return False
-            
-            reply_button_view.setOnLongClickListener(OnLongClickListener(on_long_click))
-        except Exception as e:
-            pass
-    
-    def _launch_reply_in_another_chat(self, chat_activity):
-        try:
-            try:
-                f_selectedMessagesIds = chat_activity.getClass().getDeclaredField("selectedMessagesIds")
-                f_selectedMessagesIds.setAccessible(True)
-                selectedMessagesIds = f_selectedMessagesIds.get(chat_activity)
-                sparse_array = selectedMessagesIds[0]
-                count = sparse_array.size()
-                
-                if count == 0:
-                    try:
-                        f_selectedObject = chat_activity.getClass().getDeclaredField("selectedObject")
-                        f_selectedObject.setAccessible(True)
-                        selectedObject = f_selectedObject.get(chat_activity)
-                        if selectedObject:
-                            sparse_array.put(selectedObject.getId(), selectedObject)
-                        else:
-                            return
-                    except Exception as e:
-                        return
-            except Exception as e:
-                return
-            
-            Bundle = jclass("android.os.Bundle")
-            args = Bundle()
-            args.putBoolean("onlySelect", True)
-            args.putBoolean("reply_in_another_chat_plugin", True)
-            DialogsActivity = find_class("org.telegram.ui.DialogsActivity")
-            dialogs_type = 3
-            args.putInt("dialogsType", dialogs_type)
-            args.putBoolean("quote", True)
-            args.putBoolean("reply_to", True)
-            args.putBoolean("canSelectTopics", True)
-            fragment = DialogsActivity(args)
-            fragment.setDelegate(chat_activity)
-            chat_activity.presentFragment(fragment)
-        except Exception as e:
-            pass
     
     def _add_no_quote_forward_menu_item(self):
         try:
@@ -13576,183 +13432,6 @@ class DisableFireUpdateHook:
     def before_hooked_method(self, param):
         param.setResult(None)
 
-
-class ReplyInAnotherChatLayoutHook:
-    def __init__(self, plugin_instance):
-        super().__init__(plugin_instance)
-    
-    @hook_filters(HookFilter.Condition("param.thisObject != null"))
-    def after_hooked_method(self, param):
-        try:
-            layout = param.thisObject
-            self.plugin._setup_reply_button(layout)
-        except Exception as e:
-            pass
-
-
-class ReplyInAnotherChatDialogsHook:
-    def __init__(self):
-        self.saved_reply_object = None
-        self.is_plugin_action = False
-
-    @hook_filters(HookFilter.ArgumentNotNull(0))
-    def before_hooked_method(self, param):
-        try:
-            fragment = param.args[0]
-            if fragment is None:
-                return
-            args = fragment.getArguments()
-            if args is None or not args.getBoolean("reply_in_another_chat_plugin", False):
-                self.is_plugin_action = False
-                return
-            self.is_plugin_action = True
-            chat_activity = param.thisObject
-            try:
-                f_replyingMessageObject = chat_activity.getClass().getDeclaredField("replyingMessageObject")
-                f_replyingMessageObject.setAccessible(True)
-                self.saved_reply_object = f_replyingMessageObject.get(chat_activity)
-            except Exception as e:
-                self.saved_reply_object = None
-            selected_message_object = None
-            try:
-                f_selectedMessagesIds = chat_activity.getClass().getDeclaredField("selectedMessagesIds")
-                f_selectedMessagesIds.setAccessible(True)
-                selectedMessagesIds = f_selectedMessagesIds.get(chat_activity)
-                sparse_array = selectedMessagesIds[0]
-                if sparse_array.size() > 0:
-                    selected_message_object = sparse_array.get(sparse_array.keyAt(0))
-            except Exception as e:
-                pass
-            if selected_message_object:
-                try:
-                    f_replyingMessageObject.set(chat_activity, selected_message_object)
-                except Exception as e:
-                    pass
-        except Exception as e:
-            pass
-
-    def after_hooked_method(self, param):
-        if not self.is_plugin_action:
-            return
-        try:
-            chat_activity = param.thisObject
-            try:
-                f_replyingMessageObject = chat_activity.getClass().getDeclaredField("replyingMessageObject")
-                f_replyingMessageObject.setAccessible(True)
-                f_replyingMessageObject.set(chat_activity, self.saved_reply_object)
-            except Exception as e:
-                pass
-            self.saved_reply_object = None
-            self.is_plugin_action = False
-        except Exception as e:
-            pass
-
-
-class AllowReplyButtonHook:
-    def __init__(self, plugin_instance):
-        super().__init__(plugin_instance)
-    
-    @hook_filters(HookFilter.Condition("param.thisObject != null"))
-    def after_hooked_method(self, param):
-        try:
-            chat_activity = param.thisObject
-            
-            try:
-                f_currentChat = chat_activity.getClass().getDeclaredField("currentChat")
-                f_currentChat.setAccessible(True)
-                current_chat = f_currentChat.get(chat_activity)
-                
-                f_selectedMessagesIds = chat_activity.getClass().getDeclaredField("selectedMessagesIds")
-                f_selectedMessagesIds.setAccessible(True)
-                selectedMessagesIds = f_selectedMessagesIds.get(chat_activity)
-                selected_count = selectedMessagesIds[0].size() + selectedMessagesIds[1].size()
-                
-                ChatObject = find_class("org.telegram.tgnet.TLRPC$Chat")
-                is_channel = current_chat is not None and self._is_channel(current_chat)
-                can_post = current_chat is not None and self._can_post(current_chat)
-                is_megagroup = current_chat is not None and self._is_megagroup(current_chat)
-                is_forum = current_chat is not None and self._is_forum(current_chat)
-                
-                should_use_plugin = is_channel and not can_post and not is_megagroup and not is_forum and selected_count <= 1
-                
-                f_actionsButtonsLayout = chat_activity.getClass().getDeclaredField("actionsButtonsLayout")
-                f_actionsButtonsLayout.setAccessible(True)
-                actions_layout = f_actionsButtonsLayout.get(chat_activity)
-                
-                if actions_layout is not None and should_use_plugin:
-                    show_reply_method = actions_layout.getClass().getDeclaredMethod("showReplyButton", jclass("java.lang.Boolean").TYPE, jclass("java.lang.Boolean").TYPE)
-                    show_reply_method.setAccessible(True)
-                    show_reply_method.invoke(actions_layout, True, True)
-                    
-                    try:
-                        f_replyButton = actions_layout.getClass().getDeclaredField("replyButton")
-                        f_replyButton.setAccessible(True)
-                        button_holder = f_replyButton.get(actions_layout)
-                        
-                        if button_holder is not None:
-                            f_button = button_holder.getClass().getDeclaredField("button")
-                            f_button.setAccessible(True)
-                            reply_button_view = f_button.get(button_holder)
-                            
-                            if reply_button_view is not None:
-                                listener = self._create_click_listener(chat_activity)
-                                reply_button_view.setOnClickListener(listener)
-                                reply_button_view.setOnLongClickListener(None)
-                    except Exception as e:
-                        pass
-            except Exception as e:
-                pass
-        except Exception as e:
-            pass
-    
-    def _is_channel(self, chat):
-        try:
-            class_name = chat.getClass().getSimpleName()
-            return "channel" in class_name.lower()
-        except Exception as e:
-            return False
-    
-    def _can_post(self, chat):
-        try:
-            plugin = self._plugin_ref()
-            if not plugin:
-                return True
-            ChatObject = plugin._get_class("org.telegram.messenger.ChatObject")
-            Chat = plugin._get_class("org.telegram.tgnet.TLRPC$Chat")
-            canPost_method = ChatObject.getClass().getMethod("canPost", Chat)
-            can_post = canPost_method.invoke(None, chat)
-            return can_post
-        except Exception as e:
-            return True
-    
-    def _is_megagroup(self, chat):
-        try:
-            class_name = chat.getClass().getSimpleName()
-            is_megagroup = "megagroup" in class_name.lower() or "supergroup" in class_name.lower()
-            return is_megagroup
-        except Exception as e:
-            return False
-    
-    def _is_forum(self, chat):
-        try:
-            ChatObject = find_class("org.telegram.messenger.ChatObject")
-            Chat = find_class("org.telegram.tgnet.TLRPC$Chat")
-            isForum_method = ChatObject.getClass().getMethod("isForum", Chat)
-            is_forum = isForum_method.invoke(None, chat)
-            return is_forum
-        except Exception as e:
-            return False
-    
-    def _create_click_listener(self, chat_activity):
-        def on_click(view):
-            try:
-                plugin = self._plugin_ref()
-                if plugin:
-                    plugin._launch_reply_in_another_chat(chat_activity)
-            except Exception as e:
-                pass
-        
-        return OnClickListener(on_click)
 
 
 class RemoveHttpsHook(MethodHook):
