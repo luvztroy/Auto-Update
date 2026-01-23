@@ -12549,6 +12549,10 @@ class ChatActionBarMenuItemClickHook:
     @property
     def chat_activity(self):
         return self._chat_activity_ref() if self._chat_activity_ref else None
+
+    @property
+    def plugin(self):
+        return self._plugin_ref() if self._plugin_ref else None
     
     def get_unread_count(self, chat_activity):
         try:
