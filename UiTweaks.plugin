@@ -12367,15 +12367,16 @@ class ChatActionBarItemsHook:
                 lazy_map = get_private_field(headerItem, "lazyMap")
                 
                 if lazy_list is not None:
+                    def find_position(target):
+                        if target is not None:
+                            for i in range(lazy_list.size()):
+                                if lazy_list.get(i) == target:
+                                    return i
+                        return None
+
+                    plugins_item = get_private_field(chat_activity, "pluginsMenuItem")
                     admin_gap = get_private_field(chat_activity, "adminItemsGap")
-                    insert_position = lazy_list.size()
-                    
-                    if admin_gap is not None and lazy_map is not None:
-                        for i in range(lazy_list.size()):
-                            item = lazy_list.get(i)
-                            if item == admin_gap:
-                                insert_position = i
-                                break
+                    insert_position = find_position(plugins_item) or find_position(admin_gap) or lazy_list.size()
                     
                     ActionBarMenuItem = jclass("org.telegram.ui.ActionBar.ActionBarMenuItem")
                     ItemClass = jclass("org.telegram.ui.ActionBar.ActionBarMenuItem$Item")
