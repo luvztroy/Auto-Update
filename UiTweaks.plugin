@@ -10379,6 +10379,7 @@ class ConfirmationHook:
         builder.set_negative_button(getString("cancel", "Cancel"), lambda dialog, which: cleanup())
         builder.set_on_cancel_listener(lambda b: (self.cancel_sending(b, 0), cleanup()))
         dialog_ref = builder.show()
+        builder.set_canceled_on_touch_outside(False)
 
     def proceed_sending(self, builder: Optional[AlertDialogBuilder], which: int):
         if builder:
@@ -12042,6 +12043,7 @@ class ForwardConfirmationHook:
                         builder.set_positive_button(getString("ok", "OK"), lambda dialog, which: on_confirm())
                         builder.set_negative_button(getString("cancel", "Cancel"), None)
                         builder.show()
+                        builder.set_canceled_on_touch_outside(False)
                     except Exception:
                         pass
                 run_on_ui_thread(_show)
@@ -12086,6 +12088,7 @@ class JoinConfirmationClickListener(dynamic_proxy(find_class("android.view.View$
                 builder.set_positive_button(getString("join", "Join"), on_confirm)
                 builder.set_negative_button(getString("cancel", "Cancel"), on_cancel)
                 builder.show()
+                builder.set_canceled_on_touch_outside(False)
                 
             except Exception as e:
                 self.original_listener.onClick(view)
