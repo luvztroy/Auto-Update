@@ -55,6 +55,9 @@ from com.google.android.exoplayer2.util import Consumer
 
 from file_utils import get_cache_dir, ensure_dir_exists
 
+import hashlib
+import uuid
+
 try:
     import quantahut
     if hasattr(quantahut, '__version__') and quantahut.__version__ < "1.5.1":
@@ -77,9 +80,68 @@ __icon__ = "luvztroyIcons/13"
 __dependencies__ = ["quantahut"]
 
 
+
 CUSTOM_CODE_ID = 99999
 CUSTOM_MENTION_ID = 99998
 DEBOUNCE_TIME = 0.5
+MKSTATS_API_URL = os.getenv("MKSTATS_API_URL", "https://mkstats.mk69.su/api")
+MKSTATS_PING_INTERVAL = int(os.getenv("MKSTATS_PING_INTERVAL", "1500"))
+
+def generate_user_hash(device_id: str, plugin_id: str) -> str:
+    payload = f"{device_id}:{plugin_id}:mkstats:v1"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+def _normalize_api_base(api_url: str) -> str:
+    base = api_url.rstrip("/")
+    if base.endswith("/api"):
+        return f"{base}/v1"
+    return base
+
+def _post_json(url: str, payload: dict) -> dict:
+    data = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        url, data=data, headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        body = response.read().decode("utf-8")
+    return json.loads(body)
+
+class MkStatsCoreClient:
+    def __init__(self, api_url: str, plugin_id: str, version: str, user_hash: str) -> None:
+        self.api_base = _normalize_api_base(api_url)
+        self.plugin_id = plugin_id
+        self.version = version
+        self.user_hash = user_hash
+
+    def handshake(self) -> dict:
+        payload = {
+            "plugin_id": self.plugin_id,
+            "version": self.version,
+            "user_hash": self.user_hash,
+        }
+        return _post_json(f"{self.api_base}/handshake", payload)
+
+    def send_ping(self, install_token: str, timestamp=None) -> dict:
+        payload = {
+            "plugin_id": self.plugin_id,
+            "version": self.version,
+            "user_hash": self.user_hash,
+            "install_token": install_token,
+            "timestamp": timestamp or int(time.time()),
+        }
+        return _post_json(f"{self.api_base}/data", payload)
+
+    def send_event(self, install_token: str, event: str, count: int = 1, timestamp=None) -> dict:
+        payload = {
+            "plugin_id": self.plugin_id,
+            "version": self.version,
+            "user_hash": self.user_hash,
+            "install_token": install_token,
+            "event": event,
+            "count": count,
+            "timestamp": timestamp or int(time.time()),
+        }
+        return _post_json(f"{self.api_base}/event", payload)
 
 
 
@@ -773,6 +835,91 @@ class ContactStatusListAdapterBindViewHolderHook:
 
 
 class UiTweaksPlugin(BasePlugin):
+
+    def _mkstats_get_setting(self, key: str, default):
+        try:
+            if hasattr(self, "get_setting"):
+                return self.get_setting(key, default)
+            if hasattr(self, "getsetting"):
+                return self.getsetting(key, default)
+        except Exception:
+            pass
+        return default
+
+    def _mkstats_set_setting(self, key: str, value, reload_settings: bool = False):
+        try:
+            if hasattr(self, "set_setting"):
+                return self.set_setting(key, value, reload_settings=reload_settings)
+            if hasattr(self, "setsetting"):
+                return self.setsetting(key, value, reloadsettings=reload_settings)
+        except Exception:
+            pass
+        return None
+
+    def _mkstats_get_device_id(self) -> str:
+        device_id = self._mkstats_get_setting("mkstats_device_id", "")
+        if not device_id:
+            device_id = uuid.uuid4().hex
+            self._mkstats_set_setting("mkstats_device_id", device_id, reload_settings=False)
+        return device_id
+
+    def _mkstats_event(self, event: str, count: int = 1) -> None:
+        if not event:
+            return
+
+        def _send():
+            try:
+                if not hasattr(self, "_mkstats_client"):
+                    return
+                if not getattr(self, "_mkstats_token", ""):
+                    data = self._mkstats_client.handshake()
+                    self._mkstats_token = data.get("install_token", "")
+                    if self._mkstats_token:
+                        self._mkstats_set_setting("mkstats_install_token", self._mkstats_token, reload_settings=False)
+                if self._mkstats_token:
+                    self._mkstats_client.send_event(self._mkstats_token, event, count=count)
+            except Exception as exc:
+                self.log(f"UiTweaks: event error {exc}")
+                self._mkstats_token = ""
+                self._mkstats_set_setting("mkstats_install_token", "", reload_settings=False)
+
+        try:
+            threading.Thread(target=_send, daemon=True).start()
+        except Exception:
+            pass
+
+    def _mkstats_loop(self):
+        while not self._mkstats_stop.is_set():
+            try:
+                if not self._mkstats_token:
+                    data = self._mkstats_client.handshake()
+                    self._mkstats_token = data.get("install_token", "")
+                    if self._mkstats_token:
+                        self._mkstats_set_setting("mkstats_install_token", self._mkstats_token, reload_settings=False)
+                    else:
+                        self.log("UiTweaks: handshake response missing token")
+
+                if self._mkstats_token:
+                    self._mkstats_client.send_ping(self._mkstats_token)
+            except Exception as exc:
+                self.log(f"UiTweaks: error {exc}")
+                self._mkstats_token = ""
+                self._mkstats_set_setting("mkstats_install_token", "", reload_settings=False)
+            self._mkstats_stop.wait(MKSTATS_PING_INTERVAL)
+
+    def _mkstats_start(self):
+        try:
+            device_id = self._mkstats_get_device_id()
+            user_hash = generate_user_hash(device_id, __id__)
+            self._mkstats_client = MkStatsCoreClient(MKSTATS_API_URL, __id__, __version__, user_hash)
+            self._mkstats_stop = threading.Event()
+            self._mkstats_token = self._mkstats_get_setting("mkstats_install_token", "")
+            self._mkstats_thread = threading.Thread(target=self._mkstats_loop, daemon=True)
+            self._mkstats_thread.start()
+            self.log(f"UiTweaks: client started ({self._mkstats_client.api_base})")
+        except Exception:
+            pass
+
     def __init__(self):
         super().__init__()
         
@@ -1101,6 +1248,9 @@ class UiTweaksPlugin(BasePlugin):
         thread.start()
 
     def on_plugin_load(self):
+
+        self._mkstats_start()
+
         self.log(f"UiTweaks {__version__} loaded")
 
         if self.get_setting("random_header_sticker", False):
@@ -3314,6 +3464,16 @@ class UiTweaksPlugin(BasePlugin):
 
 
     def on_plugin_unload(self):
+
+        if hasattr(self, "_mkstats_stop"):
+            self._mkstats_stop.set()
+            self.log("UiTweaks: stop requested")
+            try:
+                if hasattr(self, "_mkstats_thread") and self._mkstats_thread is not None:
+                    self._mkstats_thread.join(timeout=1.0)
+            except Exception:
+                pass
+
         self.memory_check_running = False
         
 
