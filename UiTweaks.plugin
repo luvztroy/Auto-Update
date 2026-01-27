@@ -745,14 +745,25 @@ class ContactStatusUpdateRowsIdsHook:
             value = self._get_int_field(activity, name)
             if value != -1:
                 return value + 1
+
         fallback_anchors = [
+            "bizHoursRow",
+            "bizLocationRow",
+            "usernameRow",
+            "userInfoRow",
+            "birthdayRow",
             "infoHeaderRow",
-            "infoHeaderRowEmpty", 
+            "infoHeaderRowEmpty",
         ]
         for name in fallback_anchors:
             value = self._get_int_field(activity, name)
             if value != -1:
                 return value + 1
+
+        info_end_row = self._get_int_field(activity, "infoEndRow")
+        if info_end_row != -1:
+            return info_end_row + 1
+
         return -1
 
 
