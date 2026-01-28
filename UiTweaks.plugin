@@ -10349,7 +10349,8 @@ class ConfirmationHook:
                 self.pending_params.append(param)
                 param.setResult(None)
                 
-                run_on_ui_thread(lambda: self.show_confirmation_dialog(msg_text.strip()))
+                self_ref = weakref.ref(self)
+                run_on_ui_thread(lambda: self_ref() and self_ref().show_confirmation_dialog(msg_text.strip()))
                 self.plugin.command_from_message_click = False
                 return
 
@@ -10374,13 +10375,15 @@ class ConfirmationHook:
                         elif is_generic_document:
                             message_type = getString("message_type_file_plural", "files")
                     
-                    run_on_ui_thread(lambda: self.show_confirmation_dialog(f"{count} {message_type}"))
+                    self_ref = weakref.ref(self)
+                    run_on_ui_thread(lambda: self_ref() and self_ref().show_confirmation_dialog(f"{count} {message_type}"))
                 return
             else:
                 self.pending_params.append(param)
                 param.setResult(None)
                 
-                run_on_ui_thread(lambda: self.show_confirmation_dialog(message_type, is_sticker, doc if is_sticker else None))
+                self_ref = weakref.ref(self)
+                run_on_ui_thread(lambda: self_ref() and self_ref().show_confirmation_dialog(message_type, is_sticker, doc if is_sticker else None))
 
         except Exception as e:
             pass
@@ -10769,14 +10772,16 @@ class DeepLinkHook:
                 if url in excluded_links:
                     self.pending_intent = intent
                     self.pending_param = param
-                    param.setResult(None)  
-                    run_on_ui_thread(lambda: self.show_deeplink_confirmation_dialog(url))
+                    param.setResult(None)
+                    self_ref = weakref.ref(self)
+                    run_on_ui_thread(lambda: self_ref() and self_ref().show_deeplink_confirmation_dialog(url))
                     return
                 
                 self.pending_intent = intent
                 self.pending_param = param
-                param.setResult(None)  
-                run_on_ui_thread(lambda: self.show_ayugram_warning_dialog(url))
+                param.setResult(None)
+                self_ref = weakref.ref(self)
+                run_on_ui_thread(lambda: self_ref() and self_ref().show_ayugram_warning_dialog(url))
                 return
             elif url.startswith("tg://"):
                 plugin = self._plugin_ref()
@@ -10785,8 +10790,9 @@ class DeepLinkHook:
                     
                 self.pending_intent = intent
                 self.pending_param = param
-                param.setResult(None)  
-                run_on_ui_thread(lambda: self.show_deeplink_confirmation_dialog(url))
+                param.setResult(None)
+                self_ref = weakref.ref(self)
+                run_on_ui_thread(lambda: self_ref() and self_ref().show_deeplink_confirmation_dialog(url))
                 return
 
         except Exception as e:
@@ -14782,7 +14788,8 @@ class UserPrivacyDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentDeleg
         return LocaleController.getString(R_tg.string.PrivacyTitle)
 
     def onFragmentCreate(self):
-        run_on_ui_thread(lambda: self._fetch_all_privacy(), 1200)
+        self_ref = weakref.ref(self)
+        run_on_ui_thread(lambda: self_ref() and self_ref()._fetch_all_privacy(), 1200)
 
     def onFragmentDestroy(self): pass
 
@@ -14812,44 +14819,52 @@ class UserPrivacyDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentDeleg
         if not key_factory: return
         req = TL_account.getPrivacy()
         req.key = key_factory()
+        
+        self_ref = weakref.ref(self)
 
         def on_response(response, error):
             if error or not response: return
+            adapter_self = self_ref()
+            if not adapter_self: return
+            
             def process():
-                contacts = ContactsController.getInstance(self.account)
-                MessagesController.getInstance(self.account).putUsers(response.users, False)
-                MessagesController.getInstance(self.account).putChats(response.chats, False)
+                adapter_self = self_ref()
+                if not adapter_self: return
+                
+                contacts = ContactsController.getInstance(adapter_self.account)
+                MessagesController.getInstance(adapter_self.account).putUsers(response.users, False)
+                MessagesController.getInstance(adapter_self.account).putChats(response.chats, False)
                 contacts.setPrivacyRules(response.rules, privacy_type)
 
-                state = self.STATE_DEFAULT
+                state = adapter_self.STATE_DEFAULT
                 for i in range(response.rules.size()):
                     rule = response.rules.get(i)
                     if isinstance(rule, TLRPC.TL_privacyValueAllowUsers):
-                        if rule.users.contains(self.user.id):
-                            state = self.STATE_ALWAYS
+                        if rule.users.contains(adapter_self.user.id):
+                            state = adapter_self.STATE_ALWAYS
                             break
                     elif isinstance(rule, TLRPC.TL_privacyValueDisallowUsers):
-                        if rule.users.contains(self.user.id):
-                            state = self.STATE_NEVER
+                        if rule.users.contains(adapter_self.user.id):
+                            state = adapter_self.STATE_NEVER
                             break
 
-                self.current_states[privacy_type] = state
-                self._pending_fetches -= 1
+                adapter_self.current_states[privacy_type] = state
+                adapter_self._pending_fetches -= 1
 
-                if self._pending_fetches <= 0:
-                    self.loading = False
+                if adapter_self._pending_fetches <= 0:
+                    adapter_self.loading = False
 
-                if self.fragment and self.fragment.listView:
-                    adapter = self.fragment.listView.getAdapter()
-                    if self.loading == False and self._pending_fetches <= 0:
+                if adapter_self.fragment and adapter_self.fragment.listView:
+                    adapter = adapter_self.fragment.listView.getAdapter()
+                    if adapter_self.loading == False and adapter_self._pending_fetches <= 0:
                         adapter.update(True)
                     else:
                         search_id = 1000 if privacy_type == 0 else privacy_type
                         for i in range(adapter.getItemCount()):
                             item = adapter.getItem(i)
                             if item and int(item.id) == search_id:
-                                effective = self._is_allowed_by_rules(self.user, response.rules, state)
-                                item.subtext = self.STATE_LABELS.get(state, "")
+                                effective = adapter_self._is_allowed_by_rules(adapter_self.user, response.rules, state)
+                                item.subtext = adapter_self.STATE_LABELS.get(state, "")
                                 item.checked = effective
                                 adapter.notifyItemChanged(i)
                                 break
@@ -14976,10 +14991,11 @@ class UserPrivacyDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentDeleg
         activity = last_frag.getParentActivity()
         if not activity: return
 
+        self_ref = weakref.ref(self)
         builder = AlertDialogBuilder(activity)
         builder.set_title(LocaleController.getString("DeleteContactTitle", R_tg.string.DeleteContactTitle))
         builder.set_message(LocaleController.getString("DeleteContactSubtitle", R_tg.string.DeleteContactSubtitle))
-        builder.set_positive_button(LocaleController.getString(R_tg.string.Delete), lambda d, w: self._do_delete_contact())
+        builder.set_positive_button(LocaleController.getString(R_tg.string.Delete), lambda d, w: self_ref() and self_ref()._do_delete_contact())
         builder.set_negative_button(LocaleController.getString(R_tg.string.Cancel), None)
         builder.show()
 
