@@ -3375,7 +3375,11 @@ class UiTweaksPlugin(BasePlugin):
             except Exception:
                 pass
 
-        self.memory_check_running = False
+        if hasattr(self, '_sleep_handler') and self._sleep_handler:
+            self._sleep_handler.removeCallbacksAndMessages(None)
+            self._sleep_handler = None
+        if hasattr(self, '_sleep_runnable'):
+            self._sleep_runnable = None
         
 
 
