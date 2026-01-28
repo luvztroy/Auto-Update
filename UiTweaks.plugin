@@ -2144,11 +2144,19 @@ class UiTweaksPlugin(BasePlugin):
             
             
             Header(text=getString("navigation_controls", "Navigation Controls")),
-            self.Quanta_switch("prevent_swipe_while_editing", getString("prevent_swipe_while_editing", "Prevent swipe back while editing"), False, lambda v: self._apply_hooks(), link_alias="prevent_swipe_while_editing"),
-            self.Quanta_switch("prevent_swipe_while_typing", getString("prevent_swipe_while_typing", "Prevent swipe back while typing"), False, lambda v: self._apply_hooks(), link_alias="prevent_swipe_while_typing"),
-            self.Quanta_switch("disable_article_viewer_swipe", getString("disable_article_viewer_swipe", "Disable ArticleViewer swipe to close"), False, lambda v: self._apply_hooks(), link_alias="disable_article_viewer_swipe"),
-            self.Quanta_switch("prevent_webapp_swipe_down", getString("prevent_webapp_swipe_down", "Prevent swipe down in webapp bots"), False, lambda v: self._apply_hooks(), link_alias="prevent_webapp_swipe_down"),
-            self.Quanta_switch("disable_topics_swipe", getString("disable_topics_swipe", "Disable Topics Swipe to Hide"), False, lambda v: self._apply_hooks(), link_alias="disable_topics_swipe"),
+            ExpandableSwitch(
+                key="navigation_controls_enabled",
+                text=getString("navigation_controls_switch", "Swipe Gesture Controls"),
+                collapsed=True,
+                children=[
+                    Switch(key="prevent_swipe_while_editing", text=getString("prevent_swipe_while_editing", "Prevent swipe back while editing"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="prevent_swipe_while_typing", text=getString("prevent_swipe_while_typing", "Prevent swipe back while typing"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="disable_article_viewer_swipe", text=getString("disable_article_viewer_swipe", "Disable ArticleViewer swipe to close"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="prevent_webapp_swipe_down", text=getString("prevent_webapp_swipe_down", "Prevent swipe down in webapp bots"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="disable_topics_swipe", text=getString("disable_topics_swipe", "Disable Topics Swipe to Hide"), default=False, on_change=lambda v: self._apply_hooks()),
+                ],
+                link_alias="navigation_controls_enabled"
+            ),
             Divider(text=getString("navigation_controls_info", "This will prevent the Telegram navigation gestures to work from these scenarios.")),
             
             Header(text=getString("quick_access", "Quick Access")),
