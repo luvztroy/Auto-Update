@@ -2149,11 +2149,11 @@ class UiTweaksPlugin(BasePlugin):
                 text=getString("navigation_controls_switch", "Swipe Gesture Controls"),
                 collapsed=True,
                 children=[
-                    Switch(key="prevent_swipe_while_editing", text=getString("prevent_swipe_while_editing", "Prevent swipe back while editing"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="prevent_swipe_while_typing", text=getString("prevent_swipe_while_typing", "Prevent swipe back while typing"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="disable_article_viewer_swipe", text=getString("disable_article_viewer_swipe", "Disable ArticleViewer swipe to close"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="prevent_webapp_swipe_down", text=getString("prevent_webapp_swipe_down", "Prevent swipe down in webapp bots"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="disable_topics_swipe", text=getString("disable_topics_swipe", "Disable Topics Swipe to Hide"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="prevent_swipe_while_editing", text=getString("prevent_swipe_while_editing", "While Editing"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="prevent_swipe_while_typing", text=getString("prevent_swipe_while_typing", "While Typing"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="disable_article_viewer_swipe", text=getString("disable_article_viewer_swipe", "Article Viewer"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="prevent_webapp_swipe_down", text=getString("prevent_webapp_swipe_down", "Webapp Bots"), default=False, on_change=lambda v: self._apply_hooks()),
+                    Switch(key="disable_topics_swipe", text=getString("disable_topics_swipe", "Topics"), default=False, on_change=lambda v: self._apply_hooks()),
                 ],
                 link_alias="navigation_controls_enabled"
             ),
