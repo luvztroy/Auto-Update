@@ -10612,11 +10612,15 @@ class SendImageWithHighQualityByDefault:
 
 class PhotoCellSetHighQualityHook:
     def __init__(self, hook_instance):
-        self.hook_instance = hook_instance
+        self._hook_instance_ref = weakref.ref(hook_instance)
         self._field_cache = {}
 
+    @property
+    def hook_instance(self):
+        return self._hook_instance_ref()
+
     def _get_cached_field(self, obj, field_name):
-        cache_key = f"{id(obj)}_{field_name}"
+        cache_key = f"{obj.getClass().getName()}_{field_name}"
         if cache_key not in self._field_cache:
             try:
                 field = obj.getClass().getDeclaredField(field_name)
