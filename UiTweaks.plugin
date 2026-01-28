@@ -1025,7 +1025,6 @@ class UiTweaksPlugin(BasePlugin):
         
         self.hooked_activities = set()
         self.hook_chat_activity_cleanup_ref = None
-        self.memory_check_running = False
         
        
         self.hidden_folders_data = {}
@@ -1150,113 +1149,6 @@ class UiTweaksPlugin(BasePlugin):
         return la
 
 
-    
-    def _check_memory(self):
-        try:
-            if not self.get_setting("enable_memory_warning", True):
-                return
-                
-            from java.lang import Runtime
-            
-            runtime = Runtime.getRuntime()
-            used_memory = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
-            
-            if used_memory > 500:
-                self.log(f"Memory threshold exceeded: {used_memory:.2f}MB")
-                run_on_ui_thread(lambda: self._show_memory_alert(used_memory))
-                return True
-        except Exception as e:
-            self.log(f"Error checking memory: {e}")
-        return False
-    
-    def _show_memory_alert(self, used_mb):
-        try:
-            fragment = get_last_fragment()
-            if not fragment:
-                return
-            
-            context = fragment.getParentActivity()
-            if not context:
-                context = ApplicationLoader.applicationContext
-            
-            builder = AlertDialogBuilder(context)
-            title_text = getString("memory_warning_title", "Memory Warning")
-            message_template = getString("memory_warning_message", "High memory usage: {used_mb}MB.\n\nRestart app or dump memory?")
-            message_text = message_template.replace("{used_mb}", f"{used_mb:.0f}")
-            builder.set_title(title_text)
-            builder.set_message(message_text)
-            
-            def on_restart(dialog, which):
-                dialog.dismiss()
-                from quantahut import restart_app
-                restart_app(fragment)
-            
-            def on_dump_memory(dialog, which):
-                dialog.dismiss()
-                self._dump_memory()
-            
-            builder.set_positive_button(getString("restart_app", "Restart"), on_restart)
-            builder.set_neutral_button(getString("dump_memory", "Dump Memory"), on_dump_memory)
-            builder.set_negative_button(getString("cancel", "Cancel"), lambda d, w: d.dismiss())
-            builder.show()
-            builder.set_canceled_on_touch_outside(False)
-        except Exception as e:
-            self.log(f"Error showing memory alert: {e}")
-    
-    def _dump_memory(self):
-        try:
-            from java.lang import System
-            from java.lang import Runtime
-            import time
-            
-            runtime = Runtime.getRuntime()
-            used_memory_before = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
-            
-            System.gc()
-            System.runFinalization()
-            System.gc()
-            
-            time.sleep(0.5)
-            
-            used_memory_after = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
-            freed_memory = used_memory_before - used_memory_after
-            
-            self.log(f"Memory dump completed. Freed: {freed_memory:.2f}MB (Before: {used_memory_before:.2f}MB, After: {used_memory_after:.2f}MB)")
-            
-            from ui.bulletin import BulletinHelper
-            if freed_memory > 0:
-                BulletinHelper.show_success(getString("memory_dump_success", "Memory dump successful! Freed {freed_memory:.1f}MB").format(freed_memory=freed_memory))
-            else:
-                BulletinHelper.show_info(getString("memory_dump_no_freed", "Memory dump completed. No significant memory was freed."))
-                
-        except Exception as e:
-            self.log(f"Error dumping memory: {e}")
-            from ui.bulletin import BulletinHelper
-            BulletinHelper.show_error(getString("memory_dump_failed", "Failed to dump memory"))
-    
-    def _start_memory_monitoring(self):
-        if self.memory_check_running:
-            return
-        
-        self.memory_check_running = True
-        self._last_memory_alert = 0
-        
-        def monitor():
-            import time
-            while self.memory_check_running:
-                try:
-                    current_time = time.time()
-                    if current_time - self._last_memory_alert > 600:
-                        alert_shown = self._check_memory()
-                        if alert_shown:
-                            self._last_memory_alert = current_time
-                    time.sleep(60)
-                except:
-                    pass
-        
-        thread = threading.Thread(target=monitor)
-        thread.daemon = True
-        thread.start()
 
     def on_plugin_load(self):
 
@@ -1364,7 +1256,6 @@ class UiTweaksPlugin(BasePlugin):
         except Exception as e:
             run_on_ui_thread(self._perform_heavy_operations, 3000)
         
-        self._start_memory_monitoring()
         
         self._check_for_updates_on_load()
 
@@ -2494,7 +2385,6 @@ class UiTweaksPlugin(BasePlugin):
             Text(text=getString("Language", "Language"), icon="msg_language", on_click=lambda v: self._open_language(), link_alias="language"),
             self.Quanta_switch("enable_header_particles", getString("particles", "Particles"), default=True, icon="msg_settings_ny", link_alias="enable_header_particles"),
             self.Quanta_switch("show_logs", getString("enable_debug_logging", "Debug Logging"), default=False, icon="msg_emoji_objects_solar", link_alias="show_logs"),
-            self.Quanta_switch("enable_memory_warning", getString("enable_memory_warning_alert", "Memory Warning Alert"), default=False, icon="msg_psa_solar", link_alias="enable_memory_warning"),
         ])
         
         
