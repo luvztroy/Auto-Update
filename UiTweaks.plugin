@@ -2462,7 +2462,7 @@ class UiTweaksPlugin(BasePlugin):
             Text(text=getString("channel", "Channel"), icon="msg_channel_solar", on_click=lambda v: self._open_channel()),
             Text(text=getString("chats", "Chats"), icon="msg_groups_solar", on_click=lambda v: self._open_group()),
             Text(text=getString("tips_and_tricks", "Tips and Tricks"), icon="menu_feature_reactions_solar", on_click=lambda v: self._open_tips()),
-            Text(text=getString("translate", "Translate"), icon="msg_translate_solar", on_click=lambda v: self._open_translation()),
+            Text(text=getString("crowdin", "Crowdin"), icon="msg_translate_solar", on_click=lambda v: self._open_translation()),
         ]
 
     def _collect_all_settings_with_values(self):
@@ -2736,7 +2736,7 @@ class UiTweaksPlugin(BasePlugin):
     def _open_translation(self):
         from android.content import Intent
         from android.net import Uri
-        intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/luvztroy/UiTweaks"))
+        intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://crowdin.com/project/uitweaks"))
         get_last_fragment().getParentActivity().startActivity(intent)     
     
     def _open_language(self):
