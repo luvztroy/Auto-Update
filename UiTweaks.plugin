@@ -9277,11 +9277,11 @@ class UiTweaksPlugin(BasePlugin):
                             return False
                         
                         i = adapter.getId(p) if adapter else -1
-                        if i == 2:  
-                            plugin._show_owner_channels(activity, True)
+                        if i == 2:
+                            plugin._owner_channels_show_options(activity, True)
                             return True
-                        if i == 4: 
-                            plugin._show_owner_channels(activity, False)
+                        if i == 4:
+                            plugin._owner_channels_show_options(activity, False)
                             return True
                         if orig_listener:
                             return orig_listener.onItemClick(v, p)
@@ -9290,166 +9290,95 @@ class UiTweaksPlugin(BasePlugin):
                     return False
             
             menu.setOnItemLongClickListener(OwnerChannelsLongClickListener())
-            self.hook_owner_channels_ref = True 
-        except Exception as e:
-            pass
-    
-    def _show_owner_channels(self, ctx, groups):
-        try:
-            b = AlertDialogBuilder(ctx, AlertDialogBuilder.ALERT_TYPE_SPINNER)
-            b.set_title(getString("loading", "Loading..."))
-            b.set_message(getString("fetching_owned", "Fetching owned ") + (getString("groups", "groups") if groups else getString("channels", "channels")) + getString("from_server", " from server..."))
-            ld = b.show()
-            
-            self._fetch_owner_channels_from_server(ctx, groups, ld)
+            self.hook_owner_channels_ref = True
         except:
             pass
     
-    def _fetch_owner_channels_from_server(self, ctx, groups, loading_dialog):
+    def _owner_channels_show_options(self, ctx, is_group):
         try:
-            req = TLRPC.TL_channels_getAdminedPublicChannels()
-            req.by_location = False
-            req.check_limit = False
-            req.for_personal = False
-            
-            plugin_ref = weakref.ref(self)
-            
-            def handle_response(response, error):
-                plugin = plugin_ref()
-                if not plugin:
-                    run_on_ui_thread(loading_dialog.dismiss)
-                    return
-                    
-                if error or not response:
-                    run_on_ui_thread(loading_dialog.dismiss)
-                    return
-                
-                try:
-                    chats = []
-                    if hasattr(response, 'chats'):
-                        for i in range(response.chats.size()):
-                            chat = response.chats.get(i)
-                            if not getattr(chat, 'creator', False):
-                                continue
-                            
-                            is_channel = getattr(chat, 'broadcast', False)
-                            is_megagroup = getattr(chat, 'megagroup', False)
-                            
-                            if groups:
-                                if is_channel and not is_megagroup:
-                                    continue
-                            else:
-                                if not is_channel or is_megagroup:
-                                    continue
-                            
-                            chats.append(chat)
-                            
-                            mc = MessagesController.getInstance(UserConfig.selectedAccount)
-                            mc.putChat(chat, False)
-                    
-                    run_on_ui_thread(lambda: plugin._display_owner_channels(ctx, chats, groups, loading_dialog))
-                except:
-                    run_on_ui_thread(loading_dialog.dismiss)
-            
-            send_request(req, RequestCallback(handle_response))
-        except:
-            run_on_ui_thread(loading_dialog.dismiss)
-    
-    def _display_owner_channels(self, ctx, chats, groups, loading_dialog):
-        try:
-            loading_dialog.dismiss()
-            title = getString("groups", "Groups") if groups else getString("channels", "Channels")
-            
-            if not chats:
-                b = AlertDialogBuilder(ctx)
-                b.set_title(title)
-                b.set_message(getString("no_owned_prefix", "You don't own any ") + (getString("groups_suffix", "groups.") if groups else getString("channels_suffix", "channels.")))
-                b.set_positive_button("OK", lambda x, _: x.dismiss())
-                b.show()
-                return
+            from org.telegram.tgnet import SerializedData
+            type_name = getString("groups", "Groups") if is_group else getString("channels", "Channels")
             
             b = AlertDialogBuilder(ctx)
-            b.set_title(title)
+            b.set_title(type_name)
             
-            sv = ScrollView(ctx)
-            ll = LinearLayout(ctx)
-            ll.setOrientation(LinearLayout.VERTICAL)
-            p = AndroidUtilities.dp(8)
-            ll.setPadding(p, p, p, p)
+            items = [
+                type_name + " " + getString("where_im_admin", "where I'm admin"),
+                getString("my_prefix", "My ") + type_name
+            ]
             
-            for c in chats:
-                ll.addView(self._create_owner_channel_row(ctx, c, b))
+            def on_item_click(dialog, which):
+                try:
+                    dialog.dismiss()
+                    is_owner_only = (which == 1)
+                    self._owner_channels_open_dialogs_activity(ctx, is_group, is_owner_only)
+                except:
+                    pass
             
-            sv.addView(ll)
-            b.set_view(sv)
-            b.set_negative_button(getString("close", "Close"), lambda x, _: x.dismiss())
+            b.set_items(items, on_item_click)
+            b.set_negative_button(getString("cancel", "Cancel"), lambda d, _: d.dismiss())
             b.show()
         except:
             pass
     
-    def _create_owner_channel_row(self, ctx, chat, dlg):
+    def _owner_channels_open_dialogs_activity(self, ctx, is_group, is_owner_only):
         try:
-            r = LinearLayout(ctx)
-            r.setOrientation(LinearLayout.HORIZONTAL)
-            p = AndroidUtilities.dp(8)
-            r.setPadding(p, p, p, p)
-            r.setGravity(Gravity.CENTER_VERTICAL)
+            from org.telegram.tgnet import SerializedData
+            f = get_last_fragment()
+            if not f:
+                return
+            
             try:
-                r.setBackground(Theme.getSelectorDrawable(False))
+                dlc_field = f.getParentActivity().getClass().getDeclaredField("drawerLayoutContainer")
+                dlc_field.setAccessible(True)
+                dlc = dlc_field.get(f.getParentActivity())
+                if dlc:
+                    dlc.closeDrawer(False)
             except:
                 pass
             
-            av = BackupImageView(ctx)
-            av.setRoundRadius(AndroidUtilities.dp(21))
-            ad = AvatarDrawable()
-            ad.setInfo(chat)
-            if chat.photo and getattr(chat.photo, 'photo_small', None):
-                av.setImage(ImageLocation.getForChat(chat, ImageLocation.TYPE_SMALL), "42_42", ad, chat)
+            if is_group:
+                request_peer = TLRPC.TL_requestPeerTypeChat()
             else:
-                av.setImageDrawable(ad)
-            r.addView(av, LayoutHelper.createLinear(42, 42, Gravity.CENTER_VERTICAL, 0, 0, 12, 0))
+                request_peer = TLRPC.TL_requestPeerTypeBroadcast()
             
-            tc = LinearLayout(ctx)
-            tc.setOrientation(LinearLayout.VERTICAL)
+            if is_owner_only:
+                request_peer.creator = True
+            else:
+                admin_rights = TLRPC.TL_chatAdminRights()
+                admin_rights.other = True
+                request_peer.user_admin_rights = admin_rights
             
-            tv = TextView(ctx)
-            tv.setText(chat.title or "Unknown")
-            tv.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText))
-            tv.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16)
-            tv.setTypeface(AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM))
-            tv.setSingleLine(True)
-            tv.setEllipsize(TextUtils.TruncateAt.END)
-            tc.addView(tv, LayoutHelper.createLinear(-1, -2))
+            buffer = SerializedData()
+            request_peer.serializeToStream(buffer)
+            request_peer_bytes = buffer.toByteArray()
+            buffer.cleanup()
             
-            st = TextView(ctx)
-            cnt = getattr(chat, 'participants_count', 0)
-            st.setText(getString("owner", "Owner") if cnt == 0 else f"{cnt} " + (getString("members", "member") if cnt == 1 else getString("members_plural", "members")) + " • " + getString("owner", "Owner"))
-            st.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText))
-            st.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13)
-            st.setSingleLine(True)
-            tc.addView(st, LayoutHelper.createLinear(-1, -2, 0, 2, 0, 0))
+            args = Bundle()
+            args.putBoolean("onlySelect", True)
+            args.putInt("dialogsType", 15)
+            args.putByteArray("requestPeerType", request_peer_bytes)
             
-            r.addView(tc, LayoutHelper.createLinear(0, -2, 1.0, Gravity.CENTER_VERTICAL))
+            if is_group:
+                args.putBoolean("allowChannels", False)
+                args.putBoolean("allowUsers", False)
+                args.putBoolean("allowBots", False)
+                args.putBoolean("allowGroups", True)
+                args.putBoolean("allowMegagroups", True)
+                args.putBoolean("allowLegacyGroups", True)
+            else:
+                args.putBoolean("allowChannels", True)
+                args.putBoolean("allowUsers", False)
+                args.putBoolean("allowBots", False)
+                args.putBoolean("allowGroups", False)
+                args.putBoolean("allowMegagroups", False)
+                args.putBoolean("allowLegacyGroups", False)
             
-            cid = chat.id
-            def click(v):
-                dlg.dismiss()
-                f = get_last_fragment()
-                if f:
-                    args = Bundle()
-                    args.putLong("chat_id", cid)
-                    f.presentFragment(ChatActivity(args))
-                    try:
-                        drawer_field = f.getParentActivity().getClass().getDeclaredField("drawerLayoutContainer")
-                        drawer_field.setAccessible(True)
-                        drawer_field.get(f.getParentActivity()).closeDrawer(False)
-                    except:
-                        pass
-            
-            r.setOnClickListener(OnClickListener(click))
-            return r
+            DialogsActivity = find_class("org.telegram.ui.DialogsActivity")
+            dialogs = DialogsActivity(args)
+            f.presentFragment(dialogs)
         except:
-            return LinearLayout(ctx)
+            pass
 
     def _hook_custom_privacy(self):
         if self.hook_custom_privacy_ref:
