@@ -983,7 +983,6 @@ class UiTweaksPlugin(BasePlugin):
         self.hook_perform_menu_action_ref = None
         self.hook_message_preview_view_ref = None
         self.hook_share_sheet_folders_ref = None
-        self.hook_swipe_disable_ref = None
         self.hook_star_reaction_gradient_ref = None
         self.hook_star_reaction_layout_draw_ref = None
         self.hook_disable_auto_web_login_ref = None
@@ -2198,8 +2197,6 @@ class UiTweaksPlugin(BasePlugin):
             Header(text=getString("chat_list", "Chat List")),
             self.Quanta_switch("enable_select_all_dialogs", getString("select_all_dialogs_menu", "Select All Chats"), False, lambda v: self._apply_hooks(), link_alias="enable_select_all_dialogs"),
             self.Quanta_switch("enable_add_to_folder_all_tabs", getString("add_to_folder_all_tabs", "Add to Folder in All Tabs"), False, lambda v: self._apply_hooks(), link_alias="enable_add_to_folder_all_tabs"),
-           # self.Quanta_switch("enable_swipe_disable", getString("disable_swipe_gestures", "Swipe gesture menu improvements"), False, lambda v: self._apply_hooks(), link_alias="enable_swipe_disable"),
-           # Divider(text=getString("disable_swipe_subtext", "Add disable option in Telegrams \"Chat list swipe gesture\" menu")),
             
             Header(text=getString("account_and_display", "Account & Display")),
             self.Quanta_switch("enable_non_clickable_preview", getString("non_clickable_preview", "Non-Clickable Chat Preview"), False, lambda v: self._apply_hooks(), link_alias="enable_non_clickable_preview"),
@@ -3551,7 +3548,6 @@ class UiTweaksPlugin(BasePlugin):
             "hook_birthday_alert_ref",
             "hook_code_formatting_ref",
             "hook_sender_select_popup_ref",
-            "hook_swipe_disable_ref",
             "hook_share_sheet_folders_ref",
             "hook_disable_topic_swipe_ref",
             "hook_account_visibility_drawer_ref",
@@ -3757,9 +3753,6 @@ class UiTweaksPlugin(BasePlugin):
             
             if self.get_setting("enable_sender_select_enhancement", False):
                 self._hook_sender_select_popup()
-            
-            if self.get_setting("enable_swipe_disable", False):
-                self._hook_swipe_disable()
             
             if self.get_setting("enable_share_sheet_folders", False):
                 self._hook_share_sheet_folders()
@@ -8577,159 +8570,6 @@ class UiTweaksPlugin(BasePlugin):
             method.setAccessible(True)
             self.hook_method(method, SetDefaultSendAsHook(self))
 
-        except Exception:
-            pass
-
-    def _hook_swipe_disable(self):
-        try:
-            SwipeGestureSettingsViewClass = self._get_class("org.telegram.ui.Components.SwipeGestureSettingsView")
-            if not SwipeGestureSettingsViewClass:
-                return
-
-            try:
-                SharedConfigClass = self._get_class("org.telegram.messenger.SharedConfig")
-                if SharedConfigClass:
-                    getSwipeMethod = SharedConfigClass.getClass().getDeclaredMethod(
-                        "getChatSwipeAction",
-                        jclass("java.lang.Integer").TYPE
-                    )
-                    getSwipeMethod.setAccessible(True)
-
-                    class GetSwipeActionHook:
-                        def __init__(self, plugin_instance):
-                            super().__init__(plugin_instance)
-
-                        @hook_filters(HookFilter.RESULT_NOT_NULL)
-                        def after_hooked_method(self, param):
-                            try:
-                                currentAccount = param.args[0] if param.args else 0
-                                result = param.getResult()
-                                if result == 5:
-                                    MessagesController = jclass("org.telegram.messenger.MessagesController")
-                                    if MessagesController.getInstance(currentAccount).dialogFilters.isEmpty():
-                                        param.setResult(6)
-                            except Exception:
-                                pass
-
-                    self.hook_swipe_disable_ref = self.hook_method(getSwipeMethod, GetSwipeActionHook(self))
-            except Exception:
-                pass
-            
-            constructor = SwipeGestureSettingsViewClass.getClass().getDeclaredConstructor(
-                jclass("android.content.Context"),
-                jclass("java.lang.Integer").TYPE
-            )
-            constructor.setAccessible(True)
-            
-            class SwipeGestureSettingsViewHook:
-                def __init__(self, plugin_instance):
-                    super().__init__(plugin_instance)
-                
-                @hook_filters(HookFilter.Condition("param.thisObject != null"))
-                def after_hooked_method(self, param):
-                    instance = param.thisObject
-                    if instance is None:
-                        return
-                    
-                    try:
-                        strings = get_private_field(instance, "strings")
-                        backgroundKeys = get_private_field(instance, "backgroundKeys")
-                        icons = get_private_field(instance, "icons")
-
-                        Array = jclass("java.lang.reflect.Array")
-                        System = jclass("java.lang.System")
-
-                        stringsComponentType = strings.getClass().getComponentType() if strings else None
-                        bgComponentType = backgroundKeys.getClass().getComponentType() if backgroundKeys else None
-                        iconsComponentType = icons.getClass().getComponentType() if icons else None
-
-                        if strings and Array.getLength(strings) == 6 and stringsComponentType:
-                            new_strings = Array.newInstance(stringsComponentType, 7)
-                            System.arraycopy(strings, 0, new_strings, 0, 6)
-                            try:
-                                Array.set(new_strings, 6, getString("disable", "Disable"))
-                            except Exception:
-                                pass
-                            set_private_field(instance, "strings", new_strings)
-                            strings = new_strings
-
-                        if backgroundKeys and Array.getLength(backgroundKeys) == 6 and bgComponentType:
-                            new_background_keys = Array.newInstance(bgComponentType, 7)
-                            System.arraycopy(backgroundKeys, 0, new_background_keys, 0, 6)
-                            try:
-                                first_key = Array.get(backgroundKeys, 5)
-                                Array.set(new_background_keys, 6, first_key)
-                            except Exception:
-                                pass
-                            set_private_field(instance, "backgroundKeys", new_background_keys)
-                            backgroundKeys = new_background_keys
-
-                        if icons and Array.getLength(icons) == 6 and iconsComponentType:
-                            new_icons = Array.newInstance(iconsComponentType, 7)
-                            System.arraycopy(icons, 0, new_icons, 0, 6)
-                            set_private_field(instance, "icons", new_icons)
-                            icons = new_icons
-
-                        picker = get_private_field(instance, "picker")
-                        if picker:
-                            hasTabs = get_private_field(instance, "hasTabs")
-                            try:
-                                picker.setWrapSelectorWheel(True)
-                                if hasTabs:
-                                    picker.setMaxValue(6)
-                                    picker.setAllItemsCount(7)
-                                else:
-                                    if strings and Array.getLength(strings) >= 6:
-                                        Array.set(strings, 5, getString("disable", "Disable"))
-                                    picker.setMaxValue(5)
-                                    picker.setAllItemsCount(6)
-                                SharedConfig = jclass("org.telegram.messenger.SharedConfig")
-                                acc = param.args[1] if param.args and len(param.args) >= 2 else get_private_field(instance, "currentAccount") or 0
-                                val = SharedConfig.getChatSwipeAction(acc or 0)
-                                picker.setValue(5 if not hasTabs and val == 6 else val)
-                            except Exception:
-                                pass
-                    except Exception:
-                        pass
-            
-            hook_handler = SwipeGestureSettingsViewHook(self)
-            self.hook_swipe_disable_ref = self.hook_method(constructor, hook_handler)
-
-            try:
-                SwipeControllerClass = find_class("org.telegram.ui.DialogsActivity$SwipeController")
-                getMovementFlagsMethod = SwipeControllerClass.getClass().getDeclaredMethod(
-                    "getMovementFlags",
-                    jclass("androidx.recyclerview.widget.RecyclerView"),
-                    jclass("androidx.recyclerview.widget.RecyclerView$ViewHolder")
-                )
-                getMovementFlagsMethod.setAccessible(True)
-
-                class GetMovementFlagsHook:
-                    def __init__(self, plugin_instance):
-                        super().__init__(plugin_instance)
-
-                    @hook_filters(HookFilter.Condition("param.thisObject != null"))
-                    def after_hooked_method(self, param):
-                        try:
-                            dialogsActivity = get_private_field(param.thisObject, "this$0")
-                            if not dialogsActivity:
-                                return
-                            
-                            currentAccount = get_private_field(dialogsActivity, "currentAccount") if dialogsActivity else 0
-                            SharedConfig = jclass("org.telegram.messenger.SharedConfig")
-                            
-                            if SharedConfig.getChatSwipeAction(currentAccount) == 6:
-                                actionBar = get_private_field(dialogsActivity, "actionBar")
-                                if actionBar and actionBar.isActionModeShowed(None):
-                                    return
-                                
-                                param.setResult(jclass("java.lang.Integer")(0))
-                        except Exception:
-                            pass
-
-                self.hook_swipe_disable_ref = self.hook_method(getMovementFlagsMethod, GetMovementFlagsHook(self))
-            except Exception:
-                pass
         except Exception:
             pass
 
