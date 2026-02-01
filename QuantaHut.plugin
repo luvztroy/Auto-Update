@@ -522,6 +522,7 @@ class QuantaHut(BasePlugin):
                                 pills_item = UItem.asFullyCustom(quantahut.pills_container)
                                 insert_position = 1 if items.size() > 1 else items.size()
                                 items.add(insert_position, pills_item)
+                                quantahut._update_pill_counts()
                             except:
                                 pass
                     except:
