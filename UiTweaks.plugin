@@ -12562,11 +12562,8 @@ class ChatActionBarItemsHook:
 class ChatActionBarMenuItemClickHook:
     def __init__(self, plugin, chat_activity):
         self._plugin_ref = weakref.ref(plugin)
-        self._chat_activity_ref = weakref.ref(chat_activity)
-    
-    @property
-    def chat_activity(self):
-        return self._chat_activity_ref() if self._chat_activity_ref else None
+        self.chat_activity = chat_activity
+
 
     @property
     def plugin(self):
