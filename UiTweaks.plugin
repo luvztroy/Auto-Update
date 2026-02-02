@@ -4321,14 +4321,14 @@ class UiTweaksPlugin(BasePlugin):
             def __init__(self, messages, chat_activity, plugin_instance):
                 super().__init__()
                 self.messages = messages
-                self._chat_activity_ref = weakref.ref(chat_activity)
+                self.chat_activity = chat_activity
                 self.plugin_ref = weakref.ref(plugin_instance)
             
             @property
             def chat_activity(self):
                 return self._chat_activity_ref() if self._chat_activity_ref else None
             
-            def didSelectDialogs(self, fragment1, dids, message_text, param, notify, scheduleDate, scheduleRepeatPeriod, topicsFragment):
+            def didSelectDialogs(self, fragment1, dids, message_text, *args):
                 plugin = self.plugin_ref()
                 if plugin is None or self.chat_activity is None:
                     return True
@@ -4401,7 +4401,6 @@ class UiTweaksPlugin(BasePlugin):
         chat_activity.presentFragment(dialogs_fragment)
 
         self.current_mode = "forward"
-        log("[UiTweaks]current_mode reset to 'forward'")
 
     def _open_no_quote_forward(self, ca):
         self._open_custom_forward(ca, False)
@@ -4437,7 +4436,7 @@ class UiTweaksPlugin(BasePlugin):
                     s.p = weakref.ref(p)
                     s.hc = hc
                 
-                def didSelectDialogs(s, f, dids, txt, param, notify, sched, scheduleRepeatPeriod, topics):
+                def didSelectDialogs(s, f, dids, txt, *args):
                     pl = s.p()
                     if pl is None:
                         return True
@@ -5857,7 +5856,7 @@ class UiTweaksPlugin(BasePlugin):
                 super().__init__()
                 self.plugin_ref = weakref.ref(plugin_instance)
             
-            def didSelectDialogs(self, fragment, dids, message, param, notify, scheduleDate, scheduleRepeatPeriod, topicsFragment):
+            def didSelectDialogs(self, fragment, dids, message, *args):
                 plugin = self.plugin_ref()
                 if plugin and dids and dids.size() > 0:
                     plugin.custom_saved_chat_id = dids.get(0).dialogId
