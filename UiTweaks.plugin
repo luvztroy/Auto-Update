@@ -4328,7 +4328,7 @@ class UiTweaksPlugin(BasePlugin):
             def chat_activity(self):
                 return self._chat_activity_ref() if self._chat_activity_ref else None
             
-            def didSelectDialogs(self, fragment1, dids, message_text, param, notify, scheduleDate, topicsFragment):
+            def didSelectDialogs(self, fragment1, dids, message_text, param, notify, scheduleDate, scheduleRepeatPeriod, topicsFragment):
                 plugin = self.plugin_ref()
                 if plugin is None or self.chat_activity is None:
                     return True
@@ -4437,7 +4437,7 @@ class UiTweaksPlugin(BasePlugin):
                     s.p = weakref.ref(p)
                     s.hc = hc
                 
-                def didSelectDialogs(s, f, dids, txt, param, notify, sched, topics):
+                def didSelectDialogs(s, f, dids, txt, param, notify, sched, scheduleRepeatPeriod, topics):
                     pl = s.p()
                     if pl is None:
                         return True
@@ -5857,7 +5857,7 @@ class UiTweaksPlugin(BasePlugin):
                 super().__init__()
                 self.plugin_ref = weakref.ref(plugin_instance)
             
-            def didSelectDialogs(self, fragment, dids, message, param, notify, scheduleDate, topicsFragment):
+            def didSelectDialogs(self, fragment, dids, message, param, notify, scheduleDate, scheduleRepeatPeriod, topicsFragment):
                 plugin = self.plugin_ref()
                 if plugin and dids and dids.size() > 0:
                     plugin.custom_saved_chat_id = dids.get(0).dialogId
