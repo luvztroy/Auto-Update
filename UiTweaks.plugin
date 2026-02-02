@@ -14038,7 +14038,7 @@ class PinnedReactionsDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentD
         pass
     
     def onBackPressed(self):
-        return True
+        return None
     
     def beforeCreateView(self):
         return None
@@ -14743,7 +14743,7 @@ class UserPrivacyDelegate(dynamic_proxy(UniversalFragment.UniversalFragmentDeleg
         return view
 
     def onBackPressed(self):
-        return True
+        return None
 
     def onMenuItemClick(self, id): pass
 
