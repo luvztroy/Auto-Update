@@ -4324,10 +4324,6 @@ class UiTweaksPlugin(BasePlugin):
                 self.chat_activity = chat_activity
                 self.plugin_ref = weakref.ref(plugin_instance)
             
-            @property
-            def chat_activity(self):
-                return self._chat_activity_ref() if self._chat_activity_ref else None
-            
             def didSelectDialogs(self, fragment1, dids, message_text, *args):
                 plugin = self.plugin_ref()
                 if plugin is None or self.chat_activity is None:
