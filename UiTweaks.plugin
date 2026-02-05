@@ -79,7 +79,7 @@ __author__ = "@luvztroy"
 __min_version__ = "12.2.10"
 __icon__ = "luvztroyIcons/13"
 __dependencies__ = ["quantahut"]
-__requirements__ = "packaging"
+__requirements__ = "packaging, humanize"
 
 
 
@@ -1589,18 +1589,12 @@ class UiTweaksPlugin(BasePlugin):
     def _recent_chats_fragment_fmt_time(self, ts):
         try:
             try:
-                now = get_connections_manager().getCurrentTime()
+                from datetime import datetime
+                import humanize
+                dt = datetime.fromtimestamp(int(ts))
+                return humanize.naturaltime(dt)
             except Exception:
-                now = int(time.time())
-            diff = now - int(ts)
-            if diff < 60:
-                return "just now"
-            if diff < 3600:
-                return f"{diff//60}m ago"
-            if diff < 86400:
-                return f"{diff//3600}h ago"
-            if diff < 604800:
-                return f"{diff//86400}d ago"
+                pass
             from java.util import Date
             from java.text import SimpleDateFormat
             return SimpleDateFormat("MMM d").format(Date(int(ts) * 1000))
