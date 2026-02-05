@@ -3,7 +3,6 @@ import re
 import urllib.parse
 import os
 import json
-import urllib.request
 import weakref
 import threading
 import time
@@ -78,7 +77,7 @@ __author__ = "@luvztroy"
 __min_version__ = "12.2.10"
 __icon__ = "luvztroyIcons/13"
 __dependencies__ = ["quantahut"]
-__requirements__ = "packaging, humanize, tinydb"
+__requirements__ = "humanize, tinydb"
 
 
 
@@ -99,13 +98,10 @@ def _normalize_api_base(api_url: str) -> str:
     return base
 
 def _post_json(url: str, payload: dict) -> dict:
-    data = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(
-        url, data=data, headers={"Content-Type": "application/json"}
-    )
-    with urllib.request.urlopen(request, timeout=10) as response:
-        body = response.read().decode("utf-8")
-    return json.loads(body)
+    import requests
+    response = requests.post(url, json=payload, timeout=10)
+    response.raise_for_status()
+    return response.json()
 
 class MkStatsCoreClient:
     def __init__(self, api_url: str, plugin_id: str, version: str, user_hash: str) -> None:
@@ -3211,9 +3207,10 @@ class UiTweaksPlugin(BasePlugin):
     def _get_github_commit_timestamp(self, branch: str = "main", filename: str = "UiTweaks.plugin") -> Optional[str]:
         try:
             url = f"https://raw.githubusercontent.com/luvztroy/Auto-Update/{branch}/{filename}"
-            req = urllib.request.Request(url, method='HEAD', headers={"User-Agent": "UiTweaks-Plugin"})
-            with urllib.request.urlopen(req, timeout=15) as response:
-                etag = response.headers.get('ETag') or response.headers.get('Last-Modified')
+            import requests
+            resp = requests.head(url, timeout=15, headers={"User-Agent": "UiTweaks-Plugin"})
+            if resp is not None:
+                etag = resp.headers.get('ETag') or resp.headers.get('Last-Modified')
                 if etag:
                     self.log(f"GitHub {filename} ETag: {etag[:20]}...")
                     return etag
@@ -3274,13 +3271,18 @@ class UiTweaksPlugin(BasePlugin):
                 from org.telegram.messenger import ApplicationLoader, Utilities
                 from java import dynamic_proxy, jclass
                 
-                plugins_dir = os.path.join(str(ApplicationLoader.applicationContext.getFilesDir()), "plugins")
+                plugins_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "plugins")
+                os.makedirs(plugins_dir, exist_ok=True)
+
+                import requests
+                
                 updated_plugins = []
                 
                 if uitweaks_update:
                     self.log("Downloading UiTweaks...")
-                    with urllib.request.urlopen(self.uitweaks_download_url, timeout=30) as response:
-                        uitweaks_content = response.read()
+                    resp = requests.get(self.uitweaks_download_url, timeout=30)
+                    resp.raise_for_status()
+                    uitweaks_content = resp.content
                     
                     uitweaks_temp = os.path.join(plugins_dir, "ui_tweaks_update.tmp")
                     with open(uitweaks_temp, 'wb') as f:
@@ -3289,8 +3291,9 @@ class UiTweaksPlugin(BasePlugin):
                 
                 if quantahut_update:
                     self.log("Downloading QuantaHut...")
-                    with urllib.request.urlopen(self.quantahut_download_url, timeout=30) as response:
-                        quantahut_content = response.read()
+                    resp = requests.get(self.quantahut_download_url, timeout=30)
+                    resp.raise_for_status()
+                    quantahut_content = resp.content
                     
                     quantahut_temp = os.path.join(plugins_dir, "quantahut_update.tmp")
                     with open(quantahut_temp, 'wb') as f:
@@ -6019,7 +6022,13 @@ class UiTweaksPlugin(BasePlugin):
                 branch_index = self.get_setting("update_branch", 0)
                 branch = "main" if branch_index == 0 else "Beta"
                 IOS_SOUND_URL = f"https://raw.githubusercontent.com/luvztroy/UiTweaks/{branch}/Assets/Audio/Custom%20received.mp3"
-                urllib.request.urlretrieve(IOS_SOUND_URL, self.ios_sound_path)
+                import requests
+                resp = requests.get(IOS_SOUND_URL, timeout=30, stream=True)
+                resp.raise_for_status()
+                with open(self.ios_sound_path, "wb") as f:
+                    for chunk in resp.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
         except Exception as e:
             pass
     
