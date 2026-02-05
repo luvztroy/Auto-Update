@@ -4,7 +4,6 @@ import urllib.parse
 import os
 import json
 import urllib.request
-import base64
 import weakref
 import threading
 import time
@@ -79,7 +78,7 @@ __author__ = "@luvztroy"
 __min_version__ = "12.2.10"
 __icon__ = "luvztroyIcons/13"
 __dependencies__ = ["quantahut"]
-__requirements__ = "packaging, humanize"
+__requirements__ = "packaging, humanize, tinydb"
 
 
 
@@ -1202,6 +1201,9 @@ class UiTweaksPlugin(BasePlugin):
         self.hook_recent_chats_fragment_drawer_cell_ref = None
         self.hook_recent_chats_fragment_activity_resume_refs = None
         self._recent_chats_fragment_data = {}
+        self._recent_chats_db = None
+        self._recent_chats_db_query = None
+        self._recent_chats_db_path = None
         self._recent_chats_fragment = None
         self._recent_chats_fragment_visible = False
 
@@ -1537,11 +1539,21 @@ class UiTweaksPlugin(BasePlugin):
         try:
             if account in self._recent_chats_fragment_data:
                 return self._recent_chats_fragment_data[account]
-            raw = self.get_setting(f"recent_chats_fragment_data_{account}", "")
-            if raw:
-                self._recent_chats_fragment_data[account] = json.loads(base64.b64decode(raw).decode())
-            else:
-                self._recent_chats_fragment_data[account] = {"ids": [], "ts": {}}
+
+            db, Q = self._recent_chats_fragment_get_db()
+            rec = None
+            try:
+                rec = db.get(Q.account == int(account))
+            except Exception:
+                rec = None
+
+            if rec and isinstance(rec, dict):
+                ids = rec.get("ids") if isinstance(rec.get("ids"), list) else []
+                ts = rec.get("ts") if isinstance(rec.get("ts"), dict) else {}
+                self._recent_chats_fragment_data[account] = {"ids": ids, "ts": ts}
+                return self._recent_chats_fragment_data[account]
+
+            self._recent_chats_fragment_data[account] = {"ids": [], "ts": {}}
         except Exception:
             self._recent_chats_fragment_data[account] = {"ids": [], "ts": {}}
         return self._recent_chats_fragment_data[account]
@@ -1550,10 +1562,27 @@ class UiTweaksPlugin(BasePlugin):
         try:
             if account not in self._recent_chats_fragment_data:
                 return
-            raw = base64.b64encode(json.dumps(self._recent_chats_fragment_data[account]).encode()).decode()
-            self.set_setting(f"recent_chats_fragment_data_{account}", raw)
+            db, Q = self._recent_chats_fragment_get_db()
+            data = self._recent_chats_fragment_data[account]
+            ids = data.get("ids") if isinstance(data.get("ids"), list) else []
+            ts = data.get("ts") if isinstance(data.get("ts"), dict) else {}
+            db.upsert({"account": int(account), "ids": ids, "ts": ts}, Q.account == int(account))
         except Exception:
             pass
+
+    def _recent_chats_fragment_get_db(self):
+        if self._recent_chats_db is not None and self._recent_chats_db_query is not None:
+            return self._recent_chats_db, self._recent_chats_db_query
+        from tinydb import TinyDB, Query
+        try:
+            base_dir = get_cache_dir()
+            ensure_dir_exists(base_dir)
+        except Exception:
+            base_dir = get_cache_dir()
+        self._recent_chats_db_path = os.path.join(base_dir, "uitweaks_recent_chats.json")
+        self._recent_chats_db = TinyDB(self._recent_chats_db_path)
+        self._recent_chats_db_query = Query()
+        return self._recent_chats_db, self._recent_chats_db_query
 
     def _recent_chats_fragment_add_dialog(self, account, dialog_id):
         try:
@@ -3376,6 +3405,15 @@ class UiTweaksPlugin(BasePlugin):
             self.popup_manager.destroy()
         
         self._cleanup_activity_resources()
+
+        if hasattr(self, '_recent_chats_db') and self._recent_chats_db is not None:
+            try:
+                self._recent_chats_db.close()
+            except Exception:
+                pass
+            self._recent_chats_db = None
+            self._recent_chats_db_query = None
+            self._recent_chats_db_path = None
         
         if hasattr(self, 'contact_status_activity_state'):
             self.contact_status_activity_state.clear()
