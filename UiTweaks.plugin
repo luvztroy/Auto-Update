@@ -11186,6 +11186,7 @@ class VideoMessageControlHook:
 class GifSpoilerHook(MethodHook):
     def __init__(self, plugin: UiTweaksPlugin):
         MethodHook.__init__(self)
+        self.plugin = plugin
         self._plugin_ref = weakref.ref(plugin)
         self.added_items = []
         self._current_viewer_ref = None
