@@ -40,6 +40,7 @@ import hashlib
 import uuid
 
 import requests
+from cachetools import LRUCache
 
 __name__ = "QuantaHut"
 __description__ = "Library for Quanta plugins"
@@ -50,6 +51,7 @@ __version__ = "1.5.2"
 __author__ = "@luvztroy"
 __min_version__ = "12.2.10"
 __priority__ = 1
+__requirements__ = "cachetools"
 
 DEFAULT_SHOW_LOGS = False
 DEFAULT_SHOW_RESTART_MENU = False
@@ -363,15 +365,15 @@ class QuantaHut(BasePlugin):
         self.stored_context = None
         self.stored_activity = None
 
-        self._search_state = {}
-        self._all_items_cache = {}
-        self._search_history = {}
-        self._activity_refs = {}
-        self.plugin_types_cache = {}
+        self._search_state = LRUCache(maxsize=128)
+        self._all_items_cache = LRUCache(maxsize=128)
+        self._search_history = LRUCache(maxsize=256)
+        self._activity_refs = LRUCache(maxsize=128)
+        self.plugin_types_cache = LRUCache(maxsize=256)
         self.settings_search_create_view_hook = None
         self.settings_search_fill_items_hook = None
         
-        self._link_alias_class_cache = {}
+        self._link_alias_class_cache = LRUCache(maxsize=256)
         self.link_alias_hook_constructor_ref = None
         self.link_alias_current_enter_view_ref = None
         self.link_alias_settings_cache = None
