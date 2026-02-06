@@ -10,7 +10,6 @@ import threading
 import traceback
 import os.path
 import tempfile
-import urllib.request
 import weakref
 from typing import List, Callable, Optional, Any
 from dataclasses import dataclass, field
@@ -39,6 +38,8 @@ from java.io import File
 
 import hashlib
 import uuid
+
+import requests
 
 __name__ = "QuantaHut"
 __description__ = "Library for Quanta plugins"
@@ -77,13 +78,14 @@ def _normalize_api_base(api_url: str) -> str:
     return base
 
 def _post_json(url: str, payload: dict) -> dict:
-    data = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(
-        url, data=data, headers={"Content-Type": "application/json"}
+    response = requests.post(
+        url,
+        json=payload,
+        timeout=10,
+        headers={"Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(request, timeout=10) as response:
-        body = response.read().decode("utf-8")
-    return json.loads(body)
+    response.raise_for_status()
+    return response.json()
 
 def _pow_valid(challenge: str, nonce: str, difficulty: int) -> bool:
     if not challenge or not nonce or difficulty <= 0:
@@ -1231,17 +1233,17 @@ class QuantaHut(BasePlugin):
             quantahut_log("Downloading QuantaConfig from GitHub...")
             branch = self._get_selected_branch()
             github_url = f"https://raw.githubusercontent.com/luvztroy/UiTweaks/refs/heads/{branch}/QuantaConfig.json"
-            
-            with urllib.request.urlopen(github_url, timeout=10) as response:
-                raw_data = response.read().decode('utf-8')
-                data = json.loads(raw_data)
-                badges = data.get('badges', [])
-                
-                github_localization.cache_text_template(cache_key, json.dumps(badges))
-                github_localization.cache_text_template(timestamp_key, str(time.time()))
-                return badges
-                
-        except urllib.error.URLError as e:
+
+            resp = requests.get(github_url, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            badges = (data or {}).get('badges', [])
+
+            github_localization.cache_text_template(cache_key, json.dumps(badges))
+            github_localization.cache_text_template(timestamp_key, str(time.time()))
+            return badges
+
+        except requests.RequestException:
             return []
         except json.JSONDecodeError as e:
             return []
@@ -2992,23 +2994,23 @@ class GitHubLocalization:
         
     def download_localization(self, plugin_id: str, language: str = "en", force_refresh: bool = False):
         try:
-            import urllib.request
-            import json
             base_url = self._get_base_url()
-            with urllib.request.urlopen(f"{base_url}/{plugin_id}%20{language}.json") as response:
-                data = json.loads(response.read().decode('utf-8'))
+            url = f"{base_url}/{plugin_id}%20{language}.json"
+            resp = requests.get(url, timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
                 
-                if not data:
-                    return "no_data"
-                
-                quantahut_log(f"Downloaded {len(data)} localization keys for {plugin_id} ({language})")
-                self.db.clear_language_data(plugin_id, language)
-                for trans_key, trans_value in data.items():
-                    cache_key = f"{plugin_id}_{language}_{trans_key}"
-                    self.db.set_localized_string(cache_key, trans_value, plugin_id, language, trans_key)
-                
-                quantahut_log(f"Cached {len(data)} strings for {plugin_id} ({language})")
-                return "updated"
+            if not data:
+                return "no_data"
+
+            quantahut_log(f"Downloaded {len(data)} localization keys for {plugin_id} ({language})")
+            self.db.clear_language_data(plugin_id, language)
+            for trans_key, trans_value in data.items():
+                cache_key = f"{plugin_id}_{language}_{trans_key}"
+                self.db.set_localized_string(cache_key, trans_value, plugin_id, language, trans_key)
+
+            quantahut_log(f"Cached {len(data)} strings for {plugin_id} ({language})")
+            return "updated"
                 
         except Exception as e:
             quantahut_log(f"Error downloading localization: {str(e)}")
