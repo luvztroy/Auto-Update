@@ -11,6 +11,7 @@ import shutil
 
 
 from typing import Set, Any, Optional, List, Dict
+from cachetools import LRUCache
 from base_plugin import BasePlugin, MenuItemData, MenuItemType, HookResult, HookStrategy, MethodReplacement, AppEvent, MethodHook, hook_filters, HookFilter
 from hook_utils import find_class, get_private_field, set_private_field
 from java import dynamic_proxy, jclass, jlong
@@ -77,7 +78,7 @@ __author__ = "@luvztroy"
 __min_version__ = "12.2.10"
 __icon__ = "luvztroyIcons/13"
 __dependencies__ = ["quantahut"]
-__requirements__ = "humanize, tinydb"
+__requirements__ = "humanize, tinydb, cachetools"
 
 
 
@@ -172,6 +173,39 @@ def _find_class_silent(class_name: str):
     except Exception:
         return None
 
+def _ut_get_plugin():
+    try:
+        ref = globals().get('uitweaks_plugin_instance', None)
+        if ref is not None:
+            return ref() if callable(ref) else None
+    except Exception:
+        return None
+    return None
+
+def _ut_get_declared_field(obj_or_class, field_name: str):
+    try:
+        plugin = _ut_get_plugin()
+        clazz = obj_or_class if hasattr(obj_or_class, 'getDeclaredField') else obj_or_class.getClass()
+        if plugin is not None and hasattr(plugin, '_get_declared_field'):
+            return plugin._get_declared_field(clazz, field_name)
+        f = clazz.getDeclaredField(field_name)
+        f.setAccessible(True)
+        return f
+    except Exception:
+        return None
+
+def _ut_get_declared_method(obj_or_class, method_name: str, *signature_classes):
+    try:
+        plugin = _ut_get_plugin()
+        clazz = obj_or_class if hasattr(obj_or_class, 'getDeclaredMethod') else obj_or_class.getClass()
+        if plugin is not None and hasattr(plugin, '_get_declared_method'):
+            return plugin._get_declared_method(clazz, method_name, *signature_classes)
+        m = clazz.getDeclaredMethod(method_name, *signature_classes)
+        m.setAccessible(True)
+        return m
+    except Exception:
+        return None
+
 
 def _get_private_field_silent(obj, field_name: str):
     try:
@@ -216,30 +250,27 @@ class NonClickablePreviewDispatchTouchHook:
             if not fragment_view:
                 return
             
-            chat_activity_field = fragment_view.getClass().getDeclaredField("this$0")
-            chat_activity_field.setAccessible(True)
-            chat_activity = chat_activity_field.get(fragment_view)
+            chat_activity_field = _ut_get_declared_field(fragment_view, "this$0")
+            chat_activity = chat_activity_field.get(fragment_view) if chat_activity_field is not None else None
             if not chat_activity:
                 return
             
-            parent_layout_field = chat_activity.getClass().getSuperclass().getDeclaredField("parentLayout")
-            parent_layout_field.setAccessible(True)
-            parent_layout = parent_layout_field.get(chat_activity)
+            parent_layout_field = _ut_get_declared_field(chat_activity.getClass().getSuperclass(), "parentLayout")
+            parent_layout = parent_layout_field.get(chat_activity) if parent_layout_field is not None else None
             if not parent_layout:
                 return
             
-            is_preview_method = parent_layout.getClass().getDeclaredMethod("isInPreviewMode")
-            is_preview_method.setAccessible(True)
-            in_preview_mode = is_preview_method.invoke(parent_layout)
+            is_preview_method = _ut_get_declared_method(parent_layout, "isInPreviewMode")
+            in_preview_mode = is_preview_method.invoke(parent_layout) if is_preview_method is not None else False
             
             if in_preview_mode:
                 try:
-                    allow_field = chat_activity.getClass().getDeclaredField("allowExpandPreviewByClick")
-                    allow_field.setAccessible(True)
-                    allow_expand = allow_field.getBoolean(chat_activity)
+                    allow_field = _ut_get_declared_field(chat_activity, "allowExpandPreviewByClick")
+                    allow_expand = allow_field.getBoolean(chat_activity) if allow_field is not None else False
                     
                     if allow_expand:
-                        allow_field.setBoolean(chat_activity, False)
+                        if allow_field is not None:
+                            allow_field.setBoolean(chat_activity, False)
                 except:
                     pass
         except Exception as e:
@@ -262,16 +293,15 @@ class NonClickablePreviewPresentFragmentHook:
                 return
                 
             try:
-                allow_field = preview_fragment.getClass().getDeclaredField("allowExpandPreviewByClick")
-                allow_field.setAccessible(True)
-                allow_field.setBoolean(preview_fragment, False)
+                allow_field = _ut_get_declared_field(preview_fragment, "allowExpandPreviewByClick")
+                if allow_field is not None:
+                    allow_field.setBoolean(preview_fragment, False)
             except:
                 pass
 
             try:
-                chat_list_field = preview_fragment.getClass().getDeclaredField("chatListView")
-                chat_list_field.setAccessible(True)
-                chat_list_view = chat_list_field.get(preview_fragment)
+                chat_list_field = _ut_get_declared_field(preview_fragment, "chatListView")
+                chat_list_view = chat_list_field.get(preview_fragment) if chat_list_field is not None else None
                 if chat_list_view is not None:
                     try:
                         chat_list_view.setOnItemClickListener(None)
@@ -403,24 +433,20 @@ class AddToFolderAllTabsHook:
         try:
             dialogs_activity = param.thisObject
             
-            add_to_folder_item_field = dialogs_activity.getClass().getDeclaredField("addToFolderItem")
-            add_to_folder_item_field.setAccessible(True)
-            add_to_folder_item = add_to_folder_item_field.get(dialogs_activity)
+            add_to_folder_item_field = _ut_get_declared_field(dialogs_activity, "addToFolderItem")
+            add_to_folder_item = add_to_folder_item_field.get(dialogs_activity) if add_to_folder_item_field is not None else None
             
             if add_to_folder_item is None:
                 return
             
-            filter_tabs_view_field = dialogs_activity.getClass().getDeclaredField("filterTabsView")
-            filter_tabs_view_field.setAccessible(True)
-            filter_tabs_view = filter_tabs_view_field.get(dialogs_activity)
+            filter_tabs_view_field = _ut_get_declared_field(dialogs_activity, "filterTabsView")
+            filter_tabs_view = filter_tabs_view_field.get(dialogs_activity) if filter_tabs_view_field is not None else None
             
-            folder_id_field = dialogs_activity.getClass().getDeclaredField("folderId")
-            folder_id_field.setAccessible(True)
-            folder_id = folder_id_field.getInt(dialogs_activity)
+            folder_id_field = _ut_get_declared_field(dialogs_activity, "folderId")
+            folder_id = folder_id_field.getInt(dialogs_activity) if folder_id_field is not None else 0
             
-            selected_dialogs_field = dialogs_activity.getClass().getDeclaredField("selectedDialogs")
-            selected_dialogs_field.setAccessible(True)
-            selected_dialogs = selected_dialogs_field.get(dialogs_activity)
+            selected_dialogs_field = _ut_get_declared_field(dialogs_activity, "selectedDialogs")
+            selected_dialogs = selected_dialogs_field.get(dialogs_activity) if selected_dialogs_field is not None else None
             
             FiltersListBottomSheetClass = find_class("org.telegram.ui.Components.FiltersListBottomSheet")
             if FiltersListBottomSheetClass:
@@ -931,7 +957,9 @@ class UiTweaksPlugin(BasePlugin):
     def __init__(self):
         super().__init__()
         
-        self._class_cache = {}
+        self._class_cache = LRUCache(maxsize=256)
+        self._field_cache = LRUCache(maxsize=2048)
+        self._method_cache = LRUCache(maxsize=2048)
 
         self.hook_dialogs_ref = None
         self.hook_dialogs_destroy_ref = None
@@ -1265,11 +1293,9 @@ class UiTweaksPlugin(BasePlugin):
     def _setup_select_all_dialogs(self):
         try:
             DialogsActivityCls = find_class("org.telegram.ui.DialogsActivity")
-            CreateActionMode = DialogsActivityCls.getClass().getDeclaredMethod("createActionMode", find_class("java.lang.String").getClass())
-            CreateActionMode.setAccessible(True)
+            CreateActionMode = _ut_get_declared_method(DialogsActivityCls.getClass(), "createActionMode", find_class("java.lang.String").getClass())
             ActionBarMenuCls = find_class("org.telegram.ui.ActionBar.ActionBarMenu")
-            OnItemClick = ActionBarMenuCls.getClass().getDeclaredMethod("onItemClick", find_class("java.lang.Integer").TYPE)
-            OnItemClick.setAccessible(True)
+            OnItemClick = _ut_get_declared_method(ActionBarMenuCls.getClass(), "onItemClick", find_class("java.lang.Integer").TYPE)
 
             class _UT_AddSelectAllMenu:
                 def __init__(self, plugin):
@@ -1361,9 +1387,8 @@ class UiTweaksPlugin(BasePlugin):
                                 pass
                         if adapter is None or listView is None:
                             try:
-                                GetListView = dlg.getClass().getDeclaredMethod("getListView")
-                                GetListView.setAccessible(True)
-                                listView = GetListView.invoke(dlg)
+                                GetListView = _ut_get_declared_method(dlg, "getListView")
+                                listView = GetListView.invoke(dlg) if GetListView is not None else None
                                 adapter = listView.getAdapter() if listView is not None else None
                             except Exception:
                                 pass
@@ -1446,9 +1471,9 @@ class UiTweaksPlugin(BasePlugin):
                                                                 run_on_ui_thread(_attempt_load_more, 200)
                                                             else:
                                                                 try:
-                                                                    update_counters = dlg.getClass().getDeclaredMethod("updateCounters", find_class("java.lang.Boolean").TYPE)
-                                                                    update_counters.setAccessible(True)
-                                                                    update_counters.invoke(dlg, True)
+                                                                    update_counters = _ut_get_declared_method(dlg, "updateCounters", find_class("java.lang.Boolean").TYPE)
+                                                                    if update_counters is not None:
+                                                                        update_counters.invoke(dlg, True)
                                                                 except Exception:
                                                                     pass
                                                     except Exception:
@@ -1489,9 +1514,9 @@ class UiTweaksPlugin(BasePlugin):
 
                                 if done:
                                     try:
-                                        update_counters = dlg.getClass().getDeclaredMethod("updateCounters", find_class("java.lang.Boolean").TYPE)
-                                        update_counters.setAccessible(True)
-                                        update_counters.invoke(dlg, True)
+                                        update_counters = _ut_get_declared_method(dlg, "updateCounters", find_class("java.lang.Boolean").TYPE)
+                                        if update_counters is not None:
+                                            update_counters.invoke(dlg, True)
                                     except Exception:
                                         pass
                                 else:
@@ -3459,17 +3484,65 @@ class UiTweaksPlugin(BasePlugin):
                     d = getattr(self, dict_name)
                     if d:
                         d.clear()
+
+            if hasattr(self, '_class_cache') and self._class_cache:
+                self._class_cache.clear()
+            if hasattr(self, '_field_cache') and self._field_cache:
+                self._field_cache.clear()
+            if hasattr(self, '_method_cache') and self._method_cache:
+                self._method_cache.clear()
         except Exception as e:
             self.log(f"Error cleaning up activity resources: {e}")
 
     def _get_class(self, class_name: str):
-        if class_name in self._class_cache:
-            return self._class_cache[class_name]
+        try:
+            cached = self._class_cache.get(class_name)
+            if cached is not None:
+                return cached
+        except Exception:
+            pass
         
         cls = find_class(class_name)
         if cls is not None:
             self._class_cache[class_name] = cls
         return cls
+
+    def _get_declared_field(self, clazz, field_name: str):
+        key = None
+        try:
+            key = (clazz.getName(), field_name)
+            cached = self._field_cache.get(key)
+            if cached is not None:
+                return cached
+        except Exception:
+            key = None
+        try:
+            f = clazz.getDeclaredField(field_name)
+            f.setAccessible(True)
+            if key is not None:
+                self._field_cache[key] = f
+            return f
+        except Exception:
+            return None
+
+    def _get_declared_method(self, clazz, method_name: str, *signature_classes):
+        key = None
+        try:
+            sig = tuple([c.getName() if hasattr(c, 'getName') else str(c) for c in signature_classes])
+            key = (clazz.getName(), method_name, sig)
+            cached = self._method_cache.get(key)
+            if cached is not None:
+                return cached
+        except Exception:
+            key = None
+        try:
+            m = clazz.getDeclaredMethod(method_name, *signature_classes)
+            m.setAccessible(True)
+            if key is not None:
+                self._method_cache[key] = m
+            return m
+        except Exception:
+            return None
 
 
     def _open_archived_chats(self, context):
@@ -3649,8 +3722,9 @@ class UiTweaksPlugin(BasePlugin):
             ChatActivityClass = self._get_class("org.telegram.ui.ChatActivity")
             if not ChatActivityClass:
                 return
-            destroy_method = ChatActivityClass.getClass().getDeclaredMethod("onFragmentDestroy")
-            destroy_method.setAccessible(True)
+            destroy_method = self._get_declared_method(ChatActivityClass.getClass(), "onFragmentDestroy")
+            if destroy_method is None:
+                return
             self.hook_chat_activity_cleanup_ref = self.hook_method(
                 destroy_method,
                 ChatActivityCleanupHook(self)
@@ -4643,8 +4717,9 @@ class UiTweaksPlugin(BasePlugin):
                 return
             
             from java.lang import Boolean
-            openForwardMethod = ChatActivityClass.getClass().getDeclaredMethod("openForward", Boolean.TYPE)
-            openForwardMethod.setAccessible(True)
+            openForwardMethod = self._get_declared_method(ChatActivityClass.getClass(), "openForward", Boolean.TYPE)
+            if openForwardMethod is None:
+                return
             
             plugin_ref = self
             
@@ -4770,16 +4845,14 @@ class UiTweaksPlugin(BasePlugin):
     def _update_forward_button_text(self, layout):
         def update_text():
             try:
-                forwardButton_field = layout.getClass().getDeclaredField("forwardButton")
-                forwardButton_field.setAccessible(True)
-                button_holder = forwardButton_field.get(layout)
+                forwardButton_field = self._get_declared_field(layout.getClass(), "forwardButton")
+                button_holder = forwardButton_field.get(layout) if forwardButton_field is not None else None
                 
                 if button_holder is None:
                     return
                 
-                textView_field = button_holder.getClass().getDeclaredField("textView")
-                textView_field.setAccessible(True)
-                text_view = textView_field.get(button_holder)
+                textView_field = self._get_declared_field(button_holder.getClass(), "textView")
+                text_view = textView_field.get(button_holder) if textView_field is not None else None
                 
                 if text_view is None:
                     return
@@ -4804,15 +4877,15 @@ class UiTweaksPlugin(BasePlugin):
             
             try:
                 BooleanTYPE = self._get_class("java.lang.Boolean").TYPE
-                updateCountersMethod = DialogsActivityClass.getClass().getDeclaredMethod("updateCounters", BooleanTYPE)
+                updateCountersMethod = self._get_declared_method(DialogsActivityClass.getClass(), "updateCounters", BooleanTYPE)
             except:
                 try:
-                    updateCountersMethod = DialogsActivityClass.getClass().getDeclaredMethod("updateCounters")
+                    updateCountersMethod = self._get_declared_method(DialogsActivityClass.getClass(), "updateCounters")
                 except:
                     IntegerTYPE = self._get_class("java.lang.Integer").TYPE
-                    updateCountersMethod = DialogsActivityClass.getClass().getDeclaredMethod("updateCounters", IntegerTYPE)
-            
-            updateCountersMethod.setAccessible(True)
+                    updateCountersMethod = self._get_declared_method(DialogsActivityClass.getClass(), "updateCounters", IntegerTYPE)
+            if updateCountersMethod is None:
+                return
             
             self.hook_add_to_folder_all_tabs_ref = self.hook_method(
                 updateCountersMethod,
@@ -5653,7 +5726,8 @@ class UiTweaksPlugin(BasePlugin):
             return
         
         from java import jclass
-        method = ChatActivityClass.getClass().getDeclaredMethod(
+        method = self._get_declared_method(
+            ChatActivityClass.getClass(),
             "forwardMessages",
             jclass("java.util.ArrayList"),
             jclass("java.lang.Boolean").TYPE,
@@ -5663,7 +5737,8 @@ class UiTweaksPlugin(BasePlugin):
             jclass("java.lang.Long").TYPE,
             jclass("java.lang.Long").TYPE
         )
-        method.setAccessible(True)
+        if method is None:
+            return
         
         plugin_ref = weakref.ref(self)
         
@@ -5768,8 +5843,9 @@ class UiTweaksPlugin(BasePlugin):
             ChatActivityClass = self._get_class("org.telegram.ui.ChatActivity")
             MessageObjectClass = self._get_class("org.telegram.messenger.MessageObject")
             
-            show_reply_method = ChatActivityClass.getClass().getDeclaredMethod("showFieldPanelForReply", MessageObjectClass)
-            show_reply_method.setAccessible(True)
+            show_reply_method = self._get_declared_method(ChatActivityClass.getClass(), "showFieldPanelForReply", MessageObjectClass)
+            if show_reply_method is None:
+                return
             
             handler_instance = SwipeReplyHook(self)
             self.hook_message_swipe_action_ref = self.hook_method(show_reply_method, handler_instance, priority=10)
@@ -5777,8 +5853,9 @@ class UiTweaksPlugin(BasePlugin):
             try:
                 MotionEventClass = self._get_class("android.view.MotionEvent")
                 ViewClass = self._get_class("android.view.View")
-                dispatch_touch_method = ViewClass.getClass().getDeclaredMethod("dispatchTouchEvent", MotionEventClass)
-                dispatch_touch_method.setAccessible(True)
+                dispatch_touch_method = self._get_declared_method(ViewClass.getClass(), "dispatchTouchEvent", MotionEventClass)
+                if dispatch_touch_method is None:
+                    return
                 
                 motion_handler = MotionEventSwipeHook(self)
                 self.hook_method(dispatch_touch_method, motion_handler, priority=10)
@@ -6328,10 +6405,7 @@ class UiTweaksPlugin(BasePlugin):
                 return
             
             String_class = jclass("java.lang.String")
-            open_search_method = ChatActivityClass.getClass().getDeclaredMethod(
-                "openSearchWithText",
-                String_class
-            )
+            open_search_method = self._get_declared_method(ChatActivityClass.getClass(), "openSearchWithText", String_class)
             
             if open_search_method:
                 self.hook_search_filter_open_search_ref = self.hook_method(open_search_method, SearchFilterOpenSearchHook(self))
@@ -6585,11 +6659,9 @@ class UiTweaksPlugin(BasePlugin):
                 return
             
             BooleanTYPE = self._get_class("java.lang.Boolean").TYPE
-            create_empty_view_method = ChatActivityClass.getClass().getDeclaredMethod(
-                "createEmptyView",
-                BooleanTYPE
-            )
-            create_empty_view_method.setAccessible(True)
+            create_empty_view_method = self._get_declared_method(ChatActivityClass.getClass(), "createEmptyView", BooleanTYPE)
+            if create_empty_view_method is None:
+                return
             
             self.hook_remove_greeting_sticker_ref = self.hook_method(create_empty_view_method, RemoveGreetingStickerHook())
         except Exception as e:
@@ -7160,12 +7232,14 @@ class UiTweaksPlugin(BasePlugin):
     def _hook_dialogs_activity(self):
         try:
             cls = self._get_class("org.telegram.ui.DialogsActivity")
-            method = cls.getClass().getDeclaredMethod("onResume")
+            method = self._get_declared_method(cls.getClass(), "onResume")
+            if method is None:
+                return
             ref = self.hook_method(method, DialogsActivityHook(self))
             self.hook_dialogs_ref = ref
             
             try:
-                destroy_method = cls.getClass().getDeclaredMethod("onDestroy")
+                destroy_method = self._get_declared_method(cls.getClass(), "onDestroy")
                 destroy_ref = self.hook_method(destroy_method, DialogsActivityDestroyHook(self))
                 self.hook_dialogs_destroy_ref = destroy_ref
             except Exception:
@@ -7195,9 +7269,13 @@ class UiTweaksPlugin(BasePlugin):
         try:
             cls = self._get_class("org.telegram.ui.ChatActivity")
             if cls:
-                method = cls.getClass().getDeclaredMethod("isSwipeBackEnabled", 
-                    self._get_class("android.view.MotionEvent").getClass())
-                method.setAccessible(True)
+                method = self._get_declared_method(
+                    cls.getClass(),
+                    "isSwipeBackEnabled",
+                    self._get_class("android.view.MotionEvent").getClass()
+                )
+                if method is None:
+                    return
                 ref = self.hook_method(method, SwipePreventionHook(self))
                 self.hook_swipe_prevention_ref = ref
             pass
@@ -7277,8 +7355,9 @@ class UiTweaksPlugin(BasePlugin):
             if not DialogsActivityClass:
                 return
             
-            updateDialogsHintMethod = DialogsActivityClass.getClass().getDeclaredMethod("updateDialogsHint")
-            updateDialogsHintMethod.setAccessible(True)
+            updateDialogsHintMethod = self._get_declared_method(DialogsActivityClass.getClass(), "updateDialogsHint")
+            if updateDialogsHintMethod is None:
+                return
             
             ref = self.hook_method(updateDialogsHintMethod, BirthdayAlertHook(self))
             self.hook_birthday_alert_ref = ref
@@ -7289,7 +7368,9 @@ class UiTweaksPlugin(BasePlugin):
         try:
             from java import jclass
             cls = jclass("org.telegram.ui.DialogsActivity")
-            method = cls.getClass().getDeclaredMethod("updateProxyButton", jclass("java.lang.Boolean").TYPE, jclass("java.lang.Boolean").TYPE)
+            method = self._get_declared_method(cls.getClass(), "updateProxyButton", jclass("java.lang.Boolean").TYPE, jclass("java.lang.Boolean").TYPE)
+            if method is None:
+                return
             ref = self.hook_method(method, ProxyButtonHook(self))
             self.hook_proxy_button_ref = ref
             pass
@@ -7351,9 +7432,8 @@ class UiTweaksPlugin(BasePlugin):
             fragment = get_last_fragment()
             
             if fragment is not None and fragment.getClass().getSimpleName() == "DialogsActivity":
-                action_bar_field = fragment.getClass().getSuperclass().getDeclaredField("actionBar")
-                action_bar_field.setAccessible(True)
-                action_bar = action_bar_field.get(fragment)
+                action_bar_field = _ut_get_declared_field(fragment.getClass().getSuperclass(), "actionBar")
+                action_bar = action_bar_field.get(fragment) if action_bar_field is not None else None
                 
                 if action_bar is not None:
                     pass
@@ -7382,7 +7462,8 @@ class UiTweaksPlugin(BasePlugin):
             int_class = self._get_class("java.lang.Integer").TYPE
             
             try:
-                method = chat_activity_class.getClass().getDeclaredMethod(
+                method = self._get_declared_method(
+                    chat_activity_class.getClass(),
                     "openLinkInternally",
                     string_class.getClass(),
                     chat_message_cell_class.getClass(),
@@ -7390,7 +7471,8 @@ class UiTweaksPlugin(BasePlugin):
                     int_class,
                     int_class
                 )
-                method.setAccessible(True)
+                if method is None:
+                    return
                 self.hook_open_link_internally_ref = self.hook_method(method, OpenLinkInternallyHook(self))
                 pass
             except Exception as e:
@@ -7554,18 +7636,17 @@ class UiTweaksPlugin(BasePlugin):
                 return
             
             ContextClass = self._get_class("android.content.Context")
-            create_view_method = ChatActivityClass.getClass().getDeclaredMethod(
-                "createView", 
-                ContextClass
-            )
-            create_view_method.setAccessible(True)
+            create_view_method = self._get_declared_method(ChatActivityClass.getClass(), "createView", ContextClass)
+            if create_view_method is None:
+                return
             self.create_view_hook_ref = self.hook_method(
                 create_view_method,
                 CreateViewHook(self)
             )
             
-            destroy_method = ChatActivityClass.getClass().getDeclaredMethod("onFragmentDestroy")
-            destroy_method.setAccessible(True)
+            destroy_method = self._get_declared_method(ChatActivityClass.getClass(), "onFragmentDestroy")
+            if destroy_method is None:
+                return
             self.destroy_hook_ref = self.hook_method(
                 destroy_method,
                 FragmentDestroyHook(self)
@@ -7593,16 +7674,18 @@ class UiTweaksPlugin(BasePlugin):
     def _hook_process_external_url(self):
         try:
             ChatActivityClass = self._get_class("org.telegram.ui.ChatActivity")
-            method = ChatActivityClass.getClass().getDeclaredMethod(
-                "processExternalUrl", 
+            method = self._get_declared_method(
+                ChatActivityClass.getClass(),
+                "processExternalUrl",
                 self._get_class("java.lang.Integer").TYPE,
                 self._get_class("java.lang.String").getClass(),
                 self._get_class("android.text.style.CharacterStyle").getClass(),
                 self._get_class("org.telegram.ui.Cells.ChatMessageCell").getClass(),
                 self._get_class("java.lang.Boolean").TYPE,
-                self._get_class("java.lang.Boolean").TYPE
+                self._get_class("java.lang.Boolean").TYPE,
             )
-            method.setAccessible(True)
+            if method is None:
+                return
             self.hook_process_external_url_ref = self.hook_method(method, ProcessExternalUrlHook(self))
         except Exception as e:
             pass
@@ -7613,16 +7696,18 @@ class UiTweaksPlugin(BasePlugin):
             if getattr(self, 'hook_forward_confirmation_ref', None):
                 return
             chat_cls = self._get_class("org.telegram.ui.ChatActivity")
-            method = chat_cls.getClass().getDeclaredMethod(
+            method = self._get_declared_method(
+                chat_cls.getClass(),
                 "forwardMessages",
                 self._get_class("java.util.ArrayList").getClass(),
                 self._get_class("java.lang.Boolean").TYPE,
                 self._get_class("java.lang.Boolean").TYPE,
                 self._get_class("java.lang.Boolean").TYPE,
                 self._get_class("java.lang.Integer").TYPE,
-                self._get_class("java.lang.Long").TYPE
+                self._get_class("java.lang.Long").TYPE,
             )
-            method.setAccessible(True)
+            if method is None:
+                return
             self.hook_forward_confirmation_ref = self.hook_method(method, ForwardConfirmationHook(self, method))
             pass
         except Exception as e:
@@ -7638,7 +7723,9 @@ class UiTweaksPlugin(BasePlugin):
             if not chat_activity_class or not context_class:
                 return
 
-            create_view_method = chat_activity_class.getClass().getDeclaredMethod("createView", context_class)
+            create_view_method = self._get_declared_method(chat_activity_class.getClass(), "createView", context_class)
+            if create_view_method is None:
+                return
             self.hook_join_confirmation_ref = self.hook_method(create_view_method, JoinConfirmationHook(self))
             
         except Exception as e:
@@ -9576,8 +9663,9 @@ class UiTweaksPlugin(BasePlugin):
             ChatActivityClass = self._get_class("org.telegram.ui.ChatActivity")
             if not ChatActivityClass:
                 return
-            create_view_method = ChatActivityClass.getClass().getDeclaredMethod("createView", jclass("android.content.Context"))
-            create_view_method.setAccessible(True)
+            create_view_method = self._get_declared_method(ChatActivityClass.getClass(), "createView", jclass("android.content.Context"))
+            if create_view_method is None:
+                return
             self.hook_bookmark_create_view_ref = self.hook_method(create_view_method, BookmarkCreateViewHook(self))
         except: pass
     
@@ -10409,12 +10497,12 @@ class DialogCellHook:
                 cell = param.thisObject
                 if cell is not None:
                     try:
-                        open_bot_field = cell.getClass().getDeclaredField("openBot")
-                        open_bot_field.setAccessible(True)
-                        open_bot_value = open_bot_field.get(cell)
+                        open_bot_field = _ut_get_declared_field(cell, "openBot")
+                        open_bot_value = open_bot_field.get(cell) if open_bot_field is not None else None
                         
                         if open_bot_value:  
-                            open_bot_field.set(cell, False)  
+                            if open_bot_field is not None:
+                                open_bot_field.set(cell, False)  
                             
                     except Exception as e:
                         pass
@@ -10895,16 +10983,15 @@ class ProxyButtonHook:
             dialogs_activity = param.thisObject
             
             try:
-                proxy_item_field = dialogs_activity.getClass().getDeclaredField("proxyItem")
-                proxy_item_field.setAccessible(True)
-                proxy_item = proxy_item_field.get(dialogs_activity)
+                proxy_item_field = _ut_get_declared_field(dialogs_activity, "proxyItem")
+                proxy_item = proxy_item_field.get(dialogs_activity) if proxy_item_field is not None else None
                 
                 if proxy_item is not None:
                     proxy_item.setVisibility(0)
                     
-                    proxy_visible_field = dialogs_activity.getClass().getDeclaredField("proxyItemVisible")
-                    proxy_visible_field.setAccessible(True)
-                    proxy_visible_field.set(dialogs_activity, True)
+                    proxy_visible_field = _ut_get_declared_field(dialogs_activity, "proxyItemVisible")
+                    if proxy_visible_field is not None:
+                        proxy_visible_field.set(dialogs_activity, True)
                     
             except Exception as e:
                 pass
@@ -11976,24 +12063,21 @@ class JoinConfirmationHook:
                 return
 
             chat_activity_class = plugin._get_class("org.telegram.ui.ChatActivity")
-            overlay_field = chat_activity_class.getClass().getDeclaredField("bottomOverlayChatText")
-            overlay_field.setAccessible(True)
-            overlay_text_view = overlay_field.get(chat_activity)
+            overlay_field = plugin._get_declared_field(chat_activity_class.getClass(), "bottomOverlayChatText")
+            overlay_text_view = overlay_field.get(chat_activity) if overlay_field is not None else None
             
             if not overlay_text_view:
                 return
 
             view_class = plugin._get_class("android.view.View")
-            listener_info_method = view_class.getClass().getDeclaredMethod("getListenerInfo")
-            listener_info_method.setAccessible(True)
-            listener_info = listener_info_method.invoke(overlay_text_view)
+            listener_info_method = plugin._get_declared_method(view_class.getClass(), "getListenerInfo")
+            listener_info = listener_info_method.invoke(overlay_text_view) if listener_info_method is not None else None
             
             if not listener_info:
                 return
 
-            click_listener_field = listener_info.getClass().getDeclaredField("mOnClickListener")
-            click_listener_field.setAccessible(True)
-            original_listener = click_listener_field.get(listener_info)
+            click_listener_field = plugin._get_declared_field(listener_info.getClass(), "mOnClickListener")
+            original_listener = click_listener_field.get(listener_info) if click_listener_field is not None else None
             
             if original_listener and not isinstance(original_listener, JoinConfirmationClickListener):
                 custom_listener = JoinConfirmationClickListener(original_listener)
