@@ -947,28 +947,42 @@ class QuantaHut(BasePlugin):
     def _is_plugin_beta(self, plugin_id: str) -> bool:
         if not plugin_id:
             return False
-        if plugin_id in self._plugin_beta_cache:
-            return bool(self._plugin_beta_cache[plugin_id])
         try:
             from com.exteragram.messenger.plugins import PluginsController
             engine = PluginsController.getInstance().getPluginEngine(plugin_id)
             if not engine:
-                self._plugin_beta_cache[plugin_id] = False
+                self._plugin_beta_cache[plugin_id] = (None, None, False)
                 return False
             plugin_path = engine.getPluginPath(plugin_id)
             if not plugin_path or not os.path.exists(plugin_path):
-                self._plugin_beta_cache[plugin_id] = False
+                self._plugin_beta_cache[plugin_id] = (plugin_path, None, False)
                 return False
+
+            try:
+                mtime = os.path.getmtime(plugin_path)
+            except Exception:
+                mtime = None
+
+            cached = None
+            try:
+                cached = self._plugin_beta_cache.get(plugin_id)
+            except Exception:
+                cached = None
+
+            if cached is not None and isinstance(cached, tuple) and len(cached) == 3:
+                cached_path, cached_mtime, cached_value = cached
+                if cached_path == plugin_path and cached_mtime == mtime:
+                    return bool(cached_value)
 
             with open(plugin_path, 'r', encoding='utf-8') as f:
                 src = f.read()
 
             m = re.search(r'__beta__\s*=\s*"True"', src)
             value = bool(m)
-            self._plugin_beta_cache[plugin_id] = value
+            self._plugin_beta_cache[plugin_id] = (plugin_path, mtime, value)
             return value
         except Exception as e:
-            self._plugin_beta_cache[plugin_id] = False
+            self._plugin_beta_cache[plugin_id] = (None, None, False)
             return False
 
     def _setup_beta_badge(self):
