@@ -2421,7 +2421,7 @@ class UiTweaksPlugin(BasePlugin):
 
             Text(text=getString("export_settings", "Export Settings"), icon="msg_photo_rotate_solar", on_click=lambda v: self._export_settings(), link_alias="export_settings"),
             
-            Text(text=getString("reset_shared_preferences", "Reset Shared Preferences"), icon="msg_delete", red=True, on_click=lambda v: self._reset_all_preferences, link_alias="reset_shared_preferences"),
+            Text(text=getString("reset_shared_preferences", "Reset Shared Preferences"), icon="msg_delete", red=True, on_click=lambda v: self._reset_all_preferences(), link_alias="reset_shared_preferences"),
             Divider(text=getString("reset_preferences_description", "Reset all application settings including themes, language, notifications, and user configurations. This action cannot be undone.")),
         ])
         
