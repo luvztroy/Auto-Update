@@ -475,12 +475,6 @@ class QuantaHut(BasePlugin):
         setting_getter = self.get_setting
         QuantaHut.instance = self
 
-        self.custom_badges = {}
-        self.badge_hook_ref = None
-        self.developer_hook_ref = None
-        self.extera_hook_ref = None
-        self.TLRPC_User = None
-        self.TLRPC_Chat = None
         
         self.update_available = False
         self.latest_version = None
@@ -944,8 +938,6 @@ class QuantaHut(BasePlugin):
     def setup_hooks(self):
         try:
             _ensure_message_menu_hooks(self)
-            self._setup_custom_badges_hooks()
-            self._setup_custom_badges_hooks()
             
         except Exception as e:
             self.log(f"setup_hooks error: {str(e)}")
@@ -1085,16 +1077,6 @@ class QuantaHut(BasePlugin):
                     pass
         self.hook_refs.clear()
         
-        if self.badge_hook_ref:
-            self.unhook_method(self.badge_hook_ref)
-            self.badge_hook_ref = None
-        if self.developer_hook_ref:
-            self.unhook_method(self.developer_hook_ref)
-            self.developer_hook_ref = None
-        if self.extera_hook_ref:
-            self.unhook_method(self.extera_hook_ref)
-            self.extera_hook_ref = None
-        
         if self.safe_mode_hook_ref:
             self.unhook_method(self.safe_mode_hook_ref)
             self.safe_mode_hook_ref = None
@@ -1124,155 +1106,6 @@ class QuantaHut(BasePlugin):
         
         self.log("Plugin unloading...")
 
-
-    def _setup_custom_badges_hooks(self):
-        try:
-            self._cache_classes()
-            self._setup_badge_hook()
-            self._load_custom_badges()
-        except Exception as e:
-            self.log(f"Error setting up custom badges hooks: {e}")
-            
-    def _cache_classes(self):
-        try:
-            self.TLRPC_User = find_class("org.telegram.tgnet.TLRPC$User")
-            self.TLRPC_Chat = find_class("org.telegram.tgnet.TLRPC$Chat")
-        except Exception as e:
-            pass
-            
-    def _setup_badge_hook(self):
-        try:
-            BadgesController = find_class("com.exteragram.messenger.badges.BadgesController")
-            if not BadgesController:
-                return
-                
-            TLObject = find_class("org.telegram.tgnet.TLObject")
-            method = BadgesController.getClass().getDeclaredMethod("getBadge", TLObject)
-            method.setAccessible(True)
-            
-            self.badge_hook_ref = self.hook_method(method, CustomBadgeHook(self))
-            
-            TLRPC_User = find_class("org.telegram.tgnet.TLRPC$User")
-            if TLRPC_User:
-                is_developer_method = BadgesController.getClass().getDeclaredMethod("isDeveloper", TLRPC_User)
-                is_developer_method.setAccessible(True)
-                self.developer_hook_ref = self.hook_method(is_developer_method, CustomDeveloperHook(self))
-            
-            TLRPC_Chat = find_class("org.telegram.tgnet.TLRPC$Chat")
-            if TLRPC_Chat:
-                is_extera_method = BadgesController.getClass().getDeclaredMethod("isExtera", TLRPC_Chat)
-                is_extera_method.setAccessible(True)
-                self.extera_hook_ref = self.hook_method(is_extera_method, CustomExteraHook(self))
-            
-        except Exception as e:
-            pass
-            
-    def _load_custom_badges(self):
-        try:
-            self.custom_badges.clear()
-            import threading
-            thread = threading.Thread(target=self._fetch_and_process_badges)
-            thread.daemon = True
-            thread.start()
-        except Exception as e:
-            pass
-            
-    def _fetch_and_process_badges(self):
-        try:
-            should_refresh = self._should_refresh_quantaconfig()
-            badges_data = self._load_badges_from_config(force_refresh=should_refresh)
-            if not badges_data:
-                return
-                
-            BadgeDTO = find_class("com.exteragram.messenger.api.dto.BadgeDTO")
-            if not BadgeDTO:
-                return
-                
-            for badge_info in badges_data:
-                chat_id = badge_info.get('chat_id')
-                emoji_id = badge_info.get('emoji_id')
-                text_template = badge_info.get('text_template')
-                
-                if chat_id and emoji_id and text_template:
-                    chat_name = self._get_chat_name(chat_id)
-                    custom_text = text_template.format(chat_name=chat_name)
-                    badge_dto = BadgeDTO(emoji_id, custom_text)
-                    self.custom_badges[chat_id] = badge_dto
-                    
-        except Exception as e:
-            pass
-
-    def _process_badges_from_data(self, badges_data):
-        try:
-            BadgeDTO = find_class("com.exteragram.messenger.api.dto.BadgeDTO")
-            if not BadgeDTO:
-                return
-
-            for badge_info in badges_data:
-                chat_id = badge_info.get('chat_id')
-                emoji_id = badge_info.get('emoji_id')
-                text_template = badge_info.get('text_template')
-                
-                if chat_id and emoji_id and text_template:
-                    chat_name = self._get_chat_name(chat_id)
-                    custom_text = text_template.format(chat_name=chat_name)
-                    badge_dto = BadgeDTO(emoji_id, custom_text)
-                    self.custom_badges[chat_id] = badge_dto
-                    
-        except Exception as e:
-            pass
-            
-    def _load_badges_from_config(self, force_refresh=False):
-        try:
-            cache_key = "quantaconfig_badges"
-            timestamp_key = "quantaconfig_timestamp"
-            
-            if not force_refresh:
-                cached_badges = github_localization.getString_template(cache_key)
-                if cached_badges:
-                    return json.loads(cached_badges)
-            
-            quantahut_log("Downloading QuantaConfig from GitHub...")
-            branch = self._get_selected_branch()
-            github_url = f"https://raw.githubusercontent.com/luvztroy/UiTweaks/refs/heads/{branch}/QuantaConfig.json"
-
-            resp = requests.get(github_url, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
-            badges = (data or {}).get('badges', [])
-
-            github_localization.cache_text_template(cache_key, json.dumps(badges))
-            github_localization.cache_text_template(timestamp_key, str(time.time()))
-            return badges
-
-        except requests.RequestException:
-            return []
-        except json.JSONDecodeError as e:
-            return []
-        except Exception as e:
-            return []
-
-    def _should_refresh_quantaconfig(self, max_age_hours=6):
-        try:
-            timestamp_key = "quantaconfig_timestamp"
-            cached_timestamp = github_localization.getString_template(timestamp_key)
-            
-            if not cached_timestamp:
-                return True
-            
-            cached_time = float(cached_timestamp)
-            current_time = time.time()
-            age_hours = (current_time - cached_time) / 3600
-            
-            if age_hours > max_age_hours:
-                return True
-            
-            return False
-            
-        except Exception as e:
-            quantahut_log(f"Error checking cache age: {e}")
-            return True
-            
     def _get_user_name(self, user_id):
         try:
             from client_utils import get_messages_controller
@@ -2510,56 +2343,6 @@ class QuantaHut(BasePlugin):
 
         return sub_items
 
-class CustomBadgeHook:
-    def __init__(self, plugin):
-        self._plugin_ref = weakref.ref(plugin)
-        
-    def after_hooked_method(self, param):
-        try:
-            plugin = self._plugin_ref()
-            if not plugin:
-                return param.getResult()
-            tl_object = param.args[0]
-            
-            if plugin.TLRPC_Chat and isinstance(tl_object, plugin.TLRPC_Chat) and tl_object.id in plugin.custom_badges:
-                custom_badge = plugin.custom_badges[tl_object.id]
-                param.setResult(custom_badge)
-                return custom_badge
-            
-            return param.getResult()
-        except:
-            return param.getResult()
-
-
-class CustomDeveloperHook:
-    def __init__(self, plugin):
-        self._plugin_ref = weakref.ref(plugin)
-        
-    def after_hooked_method(self, param):
-        return param.getResult()
-
-
-class CustomExteraHook:
-    def __init__(self, plugin):
-        self._plugin_ref = weakref.ref(plugin)
-        
-    def after_hooked_method(self, param):
-        try:
-            plugin = self._plugin_ref()
-            if not plugin:
-                return param.getResult()
-            if param.getResult():
-                return True
-            
-            chat = param.args[0]
-            if chat and hasattr(chat, 'id') and chat.id in plugin.custom_badges:
-                param.setResult(True)
-                return True
-            
-            return param.getResult()
-        except:
-            return param.getResult()
-
 
 class QuantaDeeplinkHook:
     def __init__(self, plugin):
@@ -2582,9 +2365,6 @@ class QuantaDeeplinkHook:
             elif url == "tg://restart":
                 run_on_ui_thread(self._restart_app_direct)
                 param.setResult(None)
-            elif url == "tg://refresh":
-                run_on_ui_thread(self._refresh_badges_direct)
-                param.setResult(None)
         except Exception as e:
             plugin = self._plugin_ref()
             if plugin:
@@ -2592,34 +2372,6 @@ class QuantaDeeplinkHook:
 
     def _restart_app_direct(self):
         restart_app()
-
-    def _refresh_badges_direct(self):
-        plugin_ref = self._plugin_ref
-        def refresh_callback():
-            try:
-                plugin = plugin_ref()
-                if not plugin:
-                    return
-                plugin.log("Force refreshing badges via tg://refresh")
-                plugin.custom_badges.clear()
-                badges_data = plugin._load_badges_from_config(force_refresh=True)
-                if badges_data:
-                    plugin._process_badges_from_data(badges_data)
-                    plugin.log(f"Refreshed {len(plugin.custom_badges)} badges")
-                    current_fragment = get_last_fragment()
-                    BulletinHelper.show_success(getString("refreshed_badges", "Refreshed {count} badges from QuantaConfig").format(count=len(plugin.custom_badges)), current_fragment)
-                else:
-                    plugin.log("No badges data received")
-            except Exception as e:
-                plugin = plugin_ref()
-                if plugin:
-                    plugin.log(f"Error refreshing badges: {e}")
-        
-        import threading
-        thread = threading.Thread(target=refresh_callback)
-        thread.daemon = True
-        thread.start()
-    
 
 
 
