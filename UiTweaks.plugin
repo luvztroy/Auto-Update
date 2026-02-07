@@ -12804,7 +12804,7 @@ def show_duration_selector_sheet(context, on_duration_selected, plugin=None):
                         def __init__(self):
                             super().__init__()
                         
-                        def didSelectDate(self, notify, schedule_date):
+                        def didSelectDate(self, notify, schedule_date, *args):
                             on_duration_selected(schedule_date)
                     
                     date_builder = AlertsCreator.createDatePickerDialog(
