@@ -41,6 +41,7 @@ import uuid
 
 import requests
 from cachetools import LRUCache
+import re
 
 __name__ = "QuantaHut"
 __description__ = "Library for Quanta plugins"
@@ -49,6 +50,7 @@ __id__ = "quantahut"
 __type__ = "plugin"
 __version__ = "1.5.3.2-Beta"
 __author__ = "@luvztroy"
+__beta__ = "True"
 __min_version__ = "12.2.10"
 __priority__ = 1
 __requirements__ = "cachetools"
@@ -170,11 +172,6 @@ class MkStatsCoreClient:
             "timestamp": timestamp or int(time.time()),
         }
         return _post_json(f"{self.api_base}/event", payload)
-
-
-
-
-
 
 @dataclass
 class ExpandableSwitch:
@@ -380,6 +377,10 @@ class QuantaHut(BasePlugin):
         self.link_alias_attached_views = set()
         self.link_alias_custom_container = None
         self.link_alias_current_settings = {}
+
+        self._plugin_beta_cache = LRUCache(maxsize=256)
+
+        self._beta_badge_hook_ref = None
 
         self._es_expanded_states = {}
         self._es_children_map = {}
@@ -938,9 +939,261 @@ class QuantaHut(BasePlugin):
     def setup_hooks(self):
         try:
             _ensure_message_menu_hooks(self)
+            self._setup_beta_badge()
             
         except Exception as e:
             self.log(f"setup_hooks error: {str(e)}")
+
+    def _is_plugin_beta(self, plugin_id: str) -> bool:
+        if not plugin_id:
+            return False
+        if plugin_id in self._plugin_beta_cache:
+            return bool(self._plugin_beta_cache[plugin_id])
+        try:
+            from com.exteragram.messenger.plugins import PluginsController
+            engine = PluginsController.getInstance().getPluginEngine(plugin_id)
+            if not engine:
+                self._plugin_beta_cache[plugin_id] = False
+                return False
+            plugin_path = engine.getPluginPath(plugin_id)
+            if not plugin_path or not os.path.exists(plugin_path):
+                self._plugin_beta_cache[plugin_id] = False
+                return False
+
+            with open(plugin_path, 'r', encoding='utf-8') as f:
+                src = f.read()
+
+            m = re.search(r'__beta__\s*=\s*"True"', src)
+            value = bool(m)
+            self._plugin_beta_cache[plugin_id] = value
+            return value
+        except Exception as e:
+            self._plugin_beta_cache[plugin_id] = False
+            return False
+
+    def _setup_beta_badge(self):
+        try:
+            if self._beta_badge_hook_ref:
+                return
+
+            PluginCell = find_class("com.exteragram.messenger.plugins.ui.components.PluginCell")
+            PluginClass = find_class("com.exteragram.messenger.plugins.Plugin")
+            DelegateClass = find_class("com.exteragram.messenger.plugins.ui.components.PluginCellDelegate")
+            if not PluginCell or not PluginClass or not DelegateClass:
+                return
+
+            set_method = PluginCell.getClass().getDeclaredMethod("set", PluginClass, DelegateClass)
+            set_method.setAccessible(True)
+
+            plugin_ref = weakref.ref(self)
+            TAG_KEY_BETA_BADGE = 0x51484254
+            TAG_KEY_BETA_CONTAINER = 0x51484243
+
+            def _inject_beta_badge(next_to_text_view, center: bool):
+                try:
+                    LinearLayout = jclass("android.widget.LinearLayout")
+                    TextView = jclass("android.widget.TextView")
+                    ViewGroup = jclass("android.view.ViewGroup")
+                    TypedValue = jclass("android.util.TypedValue")
+                    Theme = jclass("org.telegram.ui.ActionBar.Theme")
+                    AndroidUtilities = jclass("org.telegram.messenger.AndroidUtilities")
+                    Gravity = jclass("android.view.Gravity")
+
+                    try:
+                        ColorUtils = jclass("androidx.core.graphics.ColorUtils")
+                    except Exception:
+                        ColorUtils = None
+
+                    parent = next_to_text_view.getParent()
+                    if parent is None:
+                        return None, None
+
+                    try:
+                        idx = parent.indexOfChild(next_to_text_view)
+                    except Exception:
+                        idx = -1
+
+                    container = LinearLayout(next_to_text_view.getContext())
+                    container.setOrientation(LinearLayout.HORIZONTAL)
+                    container.setGravity((Gravity.CENTER if center else Gravity.LEFT) | Gravity.CENTER_VERTICAL)
+
+                    try:
+                        lp = next_to_text_view.getLayoutParams()
+                        container.setLayoutParams(lp)
+                    except Exception:
+                        pass
+
+                    try:
+                        parent.removeView(next_to_text_view)
+                    except Exception:
+                        pass
+
+                    title_lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                    next_to_text_view.setLayoutParams(title_lp)
+                    container.addView(next_to_text_view)
+
+                    badge = TextView(next_to_text_view.getContext())
+                    badge.setText("BETA")
+                    badge.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12)
+                    badge.setTypeface(AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_REGULAR))
+
+                    color = Theme.getColor(Theme.key_featuredStickers_addButton)
+                    badge.setTextColor(color)
+                    bg = color
+                    if ColorUtils is not None:
+                        try:
+                            bg = ColorUtils.setAlphaComponent(color, 30)
+                        except Exception:
+                            bg = color
+                    badge.setBackground(Theme.createRoundRectDrawable(AndroidUtilities.dp(6), bg))
+                    badge.setPadding(AndroidUtilities.dp(6), AndroidUtilities.dp(2), AndroidUtilities.dp(6), AndroidUtilities.dp(2))
+
+                    badge_lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                    badge_lp.leftMargin = AndroidUtilities.dp(6)
+                    badge.setLayoutParams(badge_lp)
+                    badge.setVisibility(8)
+                    container.addView(badge)
+
+                    if idx >= 0:
+                        parent.addView(container, idx)
+                    else:
+                        parent.addView(container)
+
+                    return container, badge
+                except Exception:
+                    return None, None
+
+            class _PluginCellSetHook(MethodHook):
+                def __init__(self):
+                    MethodHook.__init__(self)
+
+                def _ensure_badge(self, cell, name_view):
+                    try:
+                        if hasattr(cell, "getTag"):
+                            existing = cell.getTag(TAG_KEY_BETA_BADGE)
+                            existing_container = cell.getTag(TAG_KEY_BETA_CONTAINER)
+                            if existing is not None and existing_container is not None:
+                                return existing
+                    except Exception:
+                        pass
+
+                    container, badge = _inject_beta_badge(name_view, center=False)
+                    if badge is None:
+                        return None
+
+                    try:
+                        cell.setTag(TAG_KEY_BETA_BADGE, badge)
+                        cell.setTag(TAG_KEY_BETA_CONTAINER, container)
+                    except Exception:
+                        pass
+                    return badge
+
+                def after_hooked_method(hook_self, param):
+                    try:
+                        plugin = plugin_ref()
+                        if not plugin:
+                            return
+                        cell = param.thisObject
+                        if not cell:
+                            return
+                        p = param.args[0]
+                        if not p:
+                            return
+
+                        pid = str(p.getId()) if hasattr(p, 'getId') else None
+                        if not pid:
+                            return
+
+                        name_view = get_private_field(cell, "pluginNameView")
+                        if not name_view:
+                            return
+
+                        badge = hook_self._ensure_badge(cell, name_view)
+                        if not badge:
+                            return
+
+                        is_beta = plugin._is_plugin_beta(pid)
+                        badge.setVisibility(0 if is_beta else 8)
+                    except Exception as e:
+                        pass
+
+            self._beta_badge_hook_ref = self.hook_method(set_method, _PluginCellSetHook())
+        except Exception as e:
+            pass
+
+        try:
+            IBS = find_class("com.exteragram.messenger.plugins.ui.components.InstallPluginBottomSheet")
+            BaseFragment = find_class("org.telegram.ui.ActionBar.BaseFragment")
+            ValidationResult = find_class("com.exteragram.messenger.plugins.PluginsController$PluginValidationResult")
+            InstallParams = find_class("com.exteragram.messenger.plugins.ui.components.InstallPluginBottomSheet$PluginInstallParams")
+            if IBS and BaseFragment and ValidationResult and InstallParams:
+                ctor = IBS.getClass().getDeclaredConstructor(BaseFragment, ValidationResult, InstallParams)
+                ctor.setAccessible(True)
+                plugin_ref = weakref.ref(self)
+
+                class _InstallSheetCtorHook(MethodHook):
+                    def __init__(self):
+                        MethodHook.__init__(self)
+
+                    def after_hooked_method(hook_self, param):
+                        try:
+                            plugin = plugin_ref()
+                            if not plugin:
+                                return
+                            sheet = param.thisObject
+                            if not sheet:
+                                return
+                            vr = param.args[1]
+                            if not vr:
+                                return
+
+                            p = get_private_field(vr, "plugin")
+                            if not p:
+                                return
+                            pid = str(p.getId()) if hasattr(p, 'getId') else None
+                            if not pid or not plugin._is_plugin_beta(pid):
+                                return
+
+                            custom_view = get_private_field(sheet, "customView")
+                            if not custom_view:
+                                return
+
+                            target_name = str(p.getName()) if hasattr(p, 'getName') else ""
+                            if not target_name:
+                                return
+
+                            TextView = jclass("android.widget.TextView")
+                            ViewGroup = jclass("android.view.ViewGroup")
+
+                            def find_textview(root):
+                                try:
+                                    if isinstance(root, TextView):
+                                        t = root.getText()
+                                        if t and str(t) == target_name:
+                                            return root
+                                    if isinstance(root, ViewGroup):
+                                        for i in range(root.getChildCount()):
+                                            child = root.getChildAt(i)
+                                            res = find_textview(child)
+                                            if res:
+                                                return res
+                                except Exception:
+                                    return None
+                                return None
+
+                            tv = find_textview(custom_view)
+                            if not tv:
+                                return
+
+                            _, badge = _inject_beta_badge(tv, center=True)
+                            if badge:
+                                badge.setVisibility(0)
+                        except Exception as e:
+                            pass
+
+                self.hook_refs.append(self.hook_method(ctor, _InstallSheetCtorHook()))
+        except Exception as e:
+            pass
 
 
     def _clear_file_cache(self, view):
@@ -1088,6 +1341,13 @@ class QuantaHut(BasePlugin):
         if self.settings_search_fill_items_hook:
             self.unhook_method(self.settings_search_fill_items_hook)
             self.settings_search_fill_items_hook = None
+
+        if self._beta_badge_hook_ref:
+            try:
+                self.unhook_method(self._beta_badge_hook_ref)
+            except:
+                pass
+            self._beta_badge_hook_ref = None
         
         if self.link_alias_hook_constructor_ref:
             try:
@@ -1103,6 +1363,7 @@ class QuantaHut(BasePlugin):
         self._search_history.clear()
         self._activity_refs.clear()
         self.plugin_types_cache.clear()
+        self._plugin_beta_cache.clear()
         
         self.log("Plugin unloading...")
 
