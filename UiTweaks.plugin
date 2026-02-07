@@ -75,6 +75,7 @@ __type__ = "plugin"
 __description__ = "Well sometimes you just need to tweak things... (requires [QuantaHut](https://t.me/QuantaPlugins/228))"
 __version__ = "1.8.5.1-Beta"
 __author__ = "@luvztroy"
+__beta__ = "True"
 __min_version__ = "12.2.10"
 __icon__ = "luvztroyIcons/13"
 __dependencies__ = ["quantahut"]
