@@ -51,7 +51,7 @@ __type__ = "plugin"
 __version__ = "1.5.3.2-Beta"
 __author__ = "@luvztroy"
 __beta__ = "True"
-__min_version__ = "12.2.10"
+__min_version__ = "12.3.1"
 __priority__ = 1
 __requirements__ = "cachetools"
 
