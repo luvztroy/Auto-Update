@@ -82,11 +82,15 @@ def _normalize_api_base(api_url: str) -> str:
     return base
 
 def _post_json(url: str, payload: dict) -> dict:
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": f"{__name__}/{__version__}"
+    }
     response = requests.post(
         url,
         json=payload,
         timeout=10,
-        headers={"Content-Type": "application/json"},
+        headers=headers,
     )
     response.raise_for_status()
     return response.json()
