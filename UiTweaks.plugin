@@ -88,9 +88,14 @@ CUSTOM_MENTION_ID = 99998
 DEBOUNCE_TIME = 0.5
 MKSTATS_API_URL = os.getenv("MKSTATS_API_URL", "https://mkstats.mk69.su/api")
 MKSTATS_PING_INTERVAL = int(os.getenv("MKSTATS_PING_INTERVAL", "1500"))
+MKSTATS_POW_SOLVE_SECONDS = int(os.getenv("MKSTATS_POW_SOLVE_SECONDS", "6"))
 
 def generate_user_hash(device_id: str, plugin_id: str) -> str:
     payload = f"{device_id}:{plugin_id}:mkstats:v1"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+def generate_device_fingerprint(device_id: str) -> str:
+    payload = f"{device_id}:mkstats:device:v1"
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 def _normalize_api_base(api_url: str) -> str:
@@ -101,30 +106,81 @@ def _normalize_api_base(api_url: str) -> str:
 
 def _post_json(url: str, payload: dict) -> dict:
     import requests
-    response = requests.post(url, json=payload, timeout=10)
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": f"{__name__}/{__version__}"
+    }
+    response = requests.post(
+        url,
+        json=payload,
+        timeout=10,
+        headers=headers,
+    )
     response.raise_for_status()
     return response.json()
 
+def _pow_valid(challenge: str, nonce: str, difficulty: int) -> bool:
+    if not challenge or not nonce or difficulty <= 0:
+        return False
+    prefix = "0" * max(1, int(difficulty))
+    digest = hashlib.sha256(f"{challenge}:{nonce}".encode("utf-8")).hexdigest()
+    return digest.startswith(prefix)
+
+def _solve_pow(challenge: str, difficulty: int, max_seconds: int = MKSTATS_POW_SOLVE_SECONDS) -> str | None:
+    difficulty = max(1, int(difficulty or 0))
+    deadline = time.time() + max(1, int(max_seconds or 0))
+    nonce = 0
+    prefix = "0" * difficulty
+    while time.time() < deadline:
+        candidate = format(nonce, "x")
+        digest = hashlib.sha256(f"{challenge}:{candidate}".encode("utf-8")).hexdigest()
+        if digest.startswith(prefix):
+            return candidate
+        nonce += 1
+    return None
+
 class MkStatsCoreClient:
-    def __init__(self, api_url: str, plugin_id: str, version: str, user_hash: str) -> None:
+    def __init__(self, api_url: str, plugin_id: str, plugin_version: str, user_hash: str, device_fingerprint: str, client_version: str | None = None, client_name: str | None = None) -> None:
         self.api_base = _normalize_api_base(api_url)
         self.plugin_id = plugin_id
-        self.version = version
+        self.plugin_version = plugin_version
+        self.client_version = client_version
+        self.client_name = client_name
         self.user_hash = user_hash
+        self.device_fingerprint = device_fingerprint
 
     def handshake(self) -> dict:
         payload = {
             "plugin_id": self.plugin_id,
-            "version": self.version,
+            "version": self.plugin_version,
+            "client_name": self.client_name,
+            "client_version": self.client_version,
             "user_hash": self.user_hash,
+            "device_fingerprint": self.device_fingerprint,
         }
-        return _post_json(f"{self.api_base}/handshake", payload)
+        response = _post_json(f"{self.api_base}/handshake", payload)
+        token = (response or {}).get("install_token", "")
+        if token:
+            return response
+        pow_required = bool((response or {}).get("pow_required"))
+        pow_challenge = (response or {}).get("pow_challenge")
+        if pow_required and pow_challenge:
+            difficulty = int((response or {}).get("pow_difficulty") or 0)
+            nonce = _solve_pow(pow_challenge, difficulty)
+            if nonce and _pow_valid(pow_challenge, nonce, difficulty):
+                payload["pow_challenge"] = pow_challenge
+                payload["pow_nonce"] = nonce
+                response = _post_json(f"{self.api_base}/handshake", payload)
+        return response
 
     def send_ping(self, install_token: str, timestamp=None) -> dict:
         payload = {
             "plugin_id": self.plugin_id,
-            "version": self.version,
+            "version": self.plugin_version,
+            "client_name": self.client_name,
+            "client_version": self.client_version,
             "user_hash": self.user_hash,
+            "device_fingerprint": self.device_fingerprint,
             "install_token": install_token,
             "timestamp": timestamp or int(time.time()),
         }
@@ -133,8 +189,11 @@ class MkStatsCoreClient:
     def send_event(self, install_token: str, event: str, count: int = 1, timestamp=None) -> dict:
         payload = {
             "plugin_id": self.plugin_id,
-            "version": self.version,
+            "version": self.plugin_version,
+            "client_name": self.client_name,
+            "client_version": self.client_version,
             "user_hash": self.user_hash,
+            "device_fingerprint": self.device_fingerprint,
             "install_token": install_token,
             "event": event,
             "count": count,
@@ -898,6 +957,79 @@ class UiTweaksPlugin(BasePlugin):
             self._mkstats_set_setting("mkstats_device_id", device_id, reload_settings=False)
         return device_id
 
+    def _mkstats_get_client_version(self) -> str:
+        try:
+            from org.telegram.messenger import BuildVars
+            version = getattr(BuildVars, "BUILD_VERSION_STRING", None) or getattr(BuildVars, "BUILD_VERSION", None)
+            if version:
+                return str(version)
+        except Exception:
+            pass
+        try:
+            from org.telegram.messenger import BuildConfig as TgBuildConfig
+            version = getattr(TgBuildConfig, "VERSION_NAME", None)
+            if version:
+                return str(version)
+        except Exception:
+            pass
+        try:
+            from com.radolyn.ayugram import BuildConfig as AyuBuildConfig
+            version = getattr(AyuBuildConfig, "VERSION_NAME", None)
+            if version:
+                return str(version)
+        except Exception:
+            pass
+        try:
+            from com.exteragram.messenger import BuildConfig as ExBuildConfig
+            version = getattr(ExBuildConfig, "VERSION_NAME", None)
+            if version:
+                return str(version)
+        except Exception:
+            pass
+        try:
+            from org.telegram.messenger import ApplicationLoader
+            ctx = ApplicationLoader.applicationContext
+            if ctx:
+                pm = ctx.getPackageManager()
+                pkg = ctx.getPackageName()
+                info = pm.getPackageInfo(pkg, 0)
+                version = getattr(info, "versionName", None) or getattr(info, "versionCode", None)
+                if version:
+                    return str(version)
+        except Exception:
+            pass
+        return "unknown"
+
+    def _mkstats_get_client_name(self) -> str:
+        try:
+            from org.telegram.messenger import ApplicationLoader
+            ctx = ApplicationLoader.applicationContext
+            if ctx:
+                pkg = ctx.getPackageName()
+                if pkg == "com.radolyn.ayugram":
+                    return "AyuGram"
+                if pkg == "com.exteragram.messenger":
+                    return "exteraGram"
+                if pkg == "org.telegram.messenger":
+                    return "Telegram"
+                if pkg:
+                    return str(pkg)
+        except Exception:
+            pass
+        try:
+            from com.radolyn.ayugram import BuildConfig as AyuBuildConfig
+            _ = AyuBuildConfig.VERSION_NAME
+            return "AyuGram"
+        except Exception:
+            pass
+        try:
+            from com.exteragram.messenger import BuildConfig as ExBuildConfig
+            _ = ExBuildConfig.VERSION_NAME
+            return "exteraGram"
+        except Exception:
+            pass
+        return "unknown"
+
     def _mkstats_event(self, event: str, count: int = 1) -> None:
         if not event:
             return
@@ -931,6 +1063,7 @@ class UiTweaksPlugin(BasePlugin):
                     self._mkstats_token = data.get("install_token", "")
                     if self._mkstats_token:
                         self._mkstats_set_setting("mkstats_install_token", self._mkstats_token, reload_settings=False)
+                        self.log("UiTweaks: handshake ok, token stored")
                     else:
                         self.log("UiTweaks: handshake response missing token")
 
@@ -946,7 +1079,10 @@ class UiTweaksPlugin(BasePlugin):
         try:
             device_id = self._mkstats_get_device_id()
             user_hash = generate_user_hash(device_id, __id__)
-            self._mkstats_client = MkStatsCoreClient(MKSTATS_API_URL, __id__, __version__, user_hash)
+            device_fingerprint = generate_device_fingerprint(device_id)
+            client_name = self._mkstats_get_client_name()
+            client_version = self._mkstats_get_client_version()
+            self._mkstats_client = MkStatsCoreClient(MKSTATS_API_URL, __id__, __version__, user_hash, device_fingerprint, client_version, client_name)
             self._mkstats_stop = threading.Event()
             self._mkstats_token = self._mkstats_get_setting("mkstats_install_token", "")
             self._mkstats_thread = threading.Thread(target=self._mkstats_loop, daemon=True)
