@@ -430,6 +430,7 @@ class QuantaHut(BasePlugin):
             Header(text=getString("plugin_engine", "Plugin Engine Features")),
             Switch(key="enable_enhanced_plugin_search", text=getString("enhanced_plugin_search", "Enhanced Plugin Search"), default=True, icon="msg_search", link_alias="enhanced_plugin_search"),
             Switch(key="enable_plugin_filter_pills", text=getString("plugin_filter_pills", "Plugin Filter Pills"), default=True, icon="menu_tag_filter_solar", link_alias="plugin_filter_pills"),
+            Selector(key="pill_shape_style", text=getString("pill_shape_style", "Pills Shape"), items=[getString("pill_shape_pill", "Pill"), getString("pill_shape_chips", "Chips")], default=0, icon="menu_tag_filter_solar", on_change=self._on_pill_shape_changed, link_alias="pill_shape_style"),
             Switch(key="enable_plugin_settings_search", text=getString("plugin_settings_search", "Plugin Settings Search"), default=True, icon="msg_search", link_alias="plugin_settings_search"),
             Switch(key="enable_link_alias_search", text=getString("link_alias_search", "Link alias search"), default=True, icon="msg_link2_solar", link_alias="link_alias_search"),
             Switch(key="enable_safe_mode", text=getString("safe_mode", "Safe Mode"), default=False, icon="msg_secret", link_alias="enable_safe_mode"),
@@ -1729,6 +1730,16 @@ class QuantaHut(BasePlugin):
             self.log(f"Error exporting plugins: {e}")
             BulletinHelper.show_error(getString("failed_to_export_plugins", "Failed to export plugins"))
     
+    def _on_pill_shape_changed(self, value=None):
+        try:
+            self.pills_container = None
+            self.filter_pills = []
+            if self.stored_activity:
+                self._add_filter_pills(self.stored_activity)
+                self._refresh_plugins_list(self.stored_activity)
+        except:
+            pass
+
     def _add_filter_pills(self, activity):
         try:
             if self.pills_container:
@@ -1783,7 +1794,9 @@ class QuantaHut(BasePlugin):
         lp.setMargins(margin, 0, margin, 0)
         pill.setLayoutParams(lp)
         drawable = GradientDrawable()
-        drawable.setCornerRadius(AndroidUtilities.dp(16))
+        pill_shape = self.get_setting("pill_shape_style", 0)
+        corner_radius = AndroidUtilities.dp(16) if pill_shape == 0 else AndroidUtilities.dp(8)
+        drawable.setCornerRadius(corner_radius)
         pill.setBackground(drawable)
         pill.setOnClickListener(self._create_pill_click_listener(filter_id))
         pill.setOnLongClickListener(self._create_pill_long_click_listener(filter_id, pill))
@@ -2026,18 +2039,22 @@ class QuantaHut(BasePlugin):
         try:
             from android.graphics.drawable import GradientDrawable
             from androidx.core.graphics import ColorUtils
+            pill_shape = self.get_setting("pill_shape_style", 0)
+            corner_radius = AndroidUtilities.dp(16) if pill_shape == 0 else AndroidUtilities.dp(8)
             for pill, filter_id in self.filter_pills:
                 is_selected = (filter_id == self.current_filter)
                 if is_selected:
                     pill.setTextColor(Theme.getColor(Theme.key_actionBarTabActiveText))
                     drawable = pill.getBackground()
                     if isinstance(drawable, GradientDrawable):
+                        drawable.setCornerRadius(corner_radius)
                         base_color = Theme.getColor(Theme.key_actionBarTabLine)
                         drawable.setColor(ColorUtils.setAlphaComponent(base_color, 0x1F))
                 else:
                     pill.setTextColor(Theme.getColor(Theme.key_actionBarTabUnactiveText))
                     drawable = pill.getBackground()
                     if isinstance(drawable, GradientDrawable):
+                        drawable.setCornerRadius(corner_radius)
                         drawable.setColor(Theme.getColor(Theme.key_windowBackgroundWhite))
                         drawable.setStroke(AndroidUtilities.dp(1), Theme.getColor(Theme.key_divider))
         except:
