@@ -1188,9 +1188,7 @@ class UiTweaksPlugin(BasePlugin):
         self.hide_all_chats_folder = {}
         self.hook_folder_visibility_ref = None
 
-        self.hook_gift_drawer_reset_ref = None
-        self.hook_gift_drawer_click_ref = None
-        self.hook_gift_drawer_cell_ref = None
+        self.hook_gift_menu_ref = None
         
         self.hook_ai_summarize_create_view_ref = None
         self.hook_ai_summarize_item_click_ref = None
@@ -3643,10 +3641,8 @@ class UiTweaksPlugin(BasePlugin):
             "safe_mode_hook_ref",
             "hook_folder_visibility_ref",
             "hook_search_by_user_id_ref",
-            "hook_gift_drawer_reset_ref",
+            "hook_gift_menu_ref",
             "hook_no_quote_pause_ref",
-            "hook_gift_drawer_click_ref",
-            "hook_gift_drawer_cell_ref",
             "hook_ai_summarize_create_view_ref",
             "hook_ai_summarize_item_click_ref",
             "delete_with_duration_fillitems_ref",
@@ -3858,7 +3854,7 @@ class UiTweaksPlugin(BasePlugin):
                 self._hook_search_by_user_id()
             
             if self.get_setting("quick_access_gift_market", False):
-                self._hook_gift_drawer()
+                self._hook_gift_action_bar_menu()
 
             if self.get_setting("recent_chats_fragment", False):
                 self._hook_recent_chats_fragment()
@@ -6899,203 +6895,73 @@ class UiTweaksPlugin(BasePlugin):
         except Exception as e:
             self.log(f"Error hooking always visible schedule button: {e}")
     
-    def _hook_gift_drawer(self):
+    def _hook_gift_action_bar_menu(self):
         try:
-            DrawerLayoutAdapter = jclass("org.telegram.ui.Adapters.DrawerLayoutAdapter")
-            resetItems_method = DrawerLayoutAdapter.getClass().getDeclaredMethod("resetItems")
-            resetItems_method.setAccessible(True)
-            
-            class DrawerResetHook:
+            ItemOptionsCls = find_class("org.telegram.ui.Components.ItemOptions")
+            DialogsActivityCls = find_class("org.telegram.ui.DialogsActivity")
+            if not ItemOptionsCls or not DialogsActivityCls:
+                return
+            show_method = ItemOptionsCls.getClass().getDeclaredMethod("show")
+            show_method.setAccessible(True)
+
+            class ItemOptionsShowHook:
                 def __init__(self, plugin):
                     self._plugin_ref = weakref.ref(plugin)
-                
-                @hook_filters(HookFilter.Condition("param.thisObject != null"))
-                def after_hooked_method(self, param):
-                    try:
-                        adapter = param.thisObject
-                        items_field = adapter.getClass().getDeclaredField("items")
-                        items_field.setAccessible(True)
-                        items = items_field.get(adapter)
-                        
-                        if items is None:
-                            return
-                        
-                        insert_position = -1
-                        found_bots = False
-                        
-                        for i in range(items.size()):
-                            item = items.get(i)
-                            if item is not None:
-                                try:
-                                    bot_field = item.getClass().getDeclaredField("bot")
-                                    bot_field.setAccessible(True)
-                                    bot = bot_field.get(item)
-                                    if bot is not None:
-                                        found_bots = True
-                                except:
-                                    pass
-                            elif found_bots and item is None:
-                                insert_position = i
-                                break
-                        
-                        if insert_position == -1:
-                            insert_position = 0
-                        
-                        current_account = UserConfig.selectedAccount
-                        if not UserConfig.getInstance(current_account).isClientActivated():
-                            return
-                        
-                        Item = jclass("org.telegram.ui.Adapters.DrawerLayoutAdapter$Item")
-                        gift_icon = R_tg.drawable.menu_gift
-                        gift_text = LocaleController.getString(R_tg.string.Gift2TitleSelf1)
-                        gift_item = Item(1003, gift_text, gift_icon)
-                        items.add(insert_position, gift_item)
-                        
-                    except Exception:
-                        pass
-            
-            self.hook_gift_drawer_reset_ref = self.hook_method(resetItems_method, DrawerResetHook(self))
-            self._hook_gift_drawer_click()
-            self._hook_gift_drawer_cell()
-            
-        except Exception:
-            pass
-    
-    def _hook_gift_drawer_click(self):
-        try:
-            DrawerLayoutAdapter = jclass("org.telegram.ui.Adapters.DrawerLayoutAdapter")
-            click_method = DrawerLayoutAdapter.getClass().getDeclaredMethod("click", 
-                jclass("android.view.View"), 
-                jclass("java.lang.Integer").TYPE)
-            click_method.setAccessible(True)
-            
-            class DrawerClickHook:
-                def __init__(self, plugin):
-                    self._plugin_ref = weakref.ref(plugin)
-                
-                @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0), HookFilter.ArgumentNotNull(1))
+
                 def before_hooked_method(self, param):
                     try:
-                        adapter = param.thisObject
-                        position = int(param.args[1])
-                        
-                        getId_method = adapter.getClass().getDeclaredMethod("getId", jclass("java.lang.Integer").TYPE)
-                        getId_method.setAccessible(True)
-                        
-                        from java.lang import Integer
-                        item_id = getId_method.invoke(adapter, Integer(position))
-                        
-                        if item_id == 1003:
-                            self._open_gift_sheet()
-                            param.setResult(True)
-                            
+                        plugin = self._plugin_ref()
+                        if not plugin or not plugin.get_setting("quick_access_gift_market", False):
+                            return
+                        io = param.thisObject
+                        if not io:
+                            return
+                        frag_field = io.getClass().getDeclaredField("fragment")
+                        frag_field.setAccessible(True)
+                        frag = frag_field.get(io)
+                        if frag is None or not DialogsActivityCls.getClass().isInstance(frag):
+                            return
+                        plugin_ref = plugin
+
+                        class GiftRunnable(dynamic_proxy(jclass("java.lang.Runnable"))):
+                            def run(self_r):
+                                plugin_ref._open_gift_sheet()
+
+                        io.addGap()
+                        io.add(R_tg.drawable.menu_gift, LocaleController.getString(R_tg.string.Gift2TitleSelf1), False, GiftRunnable())
                     except Exception:
                         pass
-                
-                def _open_gift_sheet(self):
-                    try:
-                        def open_sheet():
-                            try:
-                                current_account = UserConfig.selectedAccount
-                                client_user_id = UserConfig.getInstance(current_account).getClientUserId()
-                                
-                                if not hasattr(LaunchActivity, 'instance') or LaunchActivity.instance is None:
-                                    return
-                                
-                                launch_activity = LaunchActivity.instance
-                                
-                                getSafeLastFragment_method = launch_activity.getClass().getDeclaredMethod("getSafeLastFragment")
-                                getSafeLastFragment_method.setAccessible(True)
-                                last_fragment = getSafeLastFragment_method.invoke(launch_activity)
-                                
-                                if last_fragment is None or last_fragment.getContext() is None:
-                                    return
-                                
-                                GiftSheet = jclass("org.telegram.ui.Gifts.GiftSheet")
-                                gift_sheet = GiftSheet(
-                                    last_fragment.getContext(),
-                                    current_account,
-                                    client_user_id,
-                                    None,
-                                    None
-                                )
-                                gift_sheet.show()
-                                
-                            except Exception:
-                                pass
-                        
-                        run_on_ui_thread(open_sheet)
-                        
-                    except Exception:
-                        pass
-            
-            self.hook_gift_drawer_click_ref = self.hook_method(click_method, DrawerClickHook(self))
-            
+
+            self.hook_gift_menu_ref = self.hook_method(show_method, ItemOptionsShowHook(self))
         except Exception:
             pass
-    
-    def _hook_gift_drawer_cell(self):
+
+    def _open_gift_sheet(self):
         try:
-            DrawerActionCell = jclass("org.telegram.ui.Cells.DrawerActionCell")
-            onDraw_method = DrawerActionCell.getClass().getDeclaredMethod("onDraw", jclass("android.graphics.Canvas"))
-            onDraw_method.setAccessible(True)
-            
-            class DrawerCellDrawHook:
-                def __init__(self, plugin):
-                    self._plugin_ref = weakref.ref(plugin)
-                
-                @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
-                def after_hooked_method(self, param):
-                    try:
-                        cell = param.thisObject
-                        canvas = param.args[0]
-                        
-                        currentId_field = cell.getClass().getDeclaredField("currentId")
-                        currentId_field.setAccessible(True)
-                        current_id = currentId_field.getInt(cell)
-                        
-                        if current_id != 1003:
-                            return
-                        
-                        from org.telegram.ui.Stars import StarsController
-                        from android.graphics import RectF
-                        
-                        current_account = UserConfig.selectedAccount
-                        balance = StarsController.getInstance(current_account).getBalance()
-                        if balance is None:
-                            return
-                        
-                        counter = balance.amount
-                        text = str(counter)
-                        
-                        star_drawable = cell.getContext().getResources().getDrawable(R_tg.drawable.star_small_inner).mutate()
-                        star_size = AndroidUtilities.dp(17)
-                        
-                        countTop = AndroidUtilities.dp(12.5)
-                        textWidth = int(Theme.dialogs_countTextPaint.measureText(text))
-                        countWidth = max(AndroidUtilities.dp(10), textWidth + star_size + AndroidUtilities.dp(4))
-                        countLeft = cell.getMeasuredWidth() - countWidth - AndroidUtilities.dp(25)
-                        
-                        x = countLeft - AndroidUtilities.dp(5.5)
-                        
-                        rect = RectF()
-                        rect.set(x, countTop, x + countWidth + AndroidUtilities.dp(14), countTop + AndroidUtilities.dp(23))
-                        
-                        canvas.drawRoundRect(rect, 11.5 * AndroidUtilities.density, 11.5 * AndroidUtilities.density, Theme.dialogs_countGrayPaint)
-                        
-                        text_x = rect.left + (rect.width() - textWidth - star_size - AndroidUtilities.dp(4)) / 2
-                        canvas.drawText(text, text_x, countTop + AndroidUtilities.dp(16), Theme.dialogs_countTextPaint)
-                        
-                        star_x = int(text_x + textWidth + AndroidUtilities.dp(4))
-                        star_y = int(countTop + (AndroidUtilities.dp(23) - star_size) / 2)
-                        star_drawable.setBounds(star_x, star_y, star_x + star_size, star_y + star_size)
-                        star_drawable.draw(canvas)
-                        
-                    except Exception:
-                        pass
-            
-            self.hook_gift_drawer_cell_ref = self.hook_method(onDraw_method, DrawerCellDrawHook(self))
-            
+            def open_sheet():
+                try:
+                    current_account = UserConfig.selectedAccount
+                    client_user_id = UserConfig.getInstance(current_account).getClientUserId()
+                    if not hasattr(LaunchActivity, 'instance') or LaunchActivity.instance is None:
+                        return
+                    launch_activity = LaunchActivity.instance
+                    getSafeLastFragment_method = launch_activity.getClass().getDeclaredMethod("getSafeLastFragment")
+                    getSafeLastFragment_method.setAccessible(True)
+                    last_fragment = getSafeLastFragment_method.invoke(launch_activity)
+                    if last_fragment is None or last_fragment.getContext() is None:
+                        return
+                    GiftSheet = jclass("org.telegram.ui.Gifts.GiftSheet")
+                    gift_sheet = GiftSheet(
+                        last_fragment.getContext(),
+                        current_account,
+                        client_user_id,
+                        None,
+                        None
+                    )
+                    gift_sheet.show()
+                except Exception:
+                    pass
+            run_on_ui_thread(open_sheet)
         except Exception:
             pass
     
