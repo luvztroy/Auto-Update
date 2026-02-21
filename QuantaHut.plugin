@@ -767,17 +767,19 @@ class QuantaHut(BasePlugin):
                         
                         current_filter = quantahut.current_filter
                         if current_filter != 0:
+                            from org.telegram.messenger import AndroidUtilities
+                            from org.telegram.ui.Components import UItem
                             plugins_controller = PluginsController.getInstance()
                             plugin_items = []
-                            other_items = []
+                            structural_items = []
                             
                             for i in range(items.size()):
                                 item = items.get(i)
                                 plugin = quantahut._get_plugin_from_item(item)
                                 if plugin:
                                     plugin_items.append(item)
-                                else:
-                                    other_items.append(item)
+                                elif item.viewType != 28: # 28 is UniversalAdapter.VIEW_TYPE_SPACE
+                                    structural_items.append(item)
                             
                             filtered_items = []
                             for item in plugin_items:
@@ -798,10 +800,14 @@ class QuantaHut(BasePlugin):
                                     filtered_items.append(item)
                             
                             items.clear()
-                            for item in other_items:
+                            for item in structural_items:
                                 items.add(item)
+                            space_dp8 = UItem.asSpace(AndroidUtilities.dp(8))
+                            space_dp8.transparent = True
+                            items.add(space_dp8)
                             for item in filtered_items:
                                 items.add(item)
+                                items.add(UItem.asSpace(AndroidUtilities.dp(8)))
                         
                         if quantahut.pills_container and items.size() > 0 and quantahut.get_setting("enable_plugin_filter_pills", True):
                             from org.telegram.ui.Components import UItem
