@@ -16,7 +16,7 @@ from base_plugin import BasePlugin, MenuItemData, MenuItemType, HookResult, Hook
 from hook_utils import find_class, get_private_field, set_private_field
 from java import dynamic_proxy, jclass, jlong
 
-from ui.settings import Header, Switch, Divider, Selector, Text, EditText
+from ui.settings import Header, Switch, Divider, Selector, Text, EditText, Custom
 from ui.bulletin import BulletinHelper
 from ui.alert import AlertDialogBuilder
 
@@ -63,7 +63,7 @@ try:
     if hasattr(quantahut, '__version__') and Version(str(quantahut.__version__)) < Version("1.5.2"):
         raise Exception(f"QuantaHut {quantahut.__version__} is too old. Need 1.5.2+")
     from quantahut import export_plugin_settings
-    from ui.quanta import MultiSelector, BottomSheet, ExpandableSwitch
+    from ui.quanta import MultiSelector, BottomSheet
 except ImportError:
     raise Exception("QuantaHut is required but not installed. Install it first. (Don't report this as a bug - it's your fault.)")
 
@@ -1338,6 +1338,7 @@ class UiTweaksPlugin(BasePlugin):
         
         self.current_mode = self.get_setting("forward_mode", "forward")
         
+        self._es_expanded_states = {}
         self._send_comments_bypass = False
         self._send_comments_pending = {}
         
@@ -2214,19 +2215,18 @@ class UiTweaksPlugin(BasePlugin):
             
             
             Header(text=getString("navigation_controls", "Navigation Controls")),
-            ExpandableSwitch(
-                key="navigation_controls_enabled",
-                text=getString("navigation_controls_switch", "Swipe Gesture Controls"),
-                collapsed=True,
-                children=[
-                    Switch(key="prevent_swipe_while_editing", text=getString("prevent_swipe_while_editing", "While Editing"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="prevent_swipe_while_typing", text=getString("prevent_swipe_while_typing", "While Typing"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="disable_article_viewer_swipe", text=getString("disable_article_viewer_swipe", "Article Viewer"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="prevent_webapp_swipe_down", text=getString("prevent_webapp_swipe_down", "Webapp Bots"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="disable_topics_swipe", text=getString("disable_topics_swipe", "Topics"), default=False, on_change=lambda v: self._apply_hooks()),
-                ],
-                link_alias="navigation_controls_enabled"
-            ),
+            self._make_expandable_switch("navigation_controls_enabled", getString("navigation_controls_switch", "Swipe Gesture Controls"), [
+                ("prevent_swipe_while_editing", False),
+                ("prevent_swipe_while_typing", False),
+                ("disable_article_viewer_swipe", False),
+                ("prevent_webapp_swipe_down", False),
+                ("disable_topics_swipe", False),
+            ], link_alias="navigation_controls_enabled"),
+            self._make_es_child("prevent_swipe_while_editing", getString("prevent_swipe_while_editing", "While Editing"), False) if self._es_is_expanded("navigation_controls_enabled") else None,
+            self._make_es_child("prevent_swipe_while_typing", getString("prevent_swipe_while_typing", "While Typing"), False) if self._es_is_expanded("navigation_controls_enabled") else None,
+            self._make_es_child("disable_article_viewer_swipe", getString("disable_article_viewer_swipe", "Article Viewer"), False) if self._es_is_expanded("navigation_controls_enabled") else None,
+            self._make_es_child("prevent_webapp_swipe_down", getString("prevent_webapp_swipe_down", "Webapp Bots"), False) if self._es_is_expanded("navigation_controls_enabled") else None,
+            self._make_es_child("disable_topics_swipe", getString("disable_topics_swipe", "Topics"), False) if self._es_is_expanded("navigation_controls_enabled") else None,
             Divider(text=getString("navigation_controls_info", "This will prevent the Telegram navigation gestures to work from these scenarios.")),
             
             Header(text=getString("quick_access", "Quick Access")),
@@ -2325,40 +2325,41 @@ class UiTweaksPlugin(BasePlugin):
         
         settings.extend([
             Header(text=getString("message_reactions", "Message Reactions")),
-            ExpandableSwitch(
-                key="hide_star_reaction",
-                text=getString("hide_star_reaction", "Hide Star Reaction"),
-                collapsed=True,
-                children=[
-                    Switch(key="star_reaction_hide_menu", text=getString("item_reaction_menu", "Reaction Menu"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="star_reaction_hide_cells", text=getString("item_message_cells", "Message Cells"), default=False, on_change=lambda v: self._apply_hooks()),
-                ],
-                link_alias="hide_star_reaction"
-            ),
+            self._make_expandable_switch("hide_star_reaction", getString("hide_star_reaction", "Hide Star Reaction"), [
+                ("star_reaction_hide_menu", False),
+                ("star_reaction_hide_cells", False),
+            ], link_alias="hide_star_reaction"),
+            self._make_es_child("star_reaction_hide_menu", getString("item_reaction_menu", "Reaction Menu"), False) if self._es_is_expanded("hide_star_reaction") else None,
+            self._make_es_child("star_reaction_hide_cells", getString("item_message_cells", "Message Cells"), False) if self._es_is_expanded("hide_star_reaction") else None,
             self.Quanta_text(text=getString("pinned_reactions", "Pinned Reactions"),on_click=lambda v: self._open_pinned_reactions_settings_ui(),link_alias="pinned_reactions"),
         ])
         
         settings.extend([
             Header(text=getString("message_actions", "Message Actions")),
-            ExpandableSwitch(
-                key="enable_confirmation_settings",
-                text=getString("enable_confirmation_settings", "Confirmation Settings"),
-                collapsed=True,
-                children=[
-                    Switch(key="confirm_stickers", text=getString("item_stickers", "Stickers"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="confirm_voice", text=getString("item_voice_messages", "Voice Messages"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="confirm_commands", text=getString("item_bot_commands", "Bot Commands"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="confirm_round_video", text=getString("item_video_messages", "Video Messages"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="confirm_video_file", text=getString("item_video_files", "Video Files"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="confirm_photo", text=getString("item_photos", "Photos"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="confirm_document", text=getString("item_documents", "Documents"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="confirm_gif", text=getString("item_gifs", "GIFs"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="confirm_forward", text=getString("item_forward", "Forward"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="confirm_join_chat", text=getString("item_join_chat", "Join Chat"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="confirm_external_links", text=getString("item_external_links", "External Links"), default=False, on_change=lambda v: self._apply_hooks()),
-                ],
-                link_alias="enable_confirmation_settings"
-            ),
+            self._make_expandable_switch("enable_confirmation_settings", getString("enable_confirmation_settings", "Confirmation Settings"), [
+                ("confirm_stickers", False),
+                ("confirm_voice", False),
+                ("confirm_commands", False),
+                ("confirm_round_video", False),
+                ("confirm_video_file", False),
+                ("confirm_photo", False),
+                ("confirm_document", False),
+                ("confirm_gif", False),
+                ("confirm_forward", False),
+                ("confirm_join_chat", False),
+                ("confirm_external_links", False),
+            ], link_alias="enable_confirmation_settings"),
+            self._make_es_child("confirm_stickers", getString("item_stickers", "Stickers"), False) if self._es_is_expanded("enable_confirmation_settings") else None,
+            self._make_es_child("confirm_voice", getString("item_voice_messages", "Voice Messages"), False) if self._es_is_expanded("enable_confirmation_settings") else None,
+            self._make_es_child("confirm_commands", getString("item_bot_commands", "Bot Commands"), False) if self._es_is_expanded("enable_confirmation_settings") else None,
+            self._make_es_child("confirm_round_video", getString("item_video_messages", "Video Messages"), False) if self._es_is_expanded("enable_confirmation_settings") else None,
+            self._make_es_child("confirm_video_file", getString("item_video_files", "Video Files"), False) if self._es_is_expanded("enable_confirmation_settings") else None,
+            self._make_es_child("confirm_photo", getString("item_photos", "Photos"), False) if self._es_is_expanded("enable_confirmation_settings") else None,
+            self._make_es_child("confirm_document", getString("item_documents", "Documents"), False) if self._es_is_expanded("enable_confirmation_settings") else None,
+            self._make_es_child("confirm_gif", getString("item_gifs", "GIFs"), False) if self._es_is_expanded("enable_confirmation_settings") else None,
+            self._make_es_child("confirm_forward", getString("item_forward", "Forward"), False) if self._es_is_expanded("enable_confirmation_settings") else None,
+            self._make_es_child("confirm_join_chat", getString("item_join_chat", "Join Chat"), False) if self._es_is_expanded("enable_confirmation_settings") else None,
+            self._make_es_child("confirm_external_links", getString("item_external_links", "External Links"), False) if self._es_is_expanded("enable_confirmation_settings") else None,
             self.Quanta_switch("enable_reply_private_chat", getString("enable_reply_private_chat", "Enable Reply in Private Chat"), False, lambda v: self._update_reply_private_chat_menu_item(), link_alias="enable_reply_private_chat"),
 
             self.Quanta_switch("send_comments_after_forward", getString("send_comments_after_forward", "Send Comments After Forward"), False, lambda v: self._apply_hooks(), link_alias="send_comments_after_forward"),
@@ -2372,16 +2373,12 @@ class UiTweaksPlugin(BasePlugin):
         
         settings.extend([
             Header(text=getString("media_playback", "Media Playback")),
-            ExpandableSwitch(
-                key="dont_auto_play_enabled",
-                text=getString("dont_auto_play_enabled", "Don't Auto Play Next"),
-                collapsed=True,
-                children=[
-                    Switch(key="dont_auto_play_next_voice", text=getString("dont_auto_play_voice", "Voice Messages"), default=False, on_change=lambda v: self._apply_hooks()),
-                    Switch(key="dont_auto_play_next_video", text=getString("dont_auto_play_video", "Video Messages"), default=False, on_change=lambda v: self._apply_hooks()),
-                ],
-                link_alias="dont_auto_play_enabled"
-            ),
+            self._make_expandable_switch("dont_auto_play_enabled", getString("dont_auto_play_enabled", "Don't Auto Play Next"), [
+                ("dont_auto_play_next_voice", False),
+                ("dont_auto_play_next_video", False),
+            ], link_alias="dont_auto_play_enabled"),
+            self._make_es_child("dont_auto_play_next_voice", getString("dont_auto_play_voice", "Voice Messages"), False) if self._es_is_expanded("dont_auto_play_enabled") else None,
+            self._make_es_child("dont_auto_play_next_video", getString("dont_auto_play_video", "Video Messages"), False) if self._es_is_expanded("dont_auto_play_enabled") else None,
             Divider(text=getString("dont_auto_play_info", "Prevents automatic playback of the next voice or video message in a chat, giving you control over when media plays.")),
             self.Quanta_switch("enable_adaptive_audio_length", getString("enable_adaptive_audio_length", "Adaptive Audio Message Length"), False, lambda v: self._apply_hooks(), link_alias="enable_adaptive_audio_length"),
             Divider(text=getString("adaptive_audio_length_info", "The audio message bubble length will depend on the recording duration and automatically adjust to the screen width.")) if self.get_setting("enable_adaptive_audio_length", False) else None,
@@ -2459,6 +2456,59 @@ class UiTweaksPlugin(BasePlugin):
         
         
         return settings
+
+    def _es_is_expanded(self, key):
+        return self._es_expanded_states.get(key, False)
+
+    def _es_toggle_and_reload(self, key):
+        self._es_expanded_states[key] = not self._es_expanded_states.get(key, False)
+        self.set_setting("_es_dummy", not self.get_setting("_es_dummy", False), reload_settings=True)
+
+    def _make_expandable_switch(self, key, text, children, link_alias=None):
+        try:
+            plugin_id = __id__
+            checked_count = 0
+            total_count = len(children)
+            for child_key, child_default in children:
+                if self.get_setting(child_key, child_default):
+                    checked_count += 1
+            subtext = f"{checked_count}/{total_count}"
+            is_checked = checked_count > 0
+            is_expanded = self._es_is_expanded(key)
+
+            def switch_click_handler(view, k=key, ch=children):
+                currently_any_checked = any(self.get_setting(ck, cd) for ck, cd in ch)
+                new_val = not currently_any_checked
+                for ck, _ in ch:
+                    self.set_setting(ck, new_val, reload_settings=False)
+                self._apply_hooks()
+                self.set_setting("_es_dummy", not self.get_setting("_es_dummy", False), reload_settings=True)
+
+            switch_listener = OnClickListener(switch_click_handler)
+            item = UItem.asExteraExpandableSwitch(hash(key) & 0x7FFFFFFF, text, subtext, switch_listener)
+            item.setChecked(is_checked)
+            item.setCollapsed(not is_expanded)
+
+            return Custom(item=item, on_click=lambda v, k=key: self._es_toggle_and_reload(k), link_alias=link_alias)
+        except Exception:
+            return None
+
+    def _make_es_child(self, key, text, default=False):
+        try:
+            is_checked = self.get_setting(key, default)
+            item = UItem.asRoundCheckbox(hash(key) & 0x7FFFFFFF, text)
+            item.setChecked(is_checked)
+            item.pad()
+
+            def on_child_click(view, k=key, d=default):
+                current = self.get_setting(k, d)
+                self.set_setting(k, not current, reload_settings=False)
+                self._apply_hooks()
+                self.set_setting("_es_dummy", not self.get_setting("_es_dummy", False), reload_settings=True)
+
+            return Custom(item=item, on_click=on_child_click)
+        except Exception:
+            return None
 
     def Quanta_switch(self, key, text, default=True, on_change=None, subtext=None, link_alias=None, on_long_click=None, icon=None):
         try:
