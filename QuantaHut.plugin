@@ -177,15 +177,7 @@ class MkStatsCoreClient:
         }
         return _post_json(f"{self.api_base}/event", payload)
 
-@dataclass
-class ExpandableSwitch:
-    key: str
-    text: str
-    children: List[Any] = field(default_factory=list)
-    collapsed: bool = True
-    on_switch_click: Callable = field(default=None, compare=False, repr=False)
-    link_alias: str = None
-    type: str = field(default="expandable_switch", init=False)
+
 
 
 class QuantaHut(BasePlugin):
@@ -386,13 +378,7 @@ class QuantaHut(BasePlugin):
 
         self._beta_badge_hook_ref = None
 
-        self._es_expanded_states = {}
-        self._es_children_map = {}
-        self._es_children_defaults = {}
-        self._es_children_callbacks = {}
-        self._es_children_data = {}
-        self._es_switch_callbacks = {}
-        self._es_id_to_key = {}
+
 
     
     def log(self, message: str):
@@ -512,7 +498,7 @@ class QuantaHut(BasePlugin):
         if self.get_setting("enable_safe_mode", False):
             self._hook_safe_mode()
         
-        self._setup_expandable_switch()
+        self._setup_ui_quanta_module()
         
         self.log("QuantaHut initialized")
 
@@ -5188,334 +5174,15 @@ QuantaHut._link_alias_hide_popup = _link_alias_hide_popup
 QuantaHut._link_alias_invalidate_settings_cache = _link_alias_invalidate_settings_cache
 
 
-def _setup_expandable_switch(self):
+def _setup_ui_quanta_module(self):
     import sys
     import types
     
     if 'ui.quanta' not in sys.modules:
         quanta_module = types.ModuleType('ui.quanta')
         sys.modules['ui.quanta'] = quanta_module
-    sys.modules['ui.quanta'].ExpandableSwitch = ExpandableSwitch
     sys.modules['ui.quanta'].MultiSelector = MultiSelector
     sys.modules['ui.quanta'].BottomSheet = BottomSheet
-    
-    try:
-        from base_plugin import MethodHook
-        PythonPluginsEngine = find_class("com.exteragram.messenger.plugins.PythonPluginsEngine")
-        if PythonPluginsEngine:
-            ListClass = jclass("java.util.List")
-            method = PythonPluginsEngine.getClass().getDeclaredMethod("parsePySettingDefinitions", ListClass)
-            method.setAccessible(True)
-            self.hook_refs.append(self.hook_method(method, _ESParseHook(self)))
-    except Exception:
-        pass
-    
-    try:
-        PluginSettingsActivity = find_class("com.exteragram.messenger.plugins.ui.PluginSettingsActivity")
-        if PluginSettingsActivity:
-            ArrayList = jclass("java.util.ArrayList")
-            UniversalAdapter = jclass("org.telegram.ui.Components.UniversalAdapter")
-            method = PluginSettingsActivity.getClass().getDeclaredMethod("fillItems", ArrayList, UniversalAdapter)
-            method.setAccessible(True)
-            self.hook_refs.append(self.hook_method(method, _ESFillItemsHook(self)))
-    except Exception:
-        pass
-    
-    try:
-        PluginSettingsActivity = find_class("com.exteragram.messenger.plugins.ui.PluginSettingsActivity")
-        if PluginSettingsActivity:
-            UItem = jclass("org.telegram.ui.Components.UItem")
-            ViewClass = jclass("android.view.View")
-            IntType = jclass("java.lang.Integer").TYPE
-            FloatType = jclass("java.lang.Float").TYPE
-            method = PluginSettingsActivity.getClass().getDeclaredMethod("onClick", UItem, ViewClass, IntType, FloatType, FloatType)
-            method.setAccessible(True)
-            self.hook_refs.append(self.hook_method(method, _ESOnClickHook(self)))
-    except Exception:
-        pass
 
 
-def _es_toggle_expanded(self, key):
-    self._es_expanded_states[key] = not self._es_expanded_states.get(key, False)
-
-
-def _es_is_expanded(self, key):
-    return self._es_expanded_states.get(key, False)
-
-
-class _ESParseHook:
-    def __init__(self, plugin):
-        self.plugin_ref = weakref.ref(plugin)
-
-    def after_hooked_method(self, param):
-        plugin = self.plugin_ref()
-        if not plugin:
-            return
-        try:
-            py_defs = param.args[0]
-            result = param.getResult()
-            if not py_defs or not result:
-                return
-
-            from com.exteragram.messenger.plugins.models import SwitchSetting
-
-            expandable_indices = []
-            for i in range(py_defs.size()):
-                py_def = py_defs.get(i)
-                if py_def and getattr(py_def, 'type', None) == "expandable_switch":
-                    expandable_indices.append(i)
-
-            if not expandable_indices:
-                return
-
-            new_items = []
-            result_idx = 0
-
-            for i in range(py_defs.size()):
-                py_def = py_defs.get(i)
-                if not py_def:
-                    continue
-
-                def_type = getattr(py_def, 'type', None)
-
-                if def_type == "expandable_switch":
-                    key = getattr(py_def, 'key', None)
-                    text = getattr(py_def, 'text', None)
-                    collapsed = getattr(py_def, 'collapsed', True)
-                    children = getattr(py_def, 'children', [])
-                    on_switch_click = getattr(py_def, 'on_switch_click', None)
-                    link_alias = getattr(py_def, 'link_alias', None)
-
-                    if not key or not text:
-                        continue
-
-                    if key not in plugin._es_expanded_states:
-                        plugin._es_expanded_states[key] = not collapsed
-
-                    child_list = []
-                    child_data = []
-                    for child in children:
-                        child_key = getattr(child, 'key', None)
-                        child_text = getattr(child, 'text', None)
-                        child_default = getattr(child, 'default', False)
-                        child_subtext = getattr(child, 'subtext', None)
-                        child_icon = getattr(child, 'icon', None)
-                        child_on_change = getattr(child, 'on_change', None)
-                        child_link_alias = getattr(child, 'link_alias', None)
-                        if child_key:
-                            child_list.append((child_key, child_default))
-                            plugin._es_children_defaults[child_key] = child_default
-                            if child_on_change:
-                                plugin._es_children_callbacks[child_key] = child_on_change
-                            child_data.append({
-                                'key': child_key,
-                                'text': child_text,
-                                'default': child_default,
-                                'subtext': child_subtext,
-                                'icon': child_icon,
-                                'on_change': child_on_change,
-                                'link_alias': child_link_alias
-                            })
-
-                    plugin._es_children_map[key] = child_list
-                    plugin._es_children_data[key] = child_data
-                    plugin._es_switch_callbacks[key] = on_switch_click
-
-                    main_switch = SwitchSetting(key, text, False, None, None, None, None, link_alias)
-                    new_items.append(main_switch)
-                else:
-                    if result_idx < result.size():
-                        existing = result.get(result_idx)
-                        new_items.append(existing)
-                        result_idx += 1
-
-            result.clear()
-            for item in new_items:
-                result.add(item)
-
-        except Exception:
-            pass
-
-
-class _ESFillItemsHook:
-    def __init__(self, plugin):
-        self.plugin_ref = weakref.ref(plugin)
-
-    def after_hooked_method(self, param):
-        plugin = self.plugin_ref()
-        if not plugin:
-            return
-        try:
-            items = param.args[0]
-            activity = param.thisObject
-
-            plugin_obj = get_private_field(activity, 'plugin')
-            if not plugin_obj:
-                return
-            plugin_id = plugin_obj.getId()
-
-            from com.exteragram.messenger.plugins import PluginsController
-            from com.exteragram.messenger.plugins.models import SwitchSetting
-            from android_utils import OnClickListener
-            UItem = jclass("org.telegram.ui.Components.UItem")
-
-            i = 0
-            while i < items.size():
-                item = items.get(i)
-                if not item or not hasattr(item, 'settingItem') or not item.settingItem:
-                    i += 1
-                    continue
-
-                setting = item.settingItem
-                if not isinstance(setting, SwitchSetting):
-                    i += 1
-                    continue
-
-                key = str(setting.key) if hasattr(setting, 'key') else None
-                if not key:
-                    i += 1
-                    continue
-
-                if key in plugin._es_children_map:
-                    children = plugin._es_children_map[key]
-                    is_expanded = plugin._es_is_expanded(key)
-                    checked_count = 0
-                    total_count = len(children)
-
-                    for child_key, child_default in children:
-                        if PluginsController.getInstance().getPluginSettingBoolean(plugin_id, child_key, child_default):
-                            checked_count += 1
-
-                    subtext = f"{checked_count}/{total_count}"
-                    is_checked = checked_count > 0
-
-                    def make_switch_click_handler(pid, child_list, act, cb):
-                        def handler(view):
-                            currently_any_checked = False
-                            for ck, cd in child_list:
-                                if PluginsController.getInstance().getPluginSettingBoolean(pid, ck, cd):
-                                    currently_any_checked = True
-                                    break
-                            new_val = not currently_any_checked
-                            for ck, _ in child_list:
-                                PluginsController.getInstance().setPluginSetting(pid, ck, new_val)
-                            if cb:
-                                try:
-                                    cb(view)
-                                except:
-                                    pass
-                            lv = get_private_field(act, 'listView')
-                            if lv and hasattr(lv, 'adapter'):
-                                lv.adapter.update(True)
-                        return handler
-
-                    callback = plugin._es_switch_callbacks.get(key)
-                    click_handler = make_switch_click_handler(plugin_id, children, activity, callback)
-                    click_listener = OnClickListener(click_handler)
-
-                    new_item = UItem.asExteraExpandableSwitch(
-                        item.id,
-                        setting.text,
-                        subtext,
-                        click_listener
-                    )
-                    new_item.setChecked(is_checked)
-                    new_item.setCollapsed(not is_expanded)
-                    new_item.settingItem = setting
-
-                    plugin._es_id_to_key[item.id] = key
-                    items.set(i, new_item)
-
-                    if is_expanded:
-                        child_data_list = plugin._es_children_data.get(key, [])
-                        insert_idx = i + 1
-                        for cd in child_data_list:
-                            child_key = cd['key']
-                            child_text = cd['text']
-                            child_default = cd['default']
-                            child_link_alias = cd.get('link_alias')
-                            child_icon = cd.get('icon')
-                            child_on_change = cd.get('on_change')
-                            if child_key and child_text:
-                                child_checked = PluginsController.getInstance().getPluginSettingBoolean(plugin_id, child_key, child_default)
-                                checkbox_item = UItem.asRoundCheckbox(hash(child_key) & 0x7FFFFFFF, child_text)
-                                checkbox_item.setChecked(child_checked)
-                                checkbox_item.pad()
-                                checkbox_item.object2 = child_key
-                                child_setting = SwitchSetting(child_key, child_text, child_default, None, child_icon, child_on_change, None, child_link_alias)
-                                checkbox_item.settingItem = child_setting
-                                items.add(insert_idx, checkbox_item)
-                                insert_idx += 1
-                        i = insert_idx
-                    else:
-                        i += 1
-                else:
-                    i += 1
-
-        except Exception:
-            pass
-
-
-class _ESOnClickHook:
-    def __init__(self, plugin):
-        self.plugin_ref = weakref.ref(plugin)
-
-    def before_hooked_method(self, param):
-        plugin = self.plugin_ref()
-        if not plugin:
-            return
-        try:
-            item = param.args[0]
-            view = param.args[1]
-            if not item:
-                return
-
-            item_id = item.id
-            if item_id in plugin._es_id_to_key:
-                key = plugin._es_id_to_key[item_id]
-                item.setCollapsed(not plugin._es_is_expanded(key))
-                plugin._es_toggle_expanded(key)
-
-                activity = param.thisObject
-                listView = get_private_field(activity, 'listView')
-                if listView and hasattr(listView, 'adapter'):
-                    listView.adapter.update(True)
-                param.setResult(None)
-                return
-
-            child_key = None
-            if hasattr(item, 'object2') and item.object2:
-                child_key = str(item.object2)
-
-            if child_key and child_key in plugin._es_children_defaults:
-                from com.exteragram.messenger.plugins import PluginsController
-                from org.telegram.ui.Cells import CheckBoxCell
-                activity = param.thisObject
-                plugin_obj = get_private_field(activity, 'plugin')
-                if plugin_obj:
-                    plugin_id = plugin_obj.getId()
-                    child_default = plugin._es_children_defaults.get(child_key, False)
-                    current = PluginsController.getInstance().getPluginSettingBoolean(plugin_id, child_key, child_default)
-                    new_val = not current
-                    PluginsController.getInstance().setPluginSetting(plugin_id, child_key, new_val)
-                    on_change = plugin._es_children_callbacks.get(child_key)
-                    if on_change:
-                        try:
-                            on_change(new_val)
-                        except:
-                            pass
-                    if isinstance(view, CheckBoxCell):
-                        view.setChecked(new_val, True)
-                    listView = get_private_field(activity, 'listView')
-                    if listView and hasattr(listView, 'adapter'):
-                        listView.adapter.update(True)
-                    param.setResult(None)
-                    return
-
-        except Exception:
-            pass
-
-
-QuantaHut._setup_expandable_switch = _setup_expandable_switch
-QuantaHut._es_toggle_expanded = _es_toggle_expanded
-QuantaHut._es_is_expanded = _es_is_expanded
+QuantaHut._setup_ui_quanta_module = _setup_ui_quanta_module
