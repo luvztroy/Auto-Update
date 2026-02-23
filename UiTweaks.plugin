@@ -1128,7 +1128,7 @@ class UiTweaksPlugin(BasePlugin):
         self.counter_views = {}
         self._unhook_layout = None
         self.hook_add_to_folder_all_tabs_ref = None
-        self.forced_scroll_offset = 200
+        self.forced_scroll_offset = 0
         
         self.unhook_send_message = None
         self.unhook_deeplink = None
@@ -5726,7 +5726,6 @@ class UiTweaksPlugin(BasePlugin):
                 StringClass = find_class("java.lang.String")
                 setText_method = OutlineTextContainerViewClass.getClass().getDeclaredMethod("setText", StringClass)
                 self.hook_ai_role_limit_settext_ref = self.hook_method(setText_method, SetTextHook())
-                logging.info(f"Hook registered: _hook_ai_role_limit_settext")
             
         except:
             pass
@@ -5762,7 +5761,6 @@ class UiTweaksPlugin(BasePlugin):
                 AdaptiveAudioHook(self),
                 priority=50
             )
-            logging.info(f"Hook registered: _hook_adaptive_audio")
             
         except:
             pass
@@ -5777,7 +5775,6 @@ class UiTweaksPlugin(BasePlugin):
             for m in methods:
                 if m.getName() == "checkPlayer" and len(m.getParameterTypes()) == 1:
                     self.hook_music_speed_control_ref = self.hook_method(m, MusicSpeedControlHook(self))
-                    logging.info(f"Hook registered: _hook_music_speed_control")
                     break
         except:
             pass
@@ -8422,30 +8419,33 @@ class UiTweaksPlugin(BasePlugin):
             show_method = bottom_sheet_class.getClass().getDeclaredMethod("show")
             show_method.setAccessible(True)
             
-            class ShareAlertShowHook:
-                def __init__(self, plugin):
-                    self._plugin_ref = weakref.ref(plugin)
-                    self.processed_instances = set()
-                
-                @hook_filters(HookFilter.Condition("param.thisObject != null"))
-                def after_hooked_method(self, param):
+            plugin = self
+
+            class ShareAlertShowHook(MethodHook):
+                def __init__(hook_self):
+                    super().__init__()
+                    hook_self.processed_instances = set()
+
+                def after_hooked_method(hook_self, param):
                     try:
+                        if not plugin:
+                            return
+
                         bottom_sheet_instance = param.thisObject
-                        
+                        if bottom_sheet_instance is None:
+                            return
+
                         if share_alert_class.getClass().isInstance(bottom_sheet_instance):
                             instance_id = id(bottom_sheet_instance)
-                            if instance_id in self.processed_instances:
+                            if instance_id in hook_self.processed_instances:
                                 return
-                            self.processed_instances.add(instance_id)
-                            
-                            plugin = self._plugin_ref()
-                            if not plugin:
-                                return
+                            hook_self.processed_instances.add(instance_id)
+
                             plugin._add_folder_tabs_to_share_alert(bottom_sheet_instance)
                     except:
                         pass
-            
-            hook = self.hook_method(show_method, ShareAlertShowHook(self))
+
+            hook = self.hook_method(show_method, ShareAlertShowHook())
             if hook:
                 self.hook_share_sheet_folders_ref = hook
         except:
@@ -8454,9 +8454,7 @@ class UiTweaksPlugin(BasePlugin):
     def _add_folder_tabs_to_share_alert(self, share_alert):
         try:
             search_field = get_private_field(share_alert, "searchView")
-            if not search_field:
-                return
-            if hasattr(search_field, '_folders_added'):
+            if not search_field or hasattr(search_field, '_folders_added'):
                 return
             
             current_account = get_private_field(share_alert, "currentAccount")
@@ -8465,33 +8463,43 @@ class UiTweaksPlugin(BasePlugin):
             
             folders = MessagesController.getInstance(current_account).getDialogFilters()
             folder_count = folders.size() if folders else 0
-            
-            if folder_count <= 1:
+
+            all_dialogs = MessagesController.getInstance(current_account).getAllDialogs()
+
+            valid_folders = []
+            for i in range(folder_count):
+                folder = folders.get(i)
+                if self._count_forwardable_chats_in_folder(folder, all_dialogs, current_account) > 0:
+                    valid_folders.append(folder)
+
+            has_archived = self._has_archived_chats_forwardable(all_dialogs, current_account)
+            total_tabs = len(valid_folders) + (1 if has_archived else 0)
+
+            if total_tabs <= 1:
                 return
-            
+
             context = search_field.getContext()
-            
-            from android.widget import FrameLayout
+
             from org.telegram.ui.Components import FilterTabsView
-            from org.telegram.messenger import AccountInstance, LocaleController, R
-            
-            FOLDERS_PADDING = 50
-            
+            from androidx.core.graphics import ColorUtils
+            from java import dynamic_proxy
+            from org.telegram.messenger import LocaleController, R
+
             filter_tabs_view = FilterTabsView(context, None)
-            
+
             FilterTabsViewDelegateClass = find_class("org.telegram.ui.Components.FilterTabsView$FilterTabsViewDelegate")
             if not FilterTabsViewDelegateClass:
                 return
-            
+
             class ShareFolderTabsDelegate(dynamic_proxy(FilterTabsViewDelegateClass)):
-                def __init__(self, plugin, alert, folders, folder_count, current_account):
+                def __init__(self, plugin, alert, valid_folders, has_archived, current_account):
                     super().__init__()
                     self._plugin = plugin
                     self._alert = alert
-                    self._folders = folders
-                    self._folder_count = folder_count
+                    self._valid_folders = valid_folders
+                    self._has_archived = has_archived
                     self._current_account = current_account
-                
+
                 def _is_searching(self):
                     try:
                         sv = get_private_field(self._alert, "searchView")
@@ -8500,25 +8508,35 @@ class UiTweaksPlugin(BasePlugin):
                     except:
                         pass
                     return False
-                
+
                 def onPageSelected(self, tab, forward):
                     try:
                         if not self._plugin or not self._alert or self._is_searching():
                             return
-                        
-                        tab_id = tab.id
-                        if tab_id >= 0 and tab_id < self._folder_count:
-                            folder = self._folders.get(tab_id)
+
+                        folder_index = tab.id
+
+                        list_adapter = get_private_field(self._alert, "listAdapter")
+                        if not list_adapter:
+                            return
+
+                        valid_len = len(self._valid_folders)
+                        is_archived = self._has_archived and folder_index == valid_len
+
+                        if is_archived:
+                            self._plugin._apply_archived_filter(self._alert, list_adapter, self._current_account)
+                        elif folder_index >= 0 and folder_index < valid_len:
+                            folder = self._valid_folders[folder_index]
                             if folder.isDefault():
                                 self._plugin._reset_share_dialog_list(self._alert, self._current_account)
                             else:
-                                self._plugin._apply_folder_filter(self._alert, get_private_field(self._alert, "listAdapter"), folder, self._current_account)
-                    except Exception:
+                                self._plugin._apply_folder_filter(self._alert, list_adapter, folder, self._current_account)
+                    except Exception as e:
                         pass
-                
+
                 def onPageScrolled(self, progress):
                     pass
-                
+
                 def onSamePageSelected(self):
                     try:
                         gv = get_private_field(self._alert, "gridView")
@@ -8528,70 +8546,74 @@ class UiTweaksPlugin(BasePlugin):
                                 lm.scrollToPositionWithOffset(0, 0)
                     except:
                         pass
-                
+
                 def getTabCounter(self, tabId):
                     return 0
-                
+
                 def didSelectTab(self, tabView, selected):
                     return self._is_searching()
-                
+
                 def isTabMenuVisible(self):
                     return False
-                
+
                 def onDeletePressed(self, id):
                     pass
-                
+
                 def onPageReorder(self, fromId, toId):
                     pass
-                
+
                 def canPerformActions(self):
                     return not self._is_searching()
-                
+
                 def onTabSelected(self, tab, forward, animated):
                     pass
-            
-            delegate = ShareFolderTabsDelegate(self, share_alert, folders, folder_count, current_account)
+
+            delegate = ShareFolderTabsDelegate(self, share_alert, valid_folders, has_archived, current_account)
             filter_tabs_view.setDelegate(delegate)
-            
+
             filter_tabs_view.removeTabs()
-            for a in range(folder_count):
-                folder = folders.get(a)
-                if folder.isDefault():
-                    tab_text = LocaleController.getString(R.string.FilterAllChats)
-                    filter_tabs_view.addTab(a, 0, tab_text, folder.emoticon if hasattr(folder, 'emoticon') else None, folder.entities if hasattr(folder, 'entities') else None, False, True, False)
+            for a in range(total_tabs):
+                if a < len(valid_folders):
+                    folder = valid_folders[a]
+                    if folder.isDefault():
+                        tab_text = LocaleController.getString(R.string.FilterAllChats)
+                        filter_tabs_view.addTab(a, 0, tab_text, folder.emoticon if hasattr(folder, 'emoticon') else None, folder.entities if hasattr(folder, 'entities') else None, False, True, False)
+                    else:
+                        filter_tabs_view.addTab(a, folder.localId, folder.name, folder.emoticon if hasattr(folder, 'emoticon') else None, folder.entities if hasattr(folder, 'entities') else None, folder.title_noanimate if hasattr(folder, 'title_noanimate') else False, False, folder.locked if hasattr(folder, 'locked') else False)
                 else:
-                    filter_tabs_view.addTab(a, folder.localId, folder.name, folder.emoticon if hasattr(folder, 'emoticon') else None, folder.entities if hasattr(folder, 'entities') else None, folder.title_noanimate if hasattr(folder, 'title_noanimate') else False, False, folder.locked if hasattr(folder, 'locked') else False)
-            
+                    tab_text = "Archived"
+                    filter_tabs_view.addTab(a, 9999, tab_text, None, None, False, False, False)
+
             filter_tabs_view.finishAddingTabs(False)
-            
+
             try:
-                selector_drawable = get_private_field(filter_tabs_view, "selectorDrawable")
-                if selector_drawable:
-                    from org.telegram.messenger import AndroidUtilities
-                    from org.telegram.ui.ActionBar import Theme
-                    from androidx.core.graphics import ColorUtils
-                    
-                    stroke_width = AndroidUtilities.dp(1)
-                    stroke_color = Theme.getColor(Theme.key_actionBarTabActiveText)
-                    selector_drawable.setStroke(stroke_width, stroke_color)
-                    
-                    fill_color = ColorUtils.setAlphaComponent(Theme.getColor(Theme.key_actionBarTabLine), 50)
-                    selector_drawable.setColor(fill_color)
-            except Exception:
+                color = Theme.getColor(Theme.key_switchTrack)
+
+                bg_drawable = GradientDrawable()
+                bg_drawable.setCornerRadius(AndroidUtilities.dp(50))
+                bg_drawable.setColor(ColorUtils.setAlphaComponent(color, 20))
+
+                stroke_width = max(2, AndroidUtilities.dp(1.0))
+                bg_drawable.setStroke(stroke_width, ColorUtils.setAlphaComponent(color, 63))
+
+                filter_tabs_view.setBackground(bg_drawable)
+            except Exception as e:
                 pass
             
             frame_layout = get_private_field(share_alert, "frameLayout")
             search_view = get_private_field(share_alert, "searchView")
             shadows = get_private_field(share_alert, "shadow")
-            
+
             if not frame_layout or not search_view:
                 return
-            
+
+            FOLDERS_PADDING = 50
+
             frame_layout_params = frame_layout.getLayoutParams()
             if frame_layout_params:
                 frame_layout_params.height = AndroidUtilities.dp(58 + FOLDERS_PADDING)
                 frame_layout.setLayoutParams(frame_layout_params)
-            
+
             search_params = search_view.getLayoutParams()
             if isinstance(search_params, FrameLayout.LayoutParams):
                 search_params.gravity = Gravity.TOP | Gravity.LEFT
@@ -8599,15 +8621,17 @@ class UiTweaksPlugin(BasePlugin):
                 search_params.height = AndroidUtilities.dp(40)
                 search_params.bottomMargin = 0
                 search_view.setLayoutParams(search_params)
-            
-            frame_layout.addView(
-                filter_tabs_view,
-                FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    AndroidUtilities.dp(FOLDERS_PADDING),
-                    Gravity.BOTTOM | Gravity.LEFT
-                )
+
+            tabs_params = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                AndroidUtilities.dp(46),
+                Gravity.BOTTOM
             )
+            tabs_params.bottomMargin = AndroidUtilities.dp(5)
+            tabs_params.leftMargin = AndroidUtilities.dp(12)
+            tabs_params.rightMargin = AndroidUtilities.dp(12)
+
+            frame_layout.addView(filter_tabs_view, tabs_params)
             
             if shadows and len(shadows) > 0 and shadows[0]:
                 shadow_params = shadows[0].getLayoutParams()
@@ -8617,24 +8641,24 @@ class UiTweaksPlugin(BasePlugin):
 
             grid_view = get_private_field(share_alert, "gridView")
             if grid_view:
-                 grid_params = grid_view.getLayoutParams()
-                 if isinstance(grid_params, FrameLayout.LayoutParams):
-                     grid_params.topMargin = AndroidUtilities.dp(FOLDERS_PADDING)
-                     grid_view.setLayoutParams(grid_params)
+                grid_params = grid_view.getLayoutParams()
+                if isinstance(grid_params, FrameLayout.LayoutParams):
+                    grid_params.topMargin = AndroidUtilities.dp(FOLDERS_PADDING)
+                    grid_view.setLayoutParams(grid_params)
 
             search_grid_view = get_private_field(share_alert, "searchGridView")
             if search_grid_view:
-                 search_grid_params = search_grid_view.getLayoutParams()
-                 if isinstance(search_grid_params, FrameLayout.LayoutParams):
-                     search_grid_params.topMargin = AndroidUtilities.dp(FOLDERS_PADDING)
-                     search_grid_view.setLayoutParams(search_grid_params)
+                search_grid_params = search_grid_view.getLayoutParams()
+                if isinstance(search_grid_params, FrameLayout.LayoutParams):
+                    search_grid_params.topMargin = AndroidUtilities.dp(FOLDERS_PADDING)
+                    search_grid_view.setLayoutParams(search_grid_params)
             
             search_empty_view = get_private_field(share_alert, "searchEmptyView")
             if search_empty_view:
-                 empty_params = search_empty_view.getLayoutParams()
-                 if isinstance(empty_params, FrameLayout.LayoutParams):
-                     empty_params.topMargin = AndroidUtilities.dp(52 + FOLDERS_PADDING)
-                     search_empty_view.setLayoutParams(empty_params)
+                empty_params = search_empty_view.getLayoutParams()
+                if isinstance(empty_params, FrameLayout.LayoutParams):
+                    empty_params.topMargin = AndroidUtilities.dp(FOLDERS_PADDING)
+                    search_empty_view.setLayoutParams(empty_params)
 
             frame_layout.requestLayout()
             search_view.requestLayout()
@@ -8643,7 +8667,7 @@ class UiTweaksPlugin(BasePlugin):
 
             set_private_field(search_view, '_folders_added', True)
             
-        except Exception:
+        except Exception as e:
             pass
     
     def _reset_share_dialog_list(self, share_alert, current_account):
@@ -8668,8 +8692,9 @@ class UiTweaksPlugin(BasePlugin):
             dialogs_forward = MessagesController.getInstance(current_account).dialogsForward
             if dialogs_forward and not dialogs_forward.isEmpty():
                 dialog = dialogs_forward.get(0)
-                dialogs_list.add(dialog)
-                dialogs_map.put(dialog.id, dialog)
+                if self._can_forward_to_chat(dialog, current_account):
+                    dialogs_list.add(dialog)
+                    dialogs_map.put(dialog.id, dialog)
             
             for i in range(all_dialogs.size()):
                 dialog = all_dialogs.get(i)
@@ -8725,6 +8750,55 @@ class UiTweaksPlugin(BasePlugin):
             
         except:
             return False
+
+    def _has_archived_chats_forwardable(self, all_dialogs, current_account):
+        try:
+            for i in range(all_dialogs.size()):
+                dialog = all_dialogs.get(i)
+                if dialog.folder_id == 1 and self._can_forward_to_chat(dialog, current_account):
+                    return True
+            return False
+        except:
+            return False
+
+    def _count_forwardable_chats_in_folder(self, folder, all_dialogs, current_account):
+        try:
+            from org.telegram.messenger import AccountInstance
+            count = 0
+            for i in range(all_dialogs.size()):
+                dialog = all_dialogs.get(i)
+                if dialog.folder_id == 1:
+                    continue
+                if folder.isDefault() or folder.includesDialog(AccountInstance.getInstance(current_account), dialog.id):
+                    if self._can_forward_to_chat(dialog, current_account):
+                        count += 1
+            return count
+        except:
+            return 0
+
+    def _apply_archived_filter(self, share_alert, list_adapter, current_account):
+        try:
+            all_dialogs = MessagesController.getInstance(current_account).getAllDialogs()
+            dialogs_list = get_private_field(list_adapter, "dialogs")
+            dialogs_map = get_private_field(list_adapter, "dialogsMap")
+            if not dialogs_list or not dialogs_map:
+                return
+
+            dialogs_list.clear()
+            dialogs_map.clear()
+
+            for i in range(all_dialogs.size()):
+                dialog = all_dialogs.get(i)
+                if dialog.folder_id == 1:
+                    if self._can_forward_to_chat(dialog, current_account):
+                        dialogs_list.add(dialog)
+                        dialogs_map.put(dialog.id, dialog)
+
+            list_adapter.notifyDataSetChanged()
+
+            self._apply_forced_scroll_offset(share_alert)
+        except:
+            pass
     
     def _can_forward_to_chat(self, dialog, current_account):
         try:
