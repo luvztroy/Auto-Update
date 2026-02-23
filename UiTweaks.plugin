@@ -4691,6 +4691,14 @@ class UiTweaksPlugin(BasePlugin):
             )
             setForwardButtonMethod.setAccessible(True)
             
+            ViewOnLongClickListenerClass = self._get_class("android.view.View$OnLongClickListener")
+            # For 12.4.1+
+            setForwardButtonLongClickMethod = layout.getClass().getDeclaredMethod(
+                "setForwardButtonOnLongClickListener",
+                ViewOnLongClickListenerClass
+            )
+            setForwardButtonLongClickMethod.setAccessible(True)
+            
             plugin_ref = self
             
             class SetForwardListenerHook:
@@ -4746,22 +4754,30 @@ class UiTweaksPlugin(BasePlugin):
                     except Exception as e:
                         pass
             
+            class SetForwardLongListenerHook:
+                def __init__(hook_self):
+                    hook_self.plugin = plugin_ref
+                    hook_self.layout = layout
+                
+                @hook_filters(HookFilter.ArgumentNotNull(0))
+                def before_hooked_method(hook_self, param):
+                    try:
+                        def on_forward_long_click(view):
+                            try:
+                                plugin = hook_self.plugin
+                                plugin._perform_haptic(hook_self.layout)
+                                plugin._show_mode_selector_dialog(view, hook_self.layout)
+                                return True
+                            except Exception as e:
+                                return False
+                        
+                        param.args[0] = OnLongClickListener(on_forward_long_click)
+                    except Exception as e:
+                        pass
+            
             self.hook_method(setForwardButtonMethod, SetForwardListenerHook())
+            self.hook_method(setForwardButtonLongClickMethod, SetForwardLongListenerHook())
             
-            forward_button = layout.getForwardButton()
-            
-            if forward_button is None:
-                return
-            
-            def on_forward_long_click(view):
-                try:
-                    plugin_ref._perform_haptic(layout)
-                    plugin_ref._show_mode_selector_dialog(view, layout)
-                    return True
-                except Exception as e:
-                    return False
-            
-            forward_button.setOnLongClickListener(OnLongClickListener(on_forward_long_click))
             self._update_forward_button_text(layout)
             
             self._hook_open_forward()
