@@ -3154,8 +3154,8 @@ class UiTweaksPlugin(BasePlugin):
                 else:
                     self.log("Already up to date")
                 
-                self.uitweaks_download_url = f"https://raw.githubusercontent.com/luvztroy/Auto-Update/refs/heads/{branch}/UiTweaks.plugin"
-                self.quantahut_download_url = f"https://raw.githubusercontent.com/luvztroy/Auto-Update/refs/heads/{branch}/QuantaHut.plugin"
+                self.uitweaks_download_url = f"https://raw.githubusercontent.com/luvztroy/Quanta/refs/heads/{branch}/UiTweaks.plugin"
+                self.quantahut_download_url = f"https://raw.githubusercontent.com/luvztroy/Quanta/refs/heads/{branch}/QuantaHut.plugin"
                 
                 if self.update_available and show_on_load:
                     run_on_ui_thread(lambda: self._show_update_bottom_sheet(
@@ -3301,7 +3301,7 @@ class UiTweaksPlugin(BasePlugin):
     
     def _get_github_commit_timestamp(self, branch: str = "main", filename: str = "UiTweaks.plugin") -> Optional[str]:
         try:
-            url = f"https://raw.githubusercontent.com/luvztroy/Auto-Update/{branch}/{filename}"
+            url = f"https://raw.githubusercontent.com/luvztroy/Quanta/{branch}/{filename}"
             import requests
             resp = requests.head(url, timeout=15, headers={"User-Agent": "UiTweaks-Plugin"})
             if resp is not None:
